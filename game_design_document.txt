@@ -1,0 +1,1839 @@
+GAME DESIGN DOCUMENT
+====================
+
+Project Type
+------------
+Offline PvE 3D collectible/deck-building card game with a tactical board,
+inspired by games such as Yu-Gi-Oh! and Magic: The Gathering.
+
+Document Status
+---------------
+Working design document. Rules and implementation details may change during
+development.
+
+
+1. CORE GAME CONCEPT
+====================
+
+The game is an offline PvE card game centered around tactical combat,
+positioning, card interactions, unusual stage mechanics, and opponent
+adaptation.
+
+The player selects a STORY to play ("enrage" a story). A story consists of
+multiple stages. Each stage is a duel against an NPC, with narrative content
+and potentially unique rules or gimmicks.
+
+There is no permanent punishment for losing a duel. The player can retry a
+stage.
+
+The intended progression is:
+
+    Story unlocked
+        |
+        v
+    Stage / Duel
+        |
+        +--> Win -> progress
+        |
+        +--> Lose -> retry
+
+Initially, one story is available. Completing stories unlocks additional
+stories. The player can choose among unlocked stories and return to them
+later.
+
+Stages may contain explicit gimmicks. These gimmicks are listed in the stage
+description rather than being hidden rules. The intended solution should be
+discoverable, but brute-force and alternative solutions are allowed.
+
+
+2. DESIGN GOALS
+===============
+
+Primary goals:
+
+- Make positioning meaningful.
+- Make card interactions highly composable.
+- Allow unusual cards and NPC-exclusive mechanics.
+- Make PvE opponents feel distinct rather than simply statistically stronger.
+- Support AI opponents that reason about future game states.
+- Make the rules engine deterministic and suitable for large-scale simulation.
+- Separate game rules from 3D presentation.
+- Allow the game to be expanded with many cards without requiring custom
+  engine code for every card.
+- Encourage players to understand and exploit stage-specific mechanics.
+- Make losing informative enough that retrying feels worthwhile.
+
+
+3. GAME BOARD
+============
+
+Each player has:
+
+- Deck zone
+- Extra Deck zone
+- Hand
+- Graveyard (GY)
+- Exile zone
+- Permanent zones
+
+The permanent board consists of five columns.
+
+Each column has four permanent zones:
+
+    Opponent Back
+    Opponent Front
+    Player Front
+    Player Back
+
+Therefore the complete board has 20 permanent zones.
+
+Current placement rules:
+
+- Creatures occupy front-row zones.
+- Non-creature permanents occupy back-row zones.
+- A permanent normally requires an appropriate empty zone.
+- Zone manipulation is binary: if a destination zone is occupied, movement
+  normally fails/cancels.
+
+The stack is a shared zone used for non-permanent cards and abilities.
+
+
+4. PERMANENTS
+=============
+
+Permanent cards enter the field immediately and do not themselves enter the
+stack.
+
+Every permanent has HP while on the field.
+
+A permanent dies when its HP reaches -1 or lower.
+
+Permanent categories:
+
+    Permanent
+    |
+    +-- Creature / Unit
+    |
+    +-- Non-creature Permanent
+
+CREATURES
+
+Creatures have:
+
+- ATK
+- HP
+- Abilities
+- Position
+
+Only creatures can normally attack.
+
+NON-CREATURE PERMANENTS
+
+Non-creature permanents:
+
+- Have HP.
+- Do not have ATK by default.
+- Cannot normally attack.
+- Occupy back-row zones.
+
+
+5. NON-PERMANENT CARDS
+======================
+
+Non-permanent cards enter the shared stack when played and never enter the
+field.
+
+Two major timing categories exist:
+
+QUICK
+
+Quick cards can be played whenever their timing restrictions permit.
+
+SLOW
+
+Slow cards can only be played during an open game state.
+
+There is no universal mana system. Individual cards define their own costs,
+restrictions, or requirements.
+
+Quick cards can potentially be played multiple times during a turn if the
+player can satisfy their individual requirements.
+
+
+6. THE STACK
+============
+
+The stack follows a timing model inspired by Magic: The Gathering.
+
+Stack objects include:
+
+- Quick cards
+- Slow cards while resolving/being processed
+- Activated abilities
+- Triggered abilities
+- Other non-permanent effects
+
+Players can respond to objects on the stack.
+
+The general process is:
+
+    Add object to stack
+        |
+        v
+    Priority / responses
+        |
+        v
+    Both players pass
+        |
+        v
+    Resolve top object
+        |
+        v
+    Trigger new effects
+        |
+        v
+    Resume priority
+
+A player can explicitly pass without responding.
+
+A stack object has HP.
+
+Stack HP represents how difficult it is to counter or destroy the object.
+It does NOT directly scale the strength of the effect.
+
+A stack object is countered when its HP reaches -1 or lower.
+
+A stack object with exactly 0 HP still resolves normally.
+
+This distinction is important for cards such as:
+
+    Maximum Damage: Slow 0 HP
+
+which can resolve despite having 0 HP.
+
+
+7. TURN SYSTEM
+==============
+
+Each turn has exactly ONE major action.
+
+The player may choose one:
+
+    1. Draw two cards.
+    2. Summon one permanent OR play one Slow spell.
+    3. Enter combat.
+
+Performing one major action ends the player's turn.
+
+Other actions are generally free unless a card says otherwise.
+
+Examples of free actions:
+
+- Activate abilities.
+- Use character abilities.
+- Play Quick spells when legal.
+- Inspect deck/GY when allowed.
+- Perform card-specific actions.
+
+There is no natural draw at the start of a turn.
+
+Therefore drawing two cards requires spending the entire turn's major action.
+
+The singleton deck structure is intended to limit repeated access to the same
+cards and reduce infinite chaining.
+
+
+8. TURN ORDER RESOURCE SYSTEM
+=============================
+
+Each player has:
+
+- Initial Distance
+- Distance
+- Speed
+- Acceleration
+
+These values determine turn order and tempo.
+
+At the beginning of the game:
+
+    Distance = Initial Distance
+
+The player currently farther ahead takes the next turn.
+
+The player who just took a turn does NOT advance.
+
+The player who did not receive the turn advances:
+
+    Distance += current Speed
+    Speed += Acceleration
+
+Example:
+
+    Distance = 10
+    Speed = 3
+    Acceleration = 2
+
+After missing a turn:
+
+    Distance = 13
+    Speed = 5
+
+If one player overtakes another, the overtaking player gets the next turn.
+The player who missed the turn then advances according to the rules above.
+
+This system can create consecutive turns / turn streaks.
+
+If distances are tied, a coin toss determines who receives the turn.
+
+
+9. PLAYER / CHARACTER
+=====================
+
+The player has the following primary attributes:
+
+- Power
+- Defense
+- HP
+- Initial Distance
+- Speed
+- Acceleration
+
+POWER
+
+Power is a pure multiplier to damage dealt by the player and their cards.
+
+DEFENSE
+
+Defense is a pure multiplier to damage taken by the player and their cards.
+
+DISTANCE / SPEED / ACCELERATION
+
+These govern the turn-order race.
+
+Characters can modify attributes and provide unique abilities.
+
+Characters are represented by unique 3D models.
+
+
+10. EQUIPMENT
+=============
+
+Equipment can modify character or card statistics and abilities.
+
+The game distinguishes three stat layers:
+
+    Original Stat
+        |
+        v
+    Base Stat
+        |
+        v
+    Current Stat
+
+ORIGINAL STAT
+
+The printed stat of the card.
+
+BASE STAT
+
+A persistent modified version of the original stat.
+
+CURRENT STAT
+
+The stat currently used after temporary and equipment modifiers.
+
+Example:
+
+    Original creature: 1/1
+    Base stat:         8/8
+    Equipment:        +3/+4
+    Current stat:     11/12
+
+If the equipment leaves:
+
+    Current stat -> 8/8
+
+The base stat remains 8/8.
+
+Base-stat modifications can persist when a card leaves the field, depending
+on the effect's rules.
+
+
+11. COMBAT
+==========
+
+Only creatures normally participate in combat.
+
+A creature attacks the column in which it is located.
+
+Damage travels through that column.
+
+Resolution order:
+
+    Attacking creature
+          |
+          v
+    Opponent Front creature
+          |
+          v
+    Opponent Back permanent
+          |
+          v
+    Opponent Player
+
+If the front-row target is absent, damage continues to the back-row target.
+
+If the back-row target is also absent, remaining damage hits the player.
+
+If the column is empty, the attack deals direct damage to the player.
+
+Combat damage dealt by an attacker is based on its ATK.
+
+The attacked creature does not automatically deal combat damage back to the
+attacker.
+
+Damage persists on permanents until removed or until the permanent leaves
+the field.
+
+Combat is a major action and ends the turn.
+
+
+12. DAMAGE SYSTEM
+==================
+
+Damage should be represented as first-class objects rather than only as a
+single accumulated integer.
+
+Conceptual model:
+
+    DamageInstance
+        - amount
+        - source
+        - type
+        - timestamp
+        - tags
+
+A permanent's current damage can be calculated as the sum of its active
+damage instances.
+
+This allows cards to interact with individual damage events.
+
+Example:
+
+    Creature has 8 total damage.
+
+    Damage instance A = 7
+    Damage instance B = 1
+    Damage instance B was dealt by Avatar of Rabies.
+
+A card such as Throwing Bandages can choose which damage instances to remove.
+
+Damage types may include:
+
+- Combat damage
+- Effect damage
+- Other card-defined types
+
+Different systems can react differently to different damage types.
+
+
+13. ZONE SYSTEM
+===============
+
+Zones are first-class game objects rather than passive board coordinates.
+
+A zone may have:
+
+- Occupancy
+- Position
+- Usability
+- Restrictions
+- Integrity / HP
+- Effects
+- Ownership
+- Special rules
+
+A centralized zone-rule system should answer questions such as:
+
+    CanEnterZone(card, zone)
+    CanTargetZone(source, zone)
+    CanMoveToZone(card, zone)
+    IsZoneUsable(zone)
+
+This avoids scattering special-case checks throughout cards and systems.
+
+
+14. COLUMN SYSTEM
+=================
+
+Columns are first-class objects because several mechanics operate on an
+entire column.
+
+A column can answer:
+
+    IsUsable()
+    IsFullyOccupied()
+    ExileEverything()
+    GetZones()
+
+A column is fully filled when all four permanent zones in that column are
+occupied:
+
+    Opponent Back
+    Opponent Front
+    Player Front
+    Player Back
+
+A column can become unusable for the rest of the game.
+
+The exact meaning of an unusable column should be defined centrally rather
+than by individual cards.
+
+
+15. ZONE INTEGRITY
+==================
+
+Some effects can give zones their own HP/integrity.
+
+Example:
+
+    Fracture Ground
+
+Each relevant zone gains 10 HP.
+
+Zone integrity is separate from permanent HP.
+
+Regular combat does not affect zone integrity.
+
+When a zone reaches 0 or lower:
+
+    - Exile cards on the zone.
+    - Mark the zone unusable.
+
+Zone integrity should be implemented as a zone-level effect/restriction,
+rather than as a special one-off GameState variable.
+
+Stacking behavior for multiple zone-integrity effects must be explicitly
+defined.
+
+
+16. EFFECT SYSTEM
+=================
+
+The game should avoid implementing every unusual card as custom hard-coded
+logic.
+
+Instead, cards should be composed from a small set of reusable effects.
+
+Major effect categories:
+
+    One-shot effects
+    Triggered effects
+    Continuous effects
+    Rule / restriction effects
+
+Example primitive operations:
+
+    DealDamage
+    Destroy
+    Exile
+    Move
+    Summon
+    Draw
+    ModifyStat
+    ModifyRule
+    AddAbility
+    RemoveAbility
+    CreateTrigger
+    CreateDelayedEffect
+    CreateChoice
+    WaitForInput
+
+Complex cards are compositions of these primitives.
+
+The game should preserve the wrapper-like behavior the design uses for rare
+effects, but the implementation should preferably use an Effect/Modifier
+system that registers rule changes rather than literally wrapping the entire
+GameState in nested decorators.
+
+
+17. EFFECT QUERIES
+==================
+
+Important centralized queries include:
+
+    CanEnterZone
+    GetEffectiveStat
+    GetEffectiveDistance
+    GetEffectiveAbilities
+    GetVisibleInformation
+    CanDealDamage
+    CanTarget
+    CanMove
+    CanAttack
+
+The underlying GameState remains the source of game truth.
+
+Queries calculate the effective state after applying relevant modifiers.
+
+This avoids adding many one-off booleans such as:
+
+    disabledColumn
+    creatureCannotMove
+    playerCannotDraw
+    hiddenCard
+    etc.
+
+Temporary effects can instead register rules that modify the relevant query.
+
+
+18. MODIFIER PRIORITY
+=====================
+
+Because multiple effects can contradict one another, the modifier system
+needs explicit precedence rules.
+
+Potential structure:
+
+    Base Rule
+        |
+    Persistent Modifiers
+        |
+    Temporary Modifiers
+        |
+    Specific Overrides
+        |
+    Final Effective Result
+
+The exact ordering should be formalized before a large card library is
+implemented.
+
+Example conflicts:
+
+    Effect A: creatures cannot move.
+    Effect B: this creature can move.
+    Effect C: this column cannot be entered.
+    Effect D: this creature ignores movement restrictions.
+
+The engine must have deterministic answers.
+
+
+19. ABILITIES
+============
+
+Abilities should be separated conceptually into:
+
+    Original abilities
+    Granted abilities
+    Disabled/removed abilities
+    Effective abilities
+
+An ability should not normally be physically deleted from a card merely
+because an effect temporarily removes it.
+
+Example:
+
+    Avatar of Rabies
+
+Damage dealt by Avatar can cause the target to lose its original ability and
+gain Avatar of Rabies's abilities.
+
+A layered ability system makes this possible without destroying the original
+card definition.
+
+
+20. TRIGGERS AND EVENTS
+=======================
+
+The simulation should expose deliberate gameplay events.
+
+Potential events include:
+
+    TurnStarted
+    TurnEnded
+    PermanentEntered
+    PermanentLeft
+    CreatureAttackDeclared
+    AttackStarted
+    DamageAttempted
+    DamageDealt
+    DamageReceived
+    CreatureDestroyed
+    CardDrawn
+    CardPlayed
+    StackObjectCreated
+    StackObjectResolved
+
+Events should represent simulation facts, not visual animation events.
+
+For example:
+
+    CreatureAttackDeclared
+
+is a rules event.
+
+An animation such as:
+
+    AttackAnimationStarted
+
+should generally remain in presentation unless a specific mechanic requires
+real-time interaction.
+
+
+21. TARGETING
+=============
+
+Targeting should be a first-class system.
+
+Possible target categories:
+
+    Card
+    Permanent
+    Creature
+    Zone
+    Column
+    Player
+    Stack Object
+    Damage Instance
+
+Target specifications should support restrictions and dynamic queries.
+
+Example:
+
+    The Vine
+
+does not store a fixed target. It asks the engine for the closest legal
+zone according to its own distance function.
+
+The target should be recalculated on each repetition because the board can
+change between repetitions.
+
+
+22. INFORMATION / HIDDEN INFORMATION
+====================================
+
+The actual GameState contains complete game truth.
+
+Players and AI should receive filtered views of that truth.
+
+Conceptual model:
+
+    GameState
+        |
+        v
+    Information / Visibility System
+        |
+        v
+    Player Observation
+
+Cards such as King Eye should modify what an opponent can discern without
+deleting or corrupting the underlying card information.
+
+"Cannot discern" should eventually be formally defined, potentially covering:
+
+- Existence
+- Location
+- Identity
+- Type
+- Stats
+- Abilities
+- Equipment
+- Other relevant information
+
+Visual effects such as making the board appear black are presentation-layer
+consequences of the information system.
+
+
+23. REAL-TIME INPUT EFFECTS
+===========================
+
+Some mechanics intentionally interact with real-time player input.
+
+Example:
+
+    Parriable
+
+The simulation should not directly poll Godot input.
+
+Instead:
+
+    Simulation
+        |
+        v
+    Input Window Requested
+        |
+        v
+    Presentation displays prompt
+        |
+        v
+    PlayerCommand
+        |
+        v
+    Simulation resolves command
+
+The simulation may enter states such as:
+
+    Resolved
+    WaitingForInput
+    WaitingForChoice
+
+This keeps real-time presentation separate from the rules.
+
+If replays or deterministic simulation are required, player commands and
+relevant timing information should be recorded.
+
+
+24. EXAMPLE CARD: THE VINE
+==========================
+
+Creature 1/1
+
+Effect:
+
+"When this card enters and at the beginning of your turn, apply the following
+effect 4 times. Target the closest permanent zone to this card that isn't
+occupied by this card or a Vine token (you choose if ties), destroy all cards
+on that zone and create a Vine creature 1/1 on that tile."
+
+Implementation concept:
+
+    Trigger:
+        PermanentEntered(self)
+
+    Trigger:
+        TurnStarted(controller)
+
+    On trigger:
+        Repeat 4:
+            Find closest legal zone
+            Destroy all cards on zone
+            Create Vine token
+
+Each repetition re-evaluates the board.
+
+If no legal zone exists, that repetition does nothing.
+
+The card defines its own mathematical distance function. The engine supplies
+candidate zones and legality information.
+
+Important unresolved rule:
+If a Vine is a creature and creatures are restricted to front-row zones,
+the game must define whether this effect can create a Vine in any targeted
+zone or whether only legal creature zones can be selected.
+
+
+25. EXAMPLE CARD: INFINITY WALL
+===============================
+
+Quick 6 HP
+
+"Target a column that is fully filled, exile all cards on that column, that
+column becomes unusable for the rest of the game. Return this card to your
+hand."
+
+Implementation:
+
+    Check target column
+    Check IsFullyOccupied()
+    Exile contents
+    Apply permanent column restriction
+    Return Infinity Wall to hand
+
+The column restriction should be implemented through the rule/modifier
+system rather than a one-off GameState variable.
+
+
+26. EXAMPLE CARD: FRACTURE GROUND
+==================================
+
+Slow 4 HP
+
+"Each zone gains 10 HP (they are unaffected by regular combat). When those
+zone die, exile the cards on that zone, it becomes unusable."
+
+Implementation:
+
+    Apply ZoneIntegrity(+10)
+    Apply CombatDamageImmunityToZoneIntegrity()
+    On ZoneIntegrity <= 0:
+        Exile contents
+        Mark zone unusable
+
+Important unresolved rule:
+Define whether "each zone" means only permanent zones or every zone in the
+game, including deck, hand, GY, exile, and stack.
+
+
+27. EXAMPLE CARD: MAXIMUM DAMAGE
+=================================
+
+Slow 0 HP
+
+"For the next three turns, your distance, speed, and acceleration are
+treated as 0. When the effect ends, destroy all cards your opponent controls,
+you draw 7 cards, and gain life equal to the total HP + total attack of all
+the destroyed cards."
+
+Implementation:
+
+    Continuous modifier:
+        EffectiveDistance = 0
+        EffectiveSpeed = 0
+        EffectiveAcceleration = 0
+
+    Duration:
+        Three turns
+
+    On expiration:
+        Destroy opponent-controlled cards
+        Snapshot their relevant HP/ATK
+        Draw 7
+        Gain corresponding life
+
+The underlying distance/speed/acceleration values remain unchanged.
+
+The exact timing boundary for "next three turns" must be defined.
+
+
+28. EXAMPLE CARD: KING EYE
+==========================
+
+Creature 6/10
+
+"Your Opponent cannot discern other cards you control."
+
+This is an information-system effect.
+
+The underlying board remains unchanged.
+
+The opponent receives a restricted observation.
+
+Presentation may represent this by obscuring the relevant board.
+
+The information restriction should be reusable by other cards.
+
+
+29. EXAMPLE CARD: AVATAR OF RABIES
+===================================
+
+Creature 3/7
+
+"Whenever a creature attacks, you may shift this card to an adjacent column.
+Whenever this card takes combat damage it deals 1 damage to another creature.
+Damage dealt by this card has 'This card loses all of its original ability
+and gains the abilities of Avatar of Rabies'."
+
+Implementation:
+
+    On CreatureAttackDeclared:
+        Optional choice:
+            Move left
+            Move right
+            Stay
+
+    On CombatDamageReceived:
+        Deal 1 damage to another creature
+
+Movement uses normal zone legality.
+
+Damage-trigger behavior should be based on damage events rather than
+individual damage points unless the card rules explicitly say otherwise.
+
+The final clause should be implemented as an ability transformation effect,
+not by permanently deleting the target's card definition.
+
+
+30. EXAMPLE CARD: THROWING BANDAGES
+====================================
+
+Quick 10 HP
+
+"Remove 7 damage counters from any target."
+
+The player chooses which damage instances to remove.
+
+Example:
+
+    Damage A = 7
+    Damage B = 1
+
+The player can remove the 1-point instance and six points from another
+instance if permitted by the exact damage-counter definition.
+
+The game should explicitly decide whether "7 damage counters" means seven
+individual points or a total damage amount of seven.
+
+
+31. EXAMPLE CARD: THE SEVEN STEVES
+===================================
+
+Slow 7 HP
+
+"Exile 7 creatures from your field or GY, each of those creatures deals
+damage to any non-player target."
+
+Implementation:
+
+    Select 7 creature instances
+    Exile them
+    Snapshot selected creatures
+    Each selected creature deals its specified damage
+
+The card text must define the amount of damage if it is not otherwise
+specified by the game.
+
+Card instances must remain independently identifiable when moved between
+zones.
+
+
+32. EXAMPLE CARD: PARRIABLE
+============================
+
+Slow 2 HP
+
+"Your opponent gains 'Power double, any damage you deal may miss if you do
+not press Enter within 2 seconds before the attack animation lands'. You gain
+'Whenever your opponent would deal damage, you may press Enter once to create
+0.5 second of parry, if your opponent presses Enter within that window negate
+the damage'."
+
+This requires real-time input windows.
+
+Recommended model:
+
+    DamageEvent
+        |
+        v
+    ParryWindowRequested
+        |
+        v
+    Presentation input prompt
+        |
+        v
+    AttemptParry(windowID)
+        |
+        v
+    Simulation resolves damage
+
+The temporary granted abilities should be represented as first-class effects.
+
+The exact ownership, timing, and interaction of simultaneous input windows
+must be defined.
+
+
+33. CARD DEFINITION PHILOSOPHY
+==============================
+
+Cards should preferably be data-driven.
+
+A card definition should describe:
+
+- Name
+- Type
+- Printed stats
+- Timing class
+- Costs
+- Conditions
+- Targets
+- Triggers
+- Effects
+- Tags
+- Rules text
+- Visual references
+
+Card instances contain mutable runtime state.
+
+Card definitions should not contain per-instance state.
+
+
+34. CARD INSTANCE VS CARD DEFINITION
+=====================================
+
+Conceptual separation:
+
+    CardDefinition
+        |
+        | creates
+        v
+    CardInstance
+
+CardDefinition contains immutable design data.
+
+CardInstance contains runtime state such as:
+
+- Current zone
+- Damage
+- Base stat modifications
+- Current modifiers
+- Attachments
+- Counters
+- Temporary effects
+- Instance ID
+
+This is especially important for:
+
+- Repeated copies of the same card
+- Tokens
+- Cards moving through zones
+- AI simulations
+- Replays
+- Save games
+
+
+35. GAME SIMULATION ARCHITECTURE
+================================
+
+Recommended high-level structure:
+
+    Game
+    |
+    +-- Simulation
+    |   +-- GameState
+    |   +-- PlayerState
+    |   +-- BoardState
+    |   +-- CardInstance
+    |   +-- PermanentInstance
+    |   +-- StackObject
+    |   +-- CharacterState
+    |   +-- EquipmentState
+    |   +-- TurnSystem
+    |   +-- CombatSystem
+    |   +-- StackSystem
+    |   +-- EffectSystem
+    |   +-- TriggerSystem
+    |   +-- DamageSystem
+    |   +-- ZoneSystem
+    |
+    +-- Content
+    |
+    +-- AI
+    |
+    +-- Presentation
+        +-- Board3D
+        +-- CardView
+        +-- CreatureView
+        +-- CharacterView
+        +-- CameraController
+        +-- AnimationController
+        +-- VFX
+        +-- UI
+
+
+36. SIMULATION / PRESENTATION SEPARATION
+=========================================
+
+The simulation should not depend on Godot Node3D objects, meshes, animations,
+cameras, or visual effects.
+
+The simulation contains the truth.
+
+The presentation observes simulation results and displays them.
+
+Conceptual flow:
+
+    Player Command
+        |
+        v
+    Simulation
+        |
+        v
+    Events
+        |
+        v
+    Presentation
+        |
+        v
+    Animation / VFX / UI
+
+This allows the same simulation to power:
+
+- Human matches
+- AI matches
+- Headless simulations
+- Replays
+- Automated testing
+- Balance testing
+- AI tournaments
+
+
+37. COMMANDS AND EVENTS
+=======================
+
+Commands represent intent.
+
+Examples:
+
+    Draw
+    Summon
+    PlayCard
+    Attack
+    ActivateAbility
+    ChooseTarget
+    PassPriority
+    MovePermanent
+    AttemptParry
+
+Events represent facts.
+
+Examples:
+
+    CardDrawn
+    PermanentSummoned
+    AttackDeclared
+    DamageDealt
+    PermanentDestroyed
+    CardExiled
+    AbilityActivated
+
+The distinction is useful for:
+
+- debugging
+- replay
+- AI
+- UI
+- animations
+- automated tests
+
+
+38. DETERMINISM
+==============
+
+The simulation should preferably be deterministic given:
+
+    Initial GameState
+    +
+    Player Commands
+    +
+    RNG Seed
+
+This enables:
+
+- reproducible bugs
+- deterministic AI tests
+- replays
+- tournament analysis
+- balance experiments
+
+Random decisions should be controlled by the simulation's RNG rather than
+random calls scattered throughout presentation code.
+
+
+39. AI SYSTEM
+=============
+
+The intended AI concept is a simulation-based planner.
+
+The AI:
+
+1. Observes the game.
+2. Estimates hidden information.
+3. Generates plausible hidden game states.
+4. Simulates legal actions.
+5. Simulates opponent responses.
+6. Evaluates resulting states.
+7. Chooses a plan.
+8. Executes the first action.
+9. Re-plans after the real game state changes.
+
+Architecture:
+
+    AI
+    |
+    +-- BeliefModel
+    |
+    +-- Planner
+    |
+    +-- PersonalityEvaluator
+
+
+40. AI BELIEF MODEL
+===================
+
+The AI should not receive hidden information directly.
+
+Instead:
+
+    Actual GameState
+        |
+        v
+    AI Observation
+        |
+        v
+    BeliefModel
+        |
+        v
+    Possible Worlds
+        |
+        v
+    Planner
+
+The belief model estimates things such as:
+
+- Probability of cards in opponent hand.
+- Probability of cards remaining in deck.
+- Likelihood of responses.
+- Known information.
+- Unknown information.
+
+Rather than enumerating every possible hidden hand, the AI can sample
+plausible possible worlds.
+
+Example:
+
+    Counter card probability = 70%
+
+The AI can evaluate:
+
+    World A: counter exists
+    World B: counter does not exist
+
+weighted by their estimated probabilities.
+
+
+41. AI SEARCH
+============
+
+The planner should be replaceable.
+
+Possible planners:
+
+    IPlanner
+        +-- GreedyPlanner
+        +-- BeamSearchPlanner
+        +-- DeterminizedSearchPlanner
+        +-- MCTSPlanner
+        +-- ISMCTSPlanner
+
+Do not commit the entire architecture to one search algorithm too early.
+
+The one-major-action-per-turn structure naturally reduces some branching, but
+free actions and card interactions can still create large search trees.
+
+
+42. AI EVALUATION
+=================
+
+The AI should evaluate resulting game states, not only individual actions.
+
+Conceptually:
+
+    Score =
+        StateEvaluation
+        +
+        EventEvaluation
+
+Possible personality weights:
+
+    PlayerDamage
+    CreatureCount
+    CreaturePower
+    CardAdvantage
+    BoardControl
+    PlayerHP
+    OwnHP
+    Risk
+    EmptyZones
+    LethalThreat
+    etc.
+
+Example personality:
+
+    Damage player = +2
+    Summon creature = +8
+    Draw cards = +3
+    Take damage = -1
+
+Another personality:
+
+    Damage player = +4
+    Summon creature = +3
+    Draw cards = +8
+    Take damage = -20
+
+The same game state can therefore produce different preferred actions.
+
+
+43. AI PERSONALITY
+==================
+
+Personality is represented as a vector of preferences rather than only a
+named archetype.
+
+Possible archetypes include:
+
+- Aggressive
+- Defensive
+- Control
+- Opportunistic
+- Risk-taking
+- Resource-focused
+- Board-focused
+
+However, actual personalities can be continuous combinations of weights.
+
+This allows many NPCs to have distinct behavior without requiring unique AI
+algorithms.
+
+
+44. AI SEARCH OPTIMIZATION
+==========================
+
+Do not initially attempt exhaustive search of every legal sequence.
+
+Use:
+
+- Action pruning
+- Heuristic pre-evaluation
+- Beam search
+- Limited hidden-world samples
+- Search depth limits
+- Time budgets
+- Transposition tables
+- State hashing
+- Re-planning
+
+Example branching:
+
+    20 actions
+    x 15 responses
+    x 15 actions
+    x 15 responses
+
+can already produce approximately 67,500 simulated branches.
+
+Therefore simulation speed and search pruning are important.
+
+
+45. AI DIFFICULTY
+=================
+
+AI difficulty can be controlled without changing its rules.
+
+Possible difficulty parameters:
+
+- Search depth
+- Beam width
+- Number of possible-world samples
+- Time budget
+- Evaluation noise
+- Planning frequency
+- Hidden-information confidence
+- Number of candidate actions considered
+
+A weaker AI can use the same architecture while simply searching less or
+making less precise evaluations.
+
+
+46. AI TOURNAMENT SYSTEM
+========================
+
+A development-only simulation framework can run large numbers of AI matches.
+
+Architecture:
+
+    Simulation Framework
+    |
+    +-- Game Simulation
+    +-- AI Planner
+    +-- AI Tournament
+    +-- Personality Generator
+    +-- Statistics Collector
+    +-- Replay
+    +-- Balance Testing
+
+Possible metrics:
+
+- Win rate
+- Game length
+- Turns
+- Damage dealt
+- Damage taken
+- Cards drawn
+- Cards played
+- Creatures summoned
+- Creatures destroyed
+- Spells/abilities used
+- Board value
+- Lethal opportunities
+- Missed lethal opportunities
+- Risky plays
+- Defensive plays
+- Strategic diversity
+
+
+47. PERSONALITY SEARCH / EVOLUTION
+===================================
+
+Personalities can be automatically generated and tested.
+
+Possible process:
+
+    Generate population
+          |
+          v
+    Run tournaments
+          |
+          v
+    Measure strength + quality
+          |
+          v
+    Select promising personalities
+          |
+          v
+    Mutate weights
+          |
+          v
+    Repeat
+
+Do not optimize only for win rate.
+
+A personality that wins almost every game may be strategically boring.
+
+Fitness can include:
+
+    WinRate
+    +
+    GameQuality
+    +
+    StrategicVariety
+    +
+    Distinctiveness
+    +
+    AppropriateDifficulty
+
+
+48. SELF-PLAY OVERFITTING
+=========================
+
+AI self-play can overfit to the opponents it encounters.
+
+Tournament populations should therefore include:
+
+- Current personalities
+- Historical personalities
+- Random personalities
+- Hand-designed benchmark AIs
+- Different decks
+- Potentially recorded human strategies
+
+The goal is to discover robust strategies rather than strategies that only
+defeat one particular opponent population.
+
+
+49. HEADLESS SIMULATION
+=======================
+
+The simulation should be capable of running without rendering.
+
+Headless simulation is important for:
+
+- AI development
+- Balance testing
+- Personality tournaments
+- Regression testing
+- Large-scale game generation
+
+A useful development benchmark is:
+
+    "How many complete simulated turns per second can the target PC run?"
+
+This should be measured before aggressively optimizing the architecture.
+
+
+50. REPLAY SYSTEM
+=================
+
+A replay can potentially be represented as:
+
+    Initial State / Decks
+    +
+    RNG Seed
+    +
+    Player Commands
+
+The simulation can then reproduce the game.
+
+This is useful for:
+
+- Debugging
+- AI analysis
+- Tournament review
+- Player replays
+- Finding balance problems
+- Reproducing rare interactions
+
+
+51. RULES TESTING
+=================
+
+Every major rule should have automated tests.
+
+Examples:
+
+- Combat damage correctly tramples through front row.
+- Empty columns deal direct damage.
+- Dead permanents leave the field at <= -1 HP.
+- 0 HP stack objects resolve.
+- -1 HP stack objects are countered.
+- Zone restrictions block illegal movement.
+- Column restrictions affect all intended operations.
+- Base stats persist correctly.
+- Equipment modifies current stats without modifying base stats.
+- Temporary modifiers expire correctly.
+- Hidden information is not exposed to AI.
+- Simulated games match real-game outcomes.
+
+
+52. CORE DESIGN RISKS
+=====================
+
+RISK 1: TOO MANY INDEPENDENT SYSTEMS
+
+The game currently contains:
+
+- Positioning
+- Stack interaction
+- HP on cards
+- Zone HP
+- Persistent base stats
+- Distance/speed/acceleration
+- Hidden information
+- Real-time input
+- Stage gimmicks
+- AI prediction
+
+Each system is individually interesting, but their combined complexity can
+become difficult to teach and balance.
+
+The game needs a clear central skill identity.
+
+RISK 2: RULE INTERACTION EXPLOSION
+
+A large card library will eventually produce interactions that were not
+anticipated.
+
+The answer should be a strong generic rules/effect system rather than
+hundreds of card-specific exceptions.
+
+RISK 3: MODIFIER ORDER
+
+Conflicting temporary and permanent effects need deterministic precedence.
+
+RISK 4: AI COMPUTATION
+
+Hidden information plus look-ahead can multiply the number of simulations.
+
+Sampling, pruning, beam search, and time budgets are likely to be necessary.
+
+RISK 5: REAL-TIME MECHANICS
+
+Real-time input can conflict with deterministic turn-based simulation if the
+boundary between presentation and simulation is not carefully designed.
+
+RISK 6: INFORMATION COMPLEXITY
+
+The game can become difficult to understand if too many cards simultaneously
+modify rules, zones, visibility, stats, and timing.
+
+
+53. CORE DESIGN QUESTIONS TO RESOLVE
+=====================================
+
+Before the card pool becomes large, define:
+
+1. What exactly does "destroy" mean compared with other ways of leaving play?
+2. Which stat modifications persist through which zone transitions?
+3. What exactly does "unusable zone" prevent?
+4. What exactly does "unusable column" prevent?
+5. What does "cannot discern" reveal or hide?
+6. How are simultaneous triggers ordered?
+7. How are mandatory and optional triggers ordered?
+8. What wins when modifiers contradict each other?
+9. What exactly counts as a damage counter/instance?
+10. How do zone HP effects stack?
+11. Exactly when does a multi-turn effect expire?
+12. What happens to temporary effects when their host changes zones?
+13. Which events are simulation events versus presentation events?
+14. What is the exact definition of legal targeting?
+15. How are generated tokens represented?
+16. Can cards create creatures in normally illegal zones?
+17. What exactly constitutes the end of an effect?
+18. What is the game's primary strategic skill?
+
+
+54. RECOMMENDED DEVELOPMENT ORDER
+=================================
+
+Phase 1: Rules Core
+
+Implement:
+
+- GameState
+- Players
+- Board
+- Zones
+- Cards
+- Card instances
+- HP
+- ATK
+- Basic effects
+- Basic turn system
+
+Phase 2: Combat and Stack
+
+Implement:
+
+- Attack
+- Damage
+- Trample through columns
+- Stack
+- Priority
+- Quick/Slow timing
+- Abilities
+- Triggers
+
+Phase 3: Modifier / Rule System
+
+Implement:
+
+- Effective stats
+- Temporary modifiers
+- Ability modification
+- Zone restrictions
+- Column restrictions
+- Rule queries
+- Modifier precedence
+
+Phase 4: Content
+
+Implement several representative cards that deliberately stress the rules:
+
+- The Vine
+- Infinity Wall
+- Fracture Ground
+- Maximum Damage
+- King Eye
+- Avatar of Rabies
+- Throwing Bandages
+- The Seven Steves
+- Parriable
+
+Do not immediately create hundreds of cards.
+
+Phase 5: Presentation
+
+Connect the simulation to:
+
+- 3D board
+- Card views
+- Creature models
+- Character models
+- Animations
+- VFX
+- UI
+
+Phase 6: AI
+
+Implement:
+
+- Observation
+- Belief model
+- Simple greedy AI
+- State evaluation
+- Personality vectors
+- Search planner
+
+Then add more advanced search methods if profiling justifies them.
+
+Phase 7: Simulation Laboratory
+
+Implement:
+
+- Headless simulation
+- Replay
+- Statistics
+- AI tournaments
+- Personality generation
+- Automated balance tests
+
+Phase 8: Campaign Content
+
+Build:
+
+- Stories
+- Stages
+- NPC decks
+- NPC-exclusive cards
+- Explicit stage gimmicks
+- Narrative content
+
+
+55. GUIDING ARCHITECTURE
+========================
+
+The most important architectural principle is:
+
+    GAME RULES ARE DATA + SIMULATION,
+    NOT GODOT PRESENTATION CODE.
+
+A strong conceptual dependency direction is:
+
+    Content
+       |
+       v
+    Simulation
+       |
+       v
+    Events / Observations
+       |
+       v
+    Presentation
+
+AI should interact with the same Simulation.
+
+Therefore:
+
+    Human
+       \
+        \
+         -> Simulation
+        /
+       /
+    AI
+
+and not:
+
+    Human -> Godot-specific rules
+    AI   -> separate rules implementation
+
+The same simulation should be authoritative for both.
+
+
+56. LONG-TERM VISION
+====================
+
+The intended mature architecture supports:
+
+- Large card libraries
+- Complex interactions
+- NPC-exclusive mechanics
+- Distinct AI personalities
+- Hidden-information reasoning
+- Deep look-ahead
+- Automated AI tournaments
+- Personality discovery
+- Deterministic replays
+- Headless simulation
+- Automated regression tests
+- Rich 3D presentation
+- Stage-specific PvE mechanics
+
+The central technical objective is to make the simulation sufficiently clean
+and generic that increasingly strange cards can be added by composing existing
+rules rather than rewriting the engine.
+
+The central design objective is to make those complex systems produce
+meaningful decisions rather than complexity for its own sake.
+
+END OF DOCUMENT
