@@ -258,7 +258,7 @@ deepFreeze(DEFS); deepFreeze(TYPES);                // CardDefinitions are immut
 const Sim = (function(){
   const other = p => p === 'Player' ? 'Opponent' : 'Player';
   let byId = {};                                      // def id -> definition (filled by create)
-  const abDef = c => c.xform ? byId[c.xform] : c.def;   // ability layer: effective abilities/triggers/rider. c.def is never edited
+  const abDef = c => { const d = [...(c.damage || [])].reverse().find(x => x.xform); return d ? byId[d.xform] : c.def; };   // ability layer: the newest damage instance carrying a rider decides; remove that damage and the effect ends. c.def is never edited
   const isPerm = c => c.def.type !== 'spell' && c.def.type !== 'ability';
   const slotRow = c => c.def.type === 'creature' ? 'front' : 'back';
   function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
@@ -287,7 +287,7 @@ const Sim = (function(){
   const targetColumns = (s, c) => c.def.colTarget ? [0, 1, 2, 3, 4].filter(col => !COLTARGETS[c.def.colTarget](s, col, true)) : [];
   const ZONETARGETS = {anyPermanent: s => { const m = cloudMap(s); return Object.keys(s.slots).filter(k => !s.unusable[k] && (s.slots[k] || m[k])); }};   // a cloud counts as a target even over an empty zone
   const targetZones = (s, c) => c.def.zoneTarget ? ZONETARGETS[c.def.zoneTarget](s, c) : [];
-  const RIDERS = {InheritAbilities: (s, src, tgt, ev) => { const id = abDef(src).id; if (tgt.loc === 'board' && abDef(tgt).id !== id){ tgt.xform = id; ev.push({t:'AbilitiesTransformed', iid:tgt.iid, from:id}); } }};   // run for every damage instance the source deals
+  const RIDERS = {InheritAbilities: (s, src, tgt, ev) => { const id = abDef(src).id, d = tgt.damage[tgt.damage.length - 1]; if (tgt.loc === 'board' && d && tgt.def.id !== id){ d.xform = id; ev.push({t:'AbilitiesTransformed', iid:tgt.iid, from:id}); } }};   // the rider tags the damage instance just dealt; the effect lives and dies with that instance
   function askCounters(s, who, src, t, left, ev){      // remove `left` damage points from t; the controller picks instances one at a time
     if (left <= 0 || !t.damage.length) return;
     const total = t.damage.reduce((n, d) => n + d.amount, 0);
@@ -1394,7 +1394,10 @@ function selfTest(){
     check('Avatar: combat damage taken puts its trigger on the stack', Sim.totalDamage(av2) === 6 && q.stack.length === 1);
     Sim.dispatch(q, {type:'Pass', player:'Player'}); Sim.dispatch(q, {type:'Pass', player:'Opponent'});
     check('Avatar: deals 1 damage to another creature', Sim.totalDamage(g) === 1);
-    check('Avatar: the damaged creature loses its abilities and gains Avatar\u2019s (definition untouched)', g.xform === 'avatar' && Sim.abDef(g).id === 'avatar' && g.def.id === 'giant');
+    check('Avatar: the damaged creature loses its abilities and gains Avatar\u2019s (definition untouched)', Sim.abDef(g).id === 'avatar' && g.def.id === 'giant');
+    const bn = take(q, 'Player', 'bandages', 'hand');
+    Sim.dispatch(q, {type:'PlayCard', iid:bn.iid, zone:'Player|front|1'}); Sim.dispatch(q, {type:'Pass', player:'Opponent'}); Sim.dispatch(q, {type:'Pass', player:'Player'});
+    check('Avatar: removing the damage (Bandages) ends the ability swap', Sim.totalDamage(g) === 0 && Sim.abDef(g).id === 'giant');
   }
   {                                                 // Throwing Bandages: 7 points across chosen instances
     const q = start(22), t = take(q, 'Opponent', 'giant', 'board', 'Opponent|front|0'), bd = take(q, 'Player', 'bandages', 'hand');
