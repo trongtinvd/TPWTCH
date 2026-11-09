@@ -74,6 +74,8 @@ Activation is from the card's menu on the board, or the Inspect panel buttons fo
 
 `'foe'` is relative to the trigger's owner: `by:['self','foe']` does not fire when its own controller attacks with a different creature. Only cards on the board trigger.
 
+damage triggered effect fires when a card takes combat damage, before it is destroyed. A trigger already on the stack still resolves if its source has since left the board.
+
 **Simultaneous triggers (`fire()`):** collect all matches; push all at once, turn player's first then other's (LIFO: other player's resolve first); priority to turn player. Within a player: card creation order (deterministic placeholder). Example: both control Red Hummingbird, Player (turn player) attacks with theirs -> Opponent's trigger resolves first.
 
 **Attack timing:** `Attack` (turn player, attack phase, stack empty, front-row creature, not yet attacked this turn) sets `s.pending`, fires attack triggers; combat damage (`strike`) runs once stack and choice are clear (`settle`). Attacker gone by then: no damage. While `s.choice` is set, only `Choose` is accepted.

@@ -45,11 +45,14 @@ Add object -> priority/responses -> both pass -> top resolves -> triggers -> pri
 - **[proto]** A targeted object whose target left the board by resolution **fizzles** (no effect; costs stay paid).
 
 ## Combat
+Enter the combat phase. This uses the major action. During the phase, the turn player's creatures attack one at a time, each at most once, until the turn ends. Combat does not end the turn by itself.
+Any creature standing on the board can attack, including one in a back-row zone. Creatures cannot be placed in the back row normally, but one that ends up there still acts as a creature and attacks down its own column.
 Creature attacks its own column: attacker -> opposing front -> opposing back -> player; absent targets let damage continue; empty column = direct damage. Damage based on ATK. No automatic counter-damage. Damage persists until removed or the permanent leaves.
 - **[proto]** In the attack phase **each** of the turn player's front-row creatures may attack once (stack must be empty). Attacking does not end the turn.
 - **[proto]** Declaring an attack fires attack triggers first; damage (`strike`) is dealt only once the stack and any pending choice are clear. If the attacker left the board meanwhile, no damage. Damage follows the attacker's *current* column.
 - **[proto] Trample detail:** each target absorbs its *remaining HP* worth of ATK; the rest continues. A target dies at damage > HP (HP <= -1), so a 4-ATK attacker kills a 3-HP creature **and** tramples 1 onward (see Q20).
 - **[proto]** Damage to a player is a plain life decrease: no damage instance, no Power/Defense.
+
 
 ## HP and damage
 Permanents die at **HP <= -1**. Damage = instances (amount, source, type, timestamp, tags); current damage = sum of active instances. Types: combat, effect, card-defined. Example: 8 damage = A(7) + B(1, from Avatar of Rabies); a card may remove chosen instances.
@@ -57,7 +60,7 @@ Permanents die at **HP <= -1**. Damage = instances (amount, source, type, timest
 
 ## Player stats [not built]
 Power (damage-dealt multiplier), Defense (damage-taken multiplier), HP, Initial Distance, Speed, Acceleration. Characters may modify them and have unique abilities.
-**[proto]** Only life (20) exists.
+Life is uncapped. Healing can raise it above the starting 20, and damage can take it below 0. No win or loss condition is implemented yet.
 
 ## Stat layers [not built]
 `Original` (printed) -> `Base` (persistent mod; may persist off field per effect) -> `Current` (temporary + equipment). 1/1 original, 8/8 base, +3/+4 equipment = 11/12; equipment leaves -> 8/8.
