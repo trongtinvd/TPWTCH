@@ -194,7 +194,7 @@ const Fx = {
   // effects (run when a spell/ability resolves)
   dealDamage: (to, amount) => ({op:'DealDamage', to, amount}),   // to: 'player' | 'target'
   gainLife: (amount, to) => ({op:'GainLife', amount, to}),   // puts life counters on the controller (default) or on the target card
-  draw: n => ({op:'Draw', n}),
+  draw: (n, who) => ({op:'Draw', n, who}),
   damageStack: amount => ({op:'DamageStack', amount}),
   sacrificeSelf: () => ({op:'SacrificeSelf'}),                   // also usable as a cost
   repeat: (n, ...effects) => ({op:'Repeat', n, effects}),        // composition: run effects n times
@@ -213,15 +213,16 @@ const Fx = {
   createToken: token => ({op:'CreateToken', token}),              // effect: create def.tokens[token] on the picked zone, under the controller
   trigger: {                                                     // triggered abilities: go on the stack when the event happens
     enter: (...effects) => ({on:'enter', effects}),
-    combat: (...effects) => ({on:'combat', effects}),            // beginning of its controller's combat step
+    combat: (...effects) => ({on:'combat', effects}),
+    combatEnd: (...effects) => ({on:'combatEnd', effects}),   // after its controller's FIRST combat phase of the turn ends (use cond:'firstCombat')            // beginning of its controller's combat step
     damaged: (...effects) => ({on:'damaged', effects}),          // this card takes combat damage
     turnStart: (...effects) => ({on:'turnStart', effects}),     // start of its controller's turn              // when this card enters the field
     attack: (by, ...effects) => ({on:'attack', by, effects})     // by: 'self' and/or 'foe' (creature controlled by this card's opponent)
   },
   // requirements (strings) and targets (strings)
-  req: {front:'front', hurt:'hurt', target:'target', stack:'stack'},
-  target: {opposingFront:'opposingFront'},
-  zoneTarget: {anyPermanent:'anyPermanent'},
+  req: {front:'front', hurt:'hurt', target:'target', stack:'stack', foeAttacking:'foeAttacking'},
+  target: {opposingFront:'opposingFront', attacker:'attacker'},
+  zoneTarget: {anyPermanent:'anyPermanent', anyCreature:'anyCreature'},
   playerTarget: true,                                            // spell flag: a player can be targeted (click a life bar)                     // spell target: a zone with a card (or a cloud) on it, chosen when the spell is played
   rider: {inheritAbilities: () => ({op:'InheritAbilities'})},    // damage this card deals: the victim loses its abilities and gains this card's,
   colTarget: {full:'fullColumn'},                                // spell target: a column (chosen when the spell is played)
@@ -238,7 +239,15 @@ const Fx = {
   revealVault: () => ({op:'RevealVault'}),
   swapIn: () => ({op:'SwapIn'}),
   shieldAll: color => ({op:'ShieldAll', color}),
-  noLifeGain: () => ({op:'NoLifeGain'})                      // effect: this spell goes to its owner's hand instead of the graveyard
+  noLifeGain: () => ({op:'NoLifeGain'}),
+  aura: (who, atk, hp) => ({op:'Aura', who, atk, hp}),            // passive: own/foe cards in this card's column and the adjacent columns get +atk/+hp (derived, never stored)
+  drawUntil: n => ({op:'DrawUntil', n}),
+  noDamage: () => ({op:'NoDamage'}),                              // target creature / stack spell: damage is denied until the end of this turn
+  cancelAttack: () => ({op:'CancelAttack'}),
+  skipFoeCombat: pay => ({op:'SkipFoeCombat', pay}),
+  secondCombat: () => ({op:'SecondCombat'}),
+  upTo: (who, from, then, n, types) => ({op:'UpTo', who, from, then, n, types}),   // who: me|foe; from: gy|hand; then: toHand|play
+  freeFrontZone: () => ({op:'FreeFrontZone'})                      // effect: this spell goes to its owner's hand instead of the graveyard
 };
 // Each card is an independent module: a factory that receives the API and returns its definition.
 const Cards = {list: [], add(factory){ this.list.push(factory(Fx)); }};
@@ -316,6 +325,22 @@ Cards.add(Fx => ({id:'shieldguard', name:'Shieldguard', type:'creature', atk:5, 
 Cards.add(Fx => ({id:'spirit', name:'Spirit of the Sand', type:'spell', timing:'Quick', hp:0,
   text:'Quick, 0 HP. Choose one: each card you control gets a red shield counter (cannot be targeted), or each gets a blue shield counter (unaffected by spells and abilities that do not target it; attacks still hit it). You cannot gain life for the rest of the game.',
   effects:[Fx.modes(Fx.mode('Red shield on each card you control', 0, 99, Fx.shieldAll('red')), Fx.mode('Blue shield on each card you control', 0, 99, Fx.shieldAll('blue'))), Fx.noLifeGain()]}));
+Cards.add(Fx => ({id:'wardrum', name:'War Drum', type:'enchantment', hp:0, flash:true, extraCost:{major:true},
+  text:'Flash. Additional cost (optional, your turn only): spend your major action. Passive: cards your opponent controls in this column and the adjacent columns get -1/-1. When this enters: create a Drummer token (3/3; cards you control in its column and the adjacent ones get +1/+1). When this enters, if the additional cost was paid: put a creature from your GY into play; it attacks immediately.',
+  tokens:{drummer:{id:'drummer-token', name:'Drummer', type:'creature', atk:3, hp:3, passives:[Fx.aura('own', 1, 1)], text:'Token. Cards you control in this column and the adjacent columns get +1/+1.'}},
+  passives:[Fx.aura('foe', -1, -1)],
+  triggers:[Object.assign(Fx.trigger.enter(Fx.pickCard('myGYCreatures', 'summonAttack')), {cond:'extraPaid'}), Fx.trigger.enter(Fx.freeFrontZone(), Fx.createToken('drummer'))]}));   // later in the array = higher on the stack = resolves first: the Drummer exists before the creature attacks
+Cards.add(Fx => ({id:'shark', name:'Deep Sea Shark', type:'creature', atk:6, hp:4,
+  text:'When this enters: you may pay 3 life; skip your opponent next combat phase (pressing combat becomes End turn instead). After your first combat phase ends: you may have your opponent draw 5 cards (cost; does nothing if they cannot); enter a second combat phase, where creatures can attack again.',
+  triggers:[Fx.trigger.enter(Fx.modes(Fx.mode('Pay 3 life: skip opponent next combat', 0, 99, Fx.skipFoeCombat(3)), Fx.mode('Do nothing', 0, 99))),
+    Object.assign(Fx.trigger.combatEnd(Fx.modes(Fx.mode('Opponent draws 5: second combat phase', 0, 99, Fx.secondCombat()), Fx.mode('Do nothing', 0, 99))), {cond:'firstCombat'})]}));
+Cards.add(Fx => ({id:'intuition', name:'Quick Intuition', type:'spell', timing:'Quick', hp:4, zoneTarget:Fx.zoneTarget.anyCreature, optionalTarget:true, stackTarget:true,
+  text:'Quick. Draw until you have 7 cards in hand. You may target a creature or a spell: damage to it is denied until the end of this turn. From your GY, Fast, when your opponent attacks: exile this card; cancel that attack. (Stack HP 4)',
+  effects:[Fx.drawUntil(7), Fx.noDamage()],
+  abilities:[{name:'Cancel Attack', speed:'Fast', zone:'gy', req:[Fx.req.foeAttacking], cost:[Fx.exileSelf()], target:Fx.target.attacker, hp:1, effects:[Fx.cancelAttack()]}]}));
+Cards.add(Fx => ({id:'ambush', name:'Ambush of the Night', type:'spell', timing:'Slow', hp:0,
+  text:'Slow, 0 HP. In order: you draw 2; return up to 2 cards from your GY to your hand; put up to 2 creatures/enchantments from your hand into play. Then your opponent returns up to 2 cards from their GY to their hand, puts up to 2 creatures/enchantments from their GY into play, and draws 2.',
+  effects:[Fx.draw(2), Fx.upTo('me', 'gy', 'toHand', 2), Fx.upTo('me', 'hand', 'play', 2, ['creature', 'enchantment']), Fx.upTo('foe', 'gy', 'toHand', 2), Fx.upTo('foe', 'gy', 'play', 2, ['creature', 'enchantment']), Fx.draw(2, 'foe')]}));
 const DEFS = Cards.list;
 </script>
 <script>
@@ -358,7 +383,7 @@ const Sim = (function(){
   // third argument true = TARGETING (a cloud counts as a card/zone there); false = RESOLUTION (only what is really underneath)
   const COLTARGETS = {fullColumn: (s, col, clouds) => { const m = clouds ? cloudMap(s) : {}; return colKeys(col).every(k => s.slots[k] || m[k]) ? null : 'Requirement: the column must be fully filled'; }};
   const targetColumns = (s, c) => c.def.colTarget ? [0, 1, 2, 3, 4].filter(col => !COLTARGETS[c.def.colTarget](s, col, true)) : [];
-  const ZONETARGETS = {anyPermanent: s => { const m = cloudMap(s); return Object.keys(s.slots).filter(k => !s.unusable[k] && (m[k] || (s.slots[k] && !has(s.cards[s.slots[k]], 'red')))); }};   // a cloud counts as a target even over an empty zone
+  const ZONETARGETS = {anyCreature: s => { const m = cloudMap(s); return Object.keys(s.slots).filter(k => !s.unusable[k] && (m[k] || (s.slots[k] && s.cards[s.slots[k]].def.type === 'creature' && !has(s.cards[s.slots[k]], 'red')))); }, anyPermanent: s => { const m = cloudMap(s); return Object.keys(s.slots).filter(k => !s.unusable[k] && (m[k] || (s.slots[k] && !has(s.cards[s.slots[k]], 'red')))); }};   // a cloud counts as a target even over an empty zone
   const targetZones = (s, c) => c.def.zoneTarget ? ZONETARGETS[c.def.zoneTarget](s, c) : [];
   const RIDERS = {InheritAbilities: (s, src, tgt, ev) => { const id = abDef(src).id, d = tgt.damage[tgt.damage.length - 1]; if (tgt.loc === 'board' && d && tgt.def.id !== id){ d.xform = id; ev.push({t:'AbilitiesTransformed', iid:tgt.iid, from:id}); } }};   // the rider tags the damage instance just dealt; the effect lives and dies with that instance
   function askCounters(s, who, src, t, left, ev){      // remove `left` damage points from t; the controller picks instances one at a time
@@ -383,7 +408,7 @@ const Sim = (function(){
     } else {
       if (c.def.timing === 'Slow' && s.stack.length) return 'Slow spells need an empty stack';
       if (c.def.colTarget && !targetColumns(s, c).length) return 'Requirement: no legal target column';
-      if (c.def.zoneTarget && !c.def.playerTarget && !targetZones(s, c).length) return 'Requirement: no legal target';
+      if (c.def.zoneTarget && !c.def.playerTarget && !c.def.optionalTarget && !targetZones(s, c).length) return 'Requirement: no legal target';
       for (const r of c.def.req || []){ const why = REQS[r] && REQS[r](s, c, c.def); if (why) return why; }
     }
     return null;
@@ -392,11 +417,13 @@ const Sim = (function(){
   // ---- Abilities & stack objects ------------------------------------------------
   const RULES = {oneMajor:true};                    // console: cardGame.Sim.RULES.oneMajor = false to sandbox freely
   const majorUsed = s => RULES.oneMajor && s.majorUsed;
+  const canPayExtra = (s, c) => !!(c.def.extraCost && c.def.extraCost.major) && c.owner === s.active && !majorUsed(s);   // the optional additional cost 'spend the major action': own turn only for now
 // ---- Published effect API. Cards reference these by name through Fx; add an entry here to give every card a new building block.
-  const TARGETS = {opposingFront: (s, c) => { const col = c.slot && c.slot.split('|')[2], id = col != null && s.slots[other(c.owner) + '|front|' + col]; return id && !has(s.cards[id], 'red') ? s.cards[id] : null; }};
+  const TARGETS = {attacker: (s, c) => { const a = s.pending && s.cards[s.pending.iid]; return a && a.loc === 'board' && a.owner !== c.owner ? a : null; }, opposingFront: (s, c) => { const col = c.slot && c.slot.split('|')[2], id = col != null && s.slots[other(c.owner) + '|front|' + col]; return id && !has(s.cards[id], 'red') ? s.cards[id] : null; }};
   const findTarget = (s, c, a) => a.target && TARGETS[a.target] ? TARGETS[a.target](s, c) : null;
   const REQS = {                                    // -> reason string, or null if satisfied
     front: (s, c) => (c.slot || '').includes('|front|') ? null : 'Requirement: must be in a front-row zone',
+    foeAttacking: (s, c) => TARGETS.attacker(s, c) ? null : 'Requirement: an opposing creature is attacking',
     hurt: (s, c) => s.life[c.owner] >= s.maxLife ? 'Requirement: life is already full' : null,
     target: (s, c, a) => findTarget(s, c, a) || (a.target === 'opposingFront' && c.slot && cloudMap(s)[other(c.owner) + '|front|' + c.slot.split('|')[2]]) ? null : 'Requirement: no legal target',   // an enemy cloud counts as a target; an empty one fizzles
     stack: s => s.stack.length ? null : 'Requirement: there must be a stack object to target',
@@ -427,7 +454,7 @@ const Sim = (function(){
     return null;
   }
       function hitStack(s, u, n, ev){                   // stack HP: <= -1 is countered, 0 still resolves
-    u.hp -= n; ev.push({t:'StackObjectDamaged', sid:u.sid, amount:n});
+    if (u.nodmg === s.turn){ ev.push({t:'DamageDenied', sid:u.sid, amount:n}); return; } u.hp -= n; ev.push({t:'StackObjectDamaged', sid:u.sid, amount:n});
     // at HP <= -1 the object stays on the stack and is countered when it would resolve (see Pass)
   }
 const zoneGrid = k => { const [o, row, col] = k.split('|'); return {r: o === 'Opponent' ? (row === 'back' ? 0 : 1) : (row === 'front' ? 2 : 3), c: +col}; };   // 4 x 5 grid, opponent back row on top
@@ -445,7 +472,7 @@ const OPS = {                                     // effect handlers: (ctx, effe
       x.ev.push({t:'LifeCounterAdded', amount:e.amount});
     },   // life may exceed the starting value
     SacrificeSelf: x => { if (x.src.loc === 'board') destroy(x.s, x.src, x.ev); },   // effect-sacrifice: only if the effect resolves
-    Draw: (x, e) => { for (let i = 0; i < e.n; i++){ const d = x.s.piles[x.who].deck.shift(); if (d){ d.loc = 'hand'; x.s.piles[x.who].hand.push(d); x.ev.push({t:'CardDrawn', iid:d.iid, player:x.who}); } } },
+    Draw: (x, e) => { const w = e.who === 'foe' ? x.foe : x.who; for (let i = 0; i < e.n; i++){ const d = x.s.piles[w].deck.shift(); if (d){ d.loc = 'hand'; x.s.piles[w].hand.push(d); x.ev.push({t:'CardDrawn', iid:d.iid, player:w}); } } },
     DamageStack: (x, e) => { const u = x.s.stack[x.s.stack.length - 1]; if (u) hitStack(x.s, u, e.amount, x.ev); },
     ShiftAdjacent: x => {                         // asks the controller (a Choose command) instead of moving silently
       const c = x.src; if (c.loc !== 'board') return;
@@ -467,7 +494,7 @@ const OPS = {                                     // effect handlers: (ctx, effe
     CreateToken: (x, e) => {
       const def = x.src.def.tokens && x.src.def.tokens[e.token]; if (!x.zone || !def || x.s.slots[x.zone] || x.s.unusable[x.zone]) return;
       const n = x.s.tokN = (x.s.tokN || 0) + 1, t = {iid:'tk-' + n, def, owner:x.who, loc:'board', slot:x.zone, damage:[], token:true};
-      x.s.cards[t.iid] = t; x.s.slots[x.zone] = t.iid; x.ev.push({t:'PermanentSummoned', iid:t.iid, slot:x.zone}); fire(x.s, x.ev, 'enter', t);
+      x.s.cards[t.iid] = t; x.s.slots[x.zone] = t.iid; recalc(x.s, x.ev); x.ev.push({t:'PermanentSummoned', iid:t.iid, slot:x.zone}); fire(x.s, x.ev, 'enter', t);
     },
     ExileColumn: x => { if (x.col == null) return; for (const k of colKeys(x.col)){ const id = x.s.slots[k]; if (!id) continue; const c = x.s.cards[id]; if (has(c, 'blue')) continue; x.s.slots[k] = null; c.slot = null; c.damage = [];
       if (c.token) c.loc = 'gone'; else { c.loc = 'exile'; x.s.piles[c.owner].exile.push(c); } x.ev.push({t:'CardExiled', iid:c.iid}); } },
@@ -490,8 +517,9 @@ const OPS = {                                     // effect handlers: (ctx, effe
       const ids = e.from === 'foeHand' ? s.piles[x.foe].hand.map(c => { (c.revealed = c.revealed || {})[x.who] = true; return c.iid; })
         : e.from === 'foeBoard' ? cs.filter(c => c.loc === 'board' && !mine(c) && !has(c, 'red')).map(c => c.iid)
         : e.from === 'anyTarget' ? cs.filter(c => c.loc === 'board' && !has(c, 'red')).map(c => c.iid).concat(['P:Player', 'P:Opponent'])
+        : e.from === 'myGYCreatures' ? cs.filter(c => mine(c) && c.def.type === 'creature' && !c.token && c.loc === 'gy' && freeSlots(s, c).length).map(c => c.iid)
         : cs.filter(c => mine(c) && c.def.type === 'creature' && !c.token && ['hand', 'gy', 'exile'].includes(c.loc)).map(c => c.iid);
-      if (ids.length) ask(s, x.who, x.src, 'pick', ids, e.from === 'myCreatures' && ids.some(i => s.cards[i].loc !== 'hand') ? i => cname(s, i) + ' (' + s.cards[i].loc + ')' : null, x.src.def.name + ': ' + (e.from === 'foeHand' ? 'click a revealed card to discard it.' : e.from === 'myCreatures' ? 'pick a creature to put into play.' : 'click a card or a life bar.'), {then:e.then, amount:e.amount || 0}, x.ev);
+      if (ids.length) ask(s, x.who, x.src, 'pick', ids, (e.from === 'myGYCreatures' || (e.from === 'myCreatures' && ids.some(i => s.cards[i].loc !== 'hand'))) ? i => cname(s, i) + ' (' + s.cards[i].loc + ')' : null, x.src.def.name + ': ' + (e.from === 'foeHand' ? 'click a revealed card to discard it.' : e.from === 'myCreatures' || e.from === 'myGYCreatures' ? 'pick a creature to put into play.' : 'click a card or a life bar.'), {then:e.then, amount:e.amount || 0}, x.ev);
     },
     DestroyAll: x => { for (const c of Object.values(x.s.cards)) if (c.loc === 'board' && !has(c, 'blue')) destroy(x.s, c, x.ev); },
     DrawPerFoeCreature: x => OPS.Draw(x, {n:foeCreatures(x)}),
@@ -503,35 +531,84 @@ const OPS = {                                     // effect handlers: (ctx, effe
       if (ids.length === 1) CH.swap(s, null, src, {option:ids[0]}, x.ev); else ask(s, x.who, src, 'swap', ids, null, 'Click the creature to return to your hand.', {}, x.ev);
     },
     ShieldAll: (x, e) => { for (const c of Object.values(x.s.cards)) if (c.loc === 'board' && c.owner === x.who){ c.counters = c.counters || {}; c.counters[e.color] = (c.counters[e.color] || 0) + 1; x.ev.push({t:'CounterAdded', iid:c.iid, color:e.color}); } },
-    NoLifeGain: x => { (x.s.noGain = x.s.noGain || {})[x.who] = true; }
+    NoLifeGain: x => { (x.s.noGain = x.s.noGain || {})[x.who] = true; },
+    Aura: () => {},                               // passive, read by recalc()
+    DrawUntil: (x, e) => OPS.Draw(x, {n: Math.max(0, e.n - x.s.piles[x.who].hand.length)}),
+    NoDamage: x => { if (x.t && x.t.loc === 'board') x.t.nodmg = x.s.turn; else if (x.o && x.o.tsid){ const u = x.s.stack.find(y => y.sid === x.o.tsid); if (u) u.nodmg = x.s.turn; } },
+    CancelAttack: x => { const s = x.s, id = x.t && x.t.iid; if (!id) return; if (s.pending && s.pending.iid === id) s.pending = (s.pendQ || []).pop() || null; else s.pendQ = (s.pendQ || []).filter(p => p.iid !== id); x.ev.push({t:'AttackCancelled', iid:id}); },
+    SkipFoeCombat: (x, e) => { const s = x.s; if (e.pay){ if (s.life[x.who] <= e.pay) return; s.life[x.who] -= e.pay; s.log[x.who].push({kind:'paid', amount:e.pay, source:x.src.def.name, type:'cost', turn:s.turn, seq:++s.seq}); x.ev.push({t:'LifePaid', player:x.who, amount:e.pay}); } (s.skipCombat = s.skipCombat || {})[x.foe] = true; },
+    SecondCombat: x => { const s = x.s; if (s.skipCombat && s.skipCombat[x.who]){ s.skipCombat[x.who] = false; return; } if (s.piles[x.foe].deck.length < 5) return;   // the draw is a cost: no 5 cards, no second combat
+      OPS.Draw({...x, who:x.foe}, {n:5}); s.attackPhase = true; s.attacked = []; s.combats = (s.combats || 0) + 1; x.ev.push({t:'AttackPhaseChanged', on:true}); fire(s, x.ev, 'combat', null); },
+    UpTo: (x, e) => upToAsk(x.s, e.who === 'foe' ? x.foe : x.who, x.src, e, e.n, x.ev),
+    FreeFrontZone: x => { x.zone = null; const c = x.src; if (c.loc !== 'board') return; const col = +c.slot.split('|')[2]; let bd = 9; for (let i = 0; i < 5; i++){ const k = x.who + '|front|' + i, d = Math.abs(i - col); if (!x.s.slots[k] && !x.s.unusable[k] && d < bd){ bd = d; x.zone = k; } } }
   };
-  const runFx = (x, list) => { for (const e of list || []) if (OPS[e.op]) OPS[e.op](x, e); };
+  const runFx = (x, list) => { list = list || [];   // an op that opens a choice suspends the rest of the list as a continuation frame; Choose resumes it
+    for (let i = 0; i < list.length; i++){ const e = list[i]; if (OPS[e.op]) OPS[e.op](x, e);
+      if (x.s.choice && i < list.length - 1){ (x.s.choice.cont = x.s.choice.cont || []).push({rest:list.slice(i + 1), src:x.src.iid, who:x.who, foe:x.foe, col:x.col, tp:x.tp, t:x.t && x.t.iid, o:x.o && {tsid:x.o.tsid}}); return; } } };
   const foeCreatures = x => Object.values(x.s.cards).filter(c => c.loc === 'board' && c.def.type === 'creature' && c.owner !== x.who).length;
   const cname = (s, i) => s.cards[i].def.name;
-  const hpOf = c => c.def.hp + (c.life || []).reduce((n, d) => n + d.amount, 0);   // printed HP + life counters
+  const hpOf = c => c.def.hp + (c.modHp || 0) + (c.life || []).reduce((n, d) => n + d.amount, 0);
+  const atkOf = c => { const b = c.atk ?? c.def.atk; return b == null ? b : Math.max(0, b + (c.modAtk || 0)); };   // printed/base power + aura modifiers   // printed HP + life counters
   function hurt(s, p, amount, source, type){ s.life[p] -= amount; s.log[p].push({kind:'damage', amount, source, type, turn:s.turn, seq:++s.seq}); }   // player damage is recorded as an instance, like card damage
   function ask(s, who, src, kind, ids, label, prompt, extra, ev){ s.choice = Object.assign({player:who, iid:src.iid, kind, options:ids, labels:label ? Object.fromEntries(ids.map(i => [i, label(i)])) : undefined, prompt}, extra); ev.push({t:'ChoiceRequested', player:who}); }
+  let rcBusy = false;
+  function recalc(s, ev){                           // derived stats: auras are recomputed from the board (never stored on definitions); then state-based death (damage > HP)
+    if (rcBusy) return; rcBusy = true;
+    try { for (let n = 0; n < 8; n++){
+      const all = Object.values(s.cards), board = all.filter(c => c.loc === 'board');
+      for (const c of all){ c.mods = null; c.modAtk = 0; c.modHp = 0; if (c.loc !== 'board'){ c.entered = null; c.nodmg = null; } }
+      for (const c of board) if (c.entered == null) c.entered = s.ent = (s.ent || 0) + 1;
+      for (const a of board.filter(c => (abDef(c).passives || []).some(p => p.op === 'Aura')).sort((p, q) => p.entered - q.entered)){   // oldest source first: War Drum's -1/-1 is listed before the Drummer's +1/+1
+        const col = +a.slot.split('|')[2];
+        for (const p of abDef(a).passives) if (p.op === 'Aura') for (const t of board){
+          if (Math.abs(+t.slot.split('|')[2] - col) > 1 || (p.who === 'foe') !== (t.owner !== a.owner)) continue;
+          (t.mods = t.mods || []).push({src:a.iid, name:a.def.name, atk:p.atk, hp:p.hp}); t.modAtk += p.atk; t.modHp += p.hp; } }
+      const dead = board.filter(c => c.loc === 'board' && totalDamage(c) > hpOf(c));   // only the final value decides: at -1 HP inside the columns a card lives, leave them and it dies
+      if (!dead.length) break; dead.forEach(c => destroy(s, c, ev)); }
+    } finally { rcBusy = false; } }
+  const attackReactive = (s, p) => [...s.piles[p].hand, ...s.piles[p].gy].some(h => (abDef(h).abilities || []).some(a => (a.zone || 'board') === h.loc && (a.req || []).some(r => r === 'attackedCol' || r === 'foeAttacking') && (a.req || []).every(r => !REQS[r](s, h, a))));
+  function extraAttack(s, c, ev){                   // an attack outside the normal attack step: its triggers go on top of the current stack, its strike waits only for those
+    if (c.loc !== 'board' || c.def.type !== 'creature') return;
+    const base = s.stack.length; ev.push({t:'CreatureAttackDeclared', iid:c.iid, col:+c.slot.split('|')[2], extra:true});
+    if (s.pending) (s.pendQ = s.pendQ || []).push(s.pending);
+    s.pending = {iid:c.iid, base}; fire(s, ev, 'attack', c);
+    if (!s.respond && attackReactive(s, other(c.owner))){ s.respond = {kind:'attack'}; s.priority = other(c.owner); ev.push({t:'ResponseWindowOpened', kind:'attack'}); }
+    settle(s, ev);
+  }
+  function resume(s, frames, ev){ frames = frames.slice(); while (frames.length){ const f = frames.shift(), x = {s, ev, src:s.cards[f.src], who:f.who, foe:f.foe, col:f.col, tp:f.tp, t:f.t ? s.cards[f.t] : null, o:f.o}; runFx(x, f.rest); if (s.choice){ s.choice.cont = (s.choice.cont || []).concat(frames); return; } } }
+  function upToAsk(s, p, src, e, left, ev){         // 'up to n': one pick at a time, with a Done option
+    if (left <= 0) return;
+    const ids = s.piles[p][e.from].filter(c => (!e.types || e.types.includes(c.def.type)) && (e.then !== 'play' || freeSlots(s, c).length)).map(c => c.iid); if (!ids.length) return;
+    ask(s, p, src, 'upto', [...ids, 'done'], i => i === 'done' ? 'Done' : cname(s, i), src.def.name + ': ' + (e.then === 'play' ? 'put into play' : 'return to hand') + ' (up to ' + left + ' more).', {e, left}, ev);
+  }
   function askDeck(s, c, n, ev){ const ids = s.piles[c.owner].deck.map(d => d.iid); if (ids.length) ask(s, c.owner, c, 'vault', ids, i => cname(s, i), c.def.name + ': exile a card from your deck (' + n + ' left).', {left:n}, ev); }
-  function bounce(s, t, ev){ if (t.slot) s.slots[t.slot] = null; t.slot = null; t.damage = []; t.counters = {}; t.life = []; t.revealed = null; t.xform = null; t.atk = t.def.atk; if (t.token) t.loc = 'gone'; else { t.loc = 'hand'; s.piles[t.owner].hand.push(t); } ev.push({t:'PermanentReturned', iid:t.iid}); }
-  function enterBoard(s, t, slot, ev){ const P = s.piles[t.owner]; for (const k of ['hand', 'gy', 'exile']){ const i = P[k].indexOf(t); if (i >= 0) P[k].splice(i, 1); } s.slots[slot] = t.iid; t.slot = slot; t.loc = 'board'; t.revealed = null; ev.push({t:'PermanentSummoned', iid:t.iid, slot}); fire(s, ev, 'enter', t); }
+  function bounce(s, t, ev){ if (t.slot) s.slots[t.slot] = null; t.slot = null; t.damage = []; t.counters = {}; t.life = []; t.revealed = null; t.xform = null; t.atk = t.def.atk; if (t.token) t.loc = 'gone'; else { t.loc = 'hand'; s.piles[t.owner].hand.push(t); } ev.push({t:'PermanentReturned', iid:t.iid}); recalc(s, ev); }
+  function enterBoard(s, t, slot, ev){ const P = s.piles[t.owner]; for (const k of ['hand', 'gy', 'exile']){ const i = P[k].indexOf(t); if (i >= 0) P[k].splice(i, 1); } s.slots[slot] = t.iid; t.slot = slot; t.loc = 'board'; t.revealed = null; recalc(s, ev); ev.push({t:'PermanentSummoned', iid:t.iid, slot}); fire(s, ev, 'enter', t); }
   function retaliate(s, from, pw, src, ev){ if (pw <= 0) return; if (src.def.type === 'spell'){ hurt(s, src.owner, pw, from.def.name, 'retaliate'); ev.push({t:'PlayerDamaged', player:src.owner, amount:pw}); } else if (src.loc === 'board') dealDamage(s, from, src, pw, ev, 'retaliate'); }   // Retaliate: the source (creature, or the spell's controller) takes damage equal to the retaliator's power; retaliation never retaliates
-  const COND = {ownInAttackCol: (s, c, a) => !!(a && a.slot) && colKeys(a.slot.split('|')[2]).some(k => { const m = s.slots[k] && s.cards[s.slots[k]]; return !!m && m.owner === c.owner && m.def.type === 'creature'; })};
+  const COND = {extraPaid: (s, c) => !!c.extraPaid, firstCombat: (s, c) => s.combats === 1 && c.owner === s.active, ownInAttackCol: (s, c, a) => !!(a && a.slot) && colKeys(a.slot.split('|')[2]).some(k => { const m = s.slots[k] && s.cards[s.slots[k]]; return !!m && m.owner === c.owner && m.def.type === 'creature'; })};
   const THEN = {
     toGY: (s, w, c, t, k, ev) => { const P = s.piles[t.owner], i = P.hand.indexOf(t); if (i >= 0) P.hand.splice(i, 1); t.loc = 'gy'; t.revealed = null; P.gy.unshift(t); ev.push({t:'CardDiscarded', iid:t.iid}); },
     toHand: (s, w, c, t, k, ev) => { if (t.loc === 'board') bounce(s, t, ev); },
     damage: (s, w, c, t, k, ev) => { if (t.loc === 'board') dealDamage(s, c, t, k.amount, ev, 'effect', true); },
+    summonAttack: (s, w, c, t, k, ev) => { const f = freeSlots(s, t); if (f.length === 1){ enterBoard(s, t, f[0], ev); extraAttack(s, t, ev); } else if (f.length) ask(s, w, c, 'place', f, null, 'Click a highlighted zone for ' + t.def.name + '.', {card:t.iid, atk:true}, ev); },
     summon: (s, w, c, t, k, ev) => { const f = freeSlots(s, t); if (f.length === 1) enterBoard(s, t, f[0], ev); else if (f.length) ask(s, w, c, 'place', f, null, 'Click a highlighted zone for ' + t.def.name + '.', {card:t.iid}, ev); }
   };
   const CH = {                                      // answers to non-shift choices (Choose command)
     mode: (s, k, c, cmd, ev) => runFx({s, ev, src:c, who:k.player, foe:other(k.player), t:null}, k.modes[+cmd.option].effects),
     pick: (s, k, c, cmd, ev) => { if (cmd.option.startsWith('P:')){ const p = cmd.option.slice(2); hurt(s, p, k.amount, c.def.name, 'effect'); ev.push({t:'PlayerDamaged', player:p, amount:k.amount}); } else THEN[k.then](s, k.player, c, s.cards[cmd.option], k, ev); },
-    place: (s, k, c, cmd, ev) => enterBoard(s, s.cards[k.card], cmd.option, ev),
+    place: (s, k, c, cmd, ev) => { enterBoard(s, s.cards[k.card], cmd.option, ev); if (k.atk) extraAttack(s, s.cards[k.card], ev); if (k.next) upToAsk(s, k.player, c, k.next.e, k.next.left, ev); },
+    upto: (s, k, c, cmd, ev) => { if (cmd.option === 'done') return; const t = s.cards[cmd.option], P = s.piles[k.player];
+      if (k.e.then === 'toHand'){ P[k.e.from].splice(P[k.e.from].indexOf(t), 1); t.loc = 'hand'; t.revealed = null; P.hand.push(t); ev.push({t:'CardAdded', iid:t.iid, player:k.player}); upToAsk(s, k.player, c, k.e, k.left - 1, ev); return; }
+      const f = freeSlots(s, t); if (f.length === 1){ enterBoard(s, t, f[0], ev); upToAsk(s, k.player, c, k.e, k.left - 1, ev); }
+      else if (f.length) ask(s, k.player, c, 'place', f, null, 'Click a highlighted zone for ' + t.def.name + '.', {card:t.iid, next:{e:k.e, left:k.left - 1}}, ev); },
     swap: (s, k, c, cmd, ev) => { if (cmd.option === 'stay' || c.loc !== 'hand') return; const t = s.cards[cmd.option]; if (t.loc !== 'board') return; const slot = t.slot; bounce(s, t, ev); enterBoard(s, c, slot, ev); },
     vault: (s, k, c, cmd, ev) => { const d = s.cards[cmd.option], P = s.piles[c.owner]; P.deck.splice(P.deck.indexOf(d), 1); d.loc = 'exile'; P.exile.push(d); (c.vault = c.vault || []).push(d.iid); ev.push({t:'CardExiled', iid:d.iid}); if (k.left > 1) askDeck(s, c, k.left - 1, ev); },
     vaultpick: (s, k, c, cmd, ev) => { const d = s.cards[cmd.option], P = s.piles[d.owner]; P.exile.splice(P.exile.indexOf(d), 1); c.vault = c.vault.filter(i => i !== d.iid); d.loc = 'hand'; P.hand.push(d); ev.push({t:'CardAdded', iid:d.iid, player:d.owner}); }
   };
   function statuses(s, c){                          // what other cards have put on this card (shown in the inspector)
     const o = [];
+    (c.mods || []).forEach(m => o.push(m.name + ': ' + (m.atk >= 0 ? '+' : '') + m.atk + '/' + (m.hp >= 0 ? '+' : '') + m.hp + ' while in its columns'));
+    if (c.nodmg === s.turn) o.push('Damage is denied until the end of this turn');
     if (has(c, 'red')) o.push('Red shield: cannot be targeted');
     if (has(c, 'blue')) o.push('Blue shield: unaffected by spells and abilities that do not target it (attacks still hit)');
     if (c.loc === 'hand' && c.revealed) o.push('Revealed to the opponent while it stays in hand');
@@ -546,7 +623,7 @@ const OPS = {                                     // effect handlers: (ctx, effe
   function resolveObj(s, o, ev){                   // the object is already popped
     const src = s.cards[o.src || o.iid], def = o.kind === 'spell' ? src.def : byId[o.from][o.list][o.ab];
     let t = o.target ? s.cards[o.target] : null;
-    if (def.zoneTarget && !o.tplayer){ const id = s.slots[o.zone]; t = id ? s.cards[id] : null; if (!t || has(t, 'red')){ ev.push({t:'StackObjectFizzled', sid:o.sid}); return; } }   // a cloud was the target and nothing is underneath
+    if (def.zoneTarget && !o.tplayer && !o.tsid && !(def.optionalTarget && !o.zone)){ const id = s.slots[o.zone]; t = id ? s.cards[id] : null; if (!t || has(t, 'red')){ ev.push({t:'StackObjectFizzled', sid:o.sid}); return; } }   // a cloud was the target and nothing is underneath
     if (def.target && !(t && t.loc === 'board')){ ev.push({t:'StackObjectFizzled', sid:o.sid}); return; }   // target became illegal
     if (def.colTarget && COLTARGETS[def.colTarget](s, o.col)){ ev.push({t:'StackObjectFizzled', sid:o.sid}); return; }   // nothing legal under the clouds: it fizzles and nothing is revealed   // the column is no longer a legal target
     runFx({s, ev, src, t, who:o.controller, foe:other(o.controller), col:o.col, o, tp:o.tplayer}, def.effects);
@@ -556,15 +633,15 @@ const OPS = {                                     // effect handlers: (ctx, effe
   }
       function destroy(s, c, ev){                       // leaves the field for the graveyard; damage counters go away
     s.slots[c.slot] = null; c.slot = null; c.damage = []; c.xform = null; c.counters = {}; c.life = []; c.atk = c.def.atk;
-    if (c.token) c.loc = 'gone'; else { c.loc = 'gy'; s.piles[c.owner].gy.unshift(c); } ev.push({t:'PermanentDestroyed', iid:c.iid});
+    if (c.token) c.loc = 'gone'; else { c.loc = 'gy'; s.piles[c.owner].gy.unshift(c); } ev.push({t:'PermanentDestroyed', iid:c.iid}); recalc(s, ev);
   }
-  function dealDamage(s, src, tgt, amount, ev, type, targeted){ if (has(tgt, 'blue') && !targeted && (type || 'combat') !== 'combat') return;   // blue shield: only effects that target it can touch it
+  function dealDamage(s, src, tgt, amount, ev, type, targeted){ if (tgt.nodmg === s.turn){ ev.push({t:'DamageDenied', target:tgt.iid, amount}); return; } if (has(tgt, 'blue') && !targeted && (type || 'combat') !== 'combat') return;   // blue shield: only effects that target it can touch it
         // adds a damage counter; destroyed once damage exceeds HP
     tgt.damage.push({amount, source:src.iid, type:type || 'combat', turn:s.turn, seq:++s.seq});
     ev.push({t:'DamageDealt', source:src.iid, target:tgt.iid, amount, type:type || 'combat'});
     if ((type || 'combat') === 'combat') fire(s, ev, 'damaged', tgt);      // triggers see the victim before it is destroyed
     const rd = abDef(src).rider; if (rd && RIDERS[rd.op]) RIDERS[rd.op](s, src, tgt, ev);
-    const pw = tgt.atk ?? tgt.def.atk; if (totalDamage(tgt) > hpOf(tgt)) destroy(s, tgt, ev);
+    const pw = atkOf(tgt); if (totalDamage(tgt) > hpOf(tgt)) destroy(s, tgt, ev);
     if (tgt.def.retaliate && type !== 'retaliate') retaliate(s, tgt, pw, src, ev);
   }
   function canAttack(s, c){                         // reason string, or null if legal
@@ -594,6 +671,7 @@ const OPS = {                                     // effect handlers: (ctx, effe
         if (on === 'damaged' && c !== subject) return;
         if (on === 'turnStart' && c.owner !== s.active) return;
         if (on === 'combat' && c.owner !== s.active) return;
+        if (on === 'combatEnd' && c.owner !== s.active) return;
         if (on === 'attack' && !(((t.by || []).includes('self') && c === subject) || ((t.by || []).includes('foe') && c.owner !== subject.owner) || (t.by || []).includes('any'))) return;
         hits.push({c, i});
       });
@@ -605,7 +683,7 @@ const OPS = {                                     // effect handlers: (ctx, effe
     if (hits.length) s.priority = other(s.active);   // 3) only now does priority pass: the NON-turn player responds first
   }
   function strike(s, c, ev){                        // damage flows down the attacker's CURRENT column
-    const at = c.slot.split('|'), col = at[2], foe = other(c.owner);   /* at: where it stood when it struck (it may die mid-strike, e.g. to Retaliate) */ let left = c.atk ?? c.def.atk;   // damage goes toward the controller's opponent; a card standing on the foe's side skips itself
+    const at = c.slot.split('|'), col = at[2], foe = other(c.owner);   /* at: where it stood when it struck (it may die mid-strike, e.g. to Retaliate) */ let left = atkOf(c);   // damage goes toward the controller's opponent; a card standing on the foe's side skips itself
    
     for (const row of ['front', 'back']){
       if (at[0] === foe && (row === 'front' || at[1] === 'back')) continue;   // an attacker standing on the foe's side only hits what lies beyond it, never backward
@@ -617,15 +695,15 @@ const OPS = {                                     // effect handlers: (ctx, effe
     if (left > 0){ hurt(s, foe, left, c.def.name, 'combat'); ev.push({t:'PlayerDamaged', player:foe, amount:left, combat:true, source:c.iid}); }
   }
   function settle(s, ev){                           // deferred combat runs once no trigger or choice is outstanding
-    if (!s.pending || s.choice || s.stack.length || s.respond) return;
-    const c = s.cards[s.pending.iid]; s.pending = null;
-    if (c.loc === 'board') strike(s, c, ev);        // an attacker that left the field deals no damage
+    if (!s.pending || s.choice || s.stack.length > (s.pending.base || 0) || s.respond) return;   // an extra attack waits only for the stack objects it put above its base
+    const c = s.cards[s.pending.iid]; s.pending = (s.pendQ || []).pop() || null;
+    if (c.loc === 'board') strike(s, c, ev); recalc(s, ev); if (s.pending) settle(s, ev);        // an attacker that left the field deals no damage
   }
   function openRespond(s, ev, kind){                // the non-turn player gets priority on an empty stack (triggers on the stack resolve first)
     s.respond = {kind}; s.priority = other(s.active); ev.push({t:'ResponseWindowOpened', kind});   // the non-turn player ALWAYS responds first, even with enter triggers already on the stack
   }
   function endTurn(s, ev){
-    s.active = other(s.active); s.attackPhase = false; s.attacked = []; s.turn++; s.majorUsed = false;
+    s.active = other(s.active); s.attackPhase = false; s.attacked = []; s.turn++; s.majorUsed = false; s.combats = 0;
     s.priority = s.active; s.passes = 0; ev.push({t:'TurnChanged', active:s.active}); fire(s, ev, 'turnStart', null);
   }
   function dispatch(s, cmd){                        // mutates s; returns {ok, why, events}
@@ -670,11 +748,13 @@ const OPS = {                                     // effect handlers: (ctx, effe
         if (c.def.colTarget && !targetColumns(s, c).includes(cmd.col)) return fail('Illegal target column');
         const tp = c.def.playerTarget && ['Player', 'Opponent'].includes(cmd.tplayer) ? cmd.tplayer : null;
         if (c.def.playerTarget && !c.def.zoneTarget && !tp) return fail('Target a player');
-        if (c.def.zoneTarget && !tp && !targetZones(s, c).includes(cmd.zone)) return fail('Illegal target zone');
-        const h = s.piles[c.owner].hand; h.splice(h.indexOf(c), 1); c.revealed = null;
+        const tsid = c.def.stackTarget && s.stack.some(o => o.sid === cmd.tsid && o.kind === 'spell') ? cmd.tsid : null;
+        if (c.def.zoneTarget && !tp && !tsid && !(c.def.optionalTarget && !cmd.zone) && !targetZones(s, c).includes(cmd.zone)) return fail('Illegal target zone');
+        if (cmd.extra && !(c.def.extraCost && canPayExtra(s, c))) return fail('Cannot pay the additional cost');
+        const h = s.piles[c.owner].hand; h.splice(h.indexOf(c), 1); c.revealed = null; const paid = !!(cmd.extra && c.def.extraCost); if (paid) s.majorUsed = true;
         if (slowish(c)) s.majorUsed = true;
-        if (isPerm(c)){ s.slots[cmd.slot] = c.iid; c.slot = cmd.slot; c.loc = 'board'; ev.push({t:'PermanentSummoned', iid:c.iid, slot:cmd.slot}); fire(s, ev, 'enter', c); if (c.owner === s.active && !s.respond) openRespond(s, ev, 'enter'); }
-        else { c.loc = 'stack'; s.stack.push({sid:++s.sid, kind:'spell', iid:c.iid, controller:c.owner, hp:c.def.hp, name:c.def.name + (c.def.colTarget ? ' \u2192 col ' + (cmd.col + 1) : ''), col:cmd.col, zone:c.def.zoneTarget && !tp ? cmd.zone : null, tplayer:tp}); s.passes = 0; s.priority = other(c.owner); ev.push({t:'StackObjectCreated', iid:c.iid}); }   // the opponent gets priority first; the stack resolves only after two passes in a row
+        if (isPerm(c)){ s.slots[cmd.slot] = c.iid; c.slot = cmd.slot; c.loc = 'board'; c.extraPaid = paid; recalc(s, ev); ev.push({t:'PermanentSummoned', iid:c.iid, slot:cmd.slot}); fire(s, ev, 'enter', c); if (c.owner === s.active && !s.respond) openRespond(s, ev, 'enter'); }
+        else { c.loc = 'stack'; s.stack.push({sid:++s.sid, kind:'spell', iid:c.iid, controller:c.owner, hp:c.def.hp, name:c.def.name + (c.def.colTarget ? ' \u2192 col ' + (cmd.col + 1) : ''), col:cmd.col, zone:c.def.zoneTarget && !tp && !tsid ? (cmd.zone || null) : null, tplayer:tp, tsid}); s.passes = 0; s.priority = other(c.owner); ev.push({t:'StackObjectCreated', iid:c.iid}); }   // the opponent gets priority first; the stack resolves only after two passes in a row
         break;
       }
       case 'Pass': {
@@ -696,8 +776,10 @@ const OPS = {                                     // effect handlers: (ctx, effe
         if (cmd.player !== s.active) return fail('Only the turn player can enter the battle phase');
         if (cmd.player !== s.priority) return fail('Not this player\u2019s priority');
         if (s.stack.length) return fail('Stack is not empty');
-        if (cmd.on && !s.attackPhase){ if (majorUsed(s)) return fail('Major action already used this turn'); s.majorUsed = true; }
-        const was = s.attackPhase; s.attackPhase = !!cmd.on; ev.push({t:'AttackPhaseChanged', on:s.attackPhase}); if (cmd.on && !was) fire(s, ev, 'combat', null); break;
+        if (cmd.on && !s.attackPhase){ if (majorUsed(s)) return fail('Major action already used this turn');
+          if (s.skipCombat && s.skipCombat[cmd.player]){ s.skipCombat[cmd.player] = false; ev.push({t:'CombatSkipped', player:cmd.player}); openRespond(s, ev, 'end'); ev.push({t:'EndStepEntered'}); break; }   // Deep Sea Shark: pressing combat becomes End turn
+          s.majorUsed = true; }
+        const was = s.attackPhase; s.attackPhase = !!cmd.on; ev.push({t:'AttackPhaseChanged', on:s.attackPhase}); if (cmd.on && !was){ s.combats = (s.combats || 0) + 1; fire(s, ev, 'combat', null); } if (!cmd.on && was) fire(s, ev, 'combatEnd', null); break;
       }
       case 'Attack': {
         const c = s.cards[cmd.iid], why = canAttack(s, c);
@@ -705,7 +787,7 @@ const OPS = {                                     // effect handlers: (ctx, effe
         s.attacked.push(c.iid);
         ev.push({t:'CreatureAttackDeclared', iid:c.iid, col:+c.slot.split('|')[2]});
         s.pending = {iid:c.iid}; fire(s, ev, 'attack', c);
-        if (s.piles[other(s.active)].hand.some(h => (abDef(h).abilities || []).some(a => (a.req || []).includes('attackedCol') && !REQS.attackedCol(s, h)))) openRespond(s, ev, 'attack');   // the defender may answer with a hand ability before damage
+        if (attackReactive(s, other(s.active))) openRespond(s, ev, 'attack');   // the defender may answer with a hand ability before damage
         settle(s, ev);   // damage waits for attack triggers to resolve
         break;
       }
@@ -718,7 +800,7 @@ const OPS = {                                     // effect handlers: (ctx, effe
         else if (k.kind === 'counter'){ const t = s.cards[k.target], d = t.damage.find(y => String(y.seq) === cmd.option), r = Math.min(k.left, d.amount); d.amount -= r; if (!d.amount) t.damage.splice(t.damage.indexOf(d), 1); ev.push({t:'DamageRemoved', target:t.iid, amount:r}); askCounters(s, k.player, c, t, k.left - r, ev); }
         else
         if (cmd.option !== 'stay'){ s.slots[c.slot] = null; s.slots[cmd.option] = c.iid; c.slot = cmd.option; ev.push({t:'PermanentMoved', iid:c.iid, slot:cmd.option}); }
-        ev.push({t:'ChoiceMade', player:k.player}); settle(s, ev); break;
+        if (k.cont){ if (s.choice) s.choice.cont = (s.choice.cont || []).concat(k.cont); else resume(s, k.cont, ev); } recalc(s, ev); ev.push({t:'ChoiceMade', player:k.player}); settle(s, ev); break;
       }
       case 'Activate': {
         const c = s.cards[cmd.iid], why = c ? canActivate(s, c, cmd.ab) : 'Unknown card';
@@ -737,7 +819,7 @@ const OPS = {                                     // effect handlers: (ctx, effe
         openRespond(s, ev, 'end'); ev.push({t:'EndStepEntered'}); break;      // the turn really ends when the opponent passes
       default: return fail('Unknown command');
     }
-    sweepUnusable(s, ev);
+    sweepUnusable(s, ev); recalc(s, ev);
     return {ok:true, events:ev};
   }
   function hasAction(s, p){                         // is there anything legal for p right now?
@@ -748,7 +830,7 @@ const OPS = {                                     // effect handlers: (ctx, effe
     if (s.attackPhase ? mine.some(c => !canAttack(s, c)) : turn && !majorUsed(s) && mine.some(c => c.def.type === 'creature')) return true;
     return mine.concat(P.hand).some(c => (abDef(c).abilities || []).some((a, i) => !canActivate(s, c, i)));
   }
-  return {API:{effects:Object.keys(OPS), costs:Object.keys(COSTS), requirements:Object.keys(REQS), targets:Object.keys(TARGETS), colTargets:Object.keys(COLTARGETS), zoneTargets:Object.keys(ZONETARGETS), riders:Object.keys(RIDERS), triggers:['enter', 'attack', 'turnStart', 'damaged', 'combat'], passives:['Obscure']}, cloudMap, abDef, statuses, hpOf, targetZones, create, dispatch, canPlay, canActivate, hasAction, majorUsed, RULES, canAttack, totalDamage, freeSlots, targetColumns, colKeys, other, isPerm};
+  return {API:{effects:Object.keys(OPS), costs:Object.keys(COSTS), requirements:Object.keys(REQS), targets:Object.keys(TARGETS), colTargets:Object.keys(COLTARGETS), zoneTargets:Object.keys(ZONETARGETS), riders:Object.keys(RIDERS), triggers:['enter', 'attack', 'turnStart', 'damaged', 'combat', 'combatEnd'], passives:['Obscure', 'Aura']}, cloudMap, abDef, statuses, hpOf, targetZones, create, dispatch, canPlay, canActivate, hasAction, majorUsed, canPayExtra, recalc, atkOf, RULES, canAttack, totalDamage, freeSlots, targetColumns, colKeys, other, isPerm};
 })();
 
 // Validate that every card only uses published APIs (fails loudly at load, not mid-game)
@@ -978,7 +1060,8 @@ const draw = () => { if (!placing) send({type:'Draw', player:ui.view}); };
 const pass = () => { if (!placing) send({type:'Pass', player:ui.view}); };
 const toggleAttack = () => { if (!placing) send({type:'SetAttackPhase', player:ui.view, on:!game.attackPhase}); };
 function play(c){ if (uiCanPlay(c)) return; if (isPerm(c) || c.def.colTarget || c.def.zoneTarget || c.def.playerTarget){ placing = c; sync(); } else send({type:'PlayCard', iid:c.iid}); }
-const place = (c, zone) => send({type:'PlayCard', iid:c.iid, slot:zone.userData.slotKey, zone:zone.userData.slotKey, col:zone.userData.slot.col});
+let extraAsk = null;                                  // pending 'pay the additional cost?' popup: {c, cmd}
+const place = (c, zone) => { const cmd = {type:'PlayCard', iid:c.iid, slot:zone.userData.slotKey, zone:zone.userData.slotKey, col:zone.userData.slot.col}; if (c.def.extraCost && Sim.canPayExtra(game, c)){ extraAsk = {c, cmd}; placing = c; sync(); } else send(cmd); };
 function undo(){ if (!undoStack.length || fxBusy) return; sim = undoStack.pop(); game = sim; placing = null; fxReset(); closeMenu(); sync(); }
 let camAngle = 0, camGoal = 0;
 const camArrive = () => new Promise(r => { const t0 = performance.now(); (function w(){ if (camAngle === camGoal || performance.now() - t0 > 1800) r(); else setTimeout(w, 30); })(); });   // resolves once the seat camera has finished turning
@@ -1020,6 +1103,7 @@ const FN = [
   {id:'draw', cls:'c-go', label:() => 'Draw 2', run:draw, on:() => myPriority() && !game.stack.length && !game.respond && ui.view === game.active && !game.attackPhase && !Sim.majorUsed(game) && game.piles[ui.view].deck.length > 0, show:inPlay},
   {id:'pass', cls:'c-pass', label:() => game.respond && !game.stack.length ? 'Pass (' + ({end:'end step', attack:'attack declared'}[game.respond.kind] || 'entered') + ')' : 'Pass', run:pass, on:() => myPriority() && (game.stack.length > 0 || !!game.respond), show:inPlay},
   {id:'battle', cls:'c-atk', label:() => 'Attack: ' + (game.attackPhase ? 'on' : 'off'), run:toggleAttack, on:() => myPriority() && !game.stack.length && !game.respond && ui.view === game.active && (game.attackPhase || !Sim.majorUsed(game)), show:inPlay},
+  {id:'notarget', cls:'c-go', label:() => 'Cast without target', run:() => send({type:'PlayCard', iid:placing.iid}), on:() => !!(placing && placing.def.optionalTarget), show:() => !!(placing && placing.def.optionalTarget)},
   {id:'endturn', label:() => 'End turn', run:() => send({type:'EndTurn', player:game.priority}), on:() => !placing && !game.choice && !game.stack.length && !game.respond && game.priority === game.active, show:inPlay}
 ];
 const DBTN = [
@@ -1080,6 +1164,11 @@ const SHAPES = {
   bandages: () => [mk(Cl(.5,.5,.8),0xf4efe6,0,0,0,H), mk(Cl(.51,.51,.2),0xd4524f,0,0,0,H), mk(Bx(1.2,.04,.45),0xf4efe6,.95,-.45,0)],
   blast: () => [mk(Sp(.65),0x2a2d36,0,-.1,0), mk(Cl(.05,.05,.5),0x8b5a2b,.25,.7,0,0,-.5), mk(Sp(.13),0xffe14d,.42,.97,0,0,0,0xffaa00)]
 };
+SHAPES.wardrum = () => [mk(Cl(.6,.6,.7),0x8b5a2b), mk(Cl(.62,.62,.1),0xd4524f,0,.4,0), mk(Cl(.62,.62,.1),0xd4524f,0,-.4,0), mk(Cl(.04,.04,.9),0xe0b341,.5,.9,0,0,.6), mk(Cl(.04,.04,.9),0xe0b341,-.5,.9,0,0,-.6)];
+SHAPES['drummer-token'] = () => [mk(Cl(.3,.4,.9),0xd4524f), mk(Sp(.27),0xf0cfa8,0,.72,0), mk(Cl(.2,.2,.3),0x8b5a2b,0,.1,.45,H)];
+SHAPES.shark = () => [mk(Sp(.6),0x5a7fa8), mk(Cn(.3,.8),0x4a6f98,0,.7,0), mk(Cn(.25,.7),0x5a7fa8,-.9,0,0,0,H), mk(Cn(.12,.4),0xffffff,.55,-.1,.15,Math.PI), mk(Cn(.12,.4),0xffffff,.55,-.1,-.15,Math.PI)];
+SHAPES.intuition = () => [mk(Sp(.35),0xffe14d,0,0,0,0,0,0x665500), mk(Tr(.7,.05),0x6fd3ff,0,0,0,H), mk(Tr(.9,.04),0x6fd3ff,0,0,0,0,1.1)];
+SHAPES.ambush = () => [mk(Sp(.55),0x1b1d2e), mk(Sp(.1),0xe8e8f0,.2,.15,.5,0,0,0x444466), mk(Sp(.1),0xe8e8f0,-.2,.15,.5,0,0,0x444466), mk(Tr(.8,.05,Math.PI),0x7b5fd0,0,-.1,0)];
 SHAPES.kingeye = () => [mk(Sp(.7),0xf2f2f2), mk(Sp(.32),0x7a2bd0,0,0,.52), mk(Sp(.15),0x000000,0,0,.8)];
 SHAPES.vine = () => [mk(Cl(.08,.14,1.6),0x3f8f3a), mk(Sp(.22),0x5fbf4a,.35,.5,0), mk(Sp(.2),0x5fbf4a,-.3,.1,0), mk(Sp(.18),0x4aa83e,.3,-.4,0), mk(Tr(.4,.05,Math.PI*1.4),0x2f6f2c,0,-.5,0)];
 SHAPES['vine-token'] = SHAPES.vine;
@@ -1204,7 +1293,7 @@ function showCard(c, pin = true){
   const d = c.def, T = TYPES[d.type], pile = game.piles[c.owner][c.loc], idx = pile ? pile.indexOf(c) : -1;
   if (pin){ selected = c; selP = null; }
   deckPanel.querySelectorAll('.row').forEach((r, i) => r.classList.toggle('sel', !!openList && listCards(openList)[i] === selected));
-  const stats = d.type === 'creature' ? ['ATK ' + (c.atk ?? d.atk), 'HP ' + d.hp] : d.type === 'spell' ? [d.timing, 'HP ' + d.hp] : ['HP ' + d.hp];
+  const stats = d.type === 'creature' ? ['ATK ' + Sim.atkOf(c), 'HP ' + Sim.hpOf(c)] : d.type === 'spell' ? [d.timing, 'HP ' + d.hp] : ['HP ' + d.hp];
   const where = {deck:'Position in deck: ' + (idx+1) + ' of ' + (pile||[]).length + (idx === 0 ? ' (top)' : ''),
                  gy:'Graveyard: ' + (idx+1) + ' of ' + (pile||[]).length + (idx === 0 ? ' (most recent)' : ''),
                  exile:'In exile (' + NAME[c.owner] + ')', hand:'In ' + NAME[c.owner] + '\u2019s hand', board:'On the board (' + NAME[c.owner] + ')', stack:'On the stack (' + NAME[c.owner] + ')'}[c.loc];
@@ -1460,7 +1549,7 @@ function buildStack(){                              // shared stack panel: your 
     el.className = 'sc ' + (own === 'Player' ? 'p' : 'o') + (i === game.stack.length - 1 ? ' top' : '') + (hiddenSids.has(o.sid) ? ' pend' : '');
     el.dataset.sid = o.sid; el.style.setProperty('--tc', cardColor(d));
     el.innerHTML = '<b></b><div class="sm"><span>HP ' + o.hp + (o.hp <= -1 ? ' \u2716 countered on resolve' : '') + '</span><span></span></div>';
-    el.firstChild.textContent = stackName(o); el.querySelector('.sm span:last-child').textContent = NAME[own]; el.onclick = () => showCard(c); stackEl.appendChild(el);
+    el.firstChild.textContent = stackName(o); el.querySelector('.sm span:last-child').textContent = NAME[own]; el.onclick = () => (placing && placing.def.stackTarget && o.kind === 'spell') ? send({type:'PlayCard', iid:placing.iid, tsid:o.sid}) : showCard(c); stackEl.appendChild(el);
   }
 }
   function sync(){
@@ -1480,7 +1569,7 @@ function buildStack(){                              // shared stack panel: your 
     } else if (m.material !== mat) m.material = mat;
     Object.assign(m.userData, {name: t.down ? 'Face-down card' : t.c.def.name, card: t.down ? null : t.c, tx:t.x, tz:t.z, ty:t.y, owner:t.owner, dying:false});
     setGlow(m, !t.down && canUse(t.c));
-    setBadges(m, t.down ? null : {pw: t.c.def.type === 'creature' ? [t.c.atk ?? t.c.def.atk, t.c.def.atk] : null, hp:[effHp(t.c), t.c.def.hp], opp: !!t.rot});
+    setBadges(m, t.down ? null : {pw: t.c.def.type === 'creature' ? [Sim.atkOf(t.c), t.c.def.atk] : null, hp:[effHp(t.c), t.c.def.hp], opp: !!t.rot});
     m.visible = !seenHidden(t.c); if (!t.down && m.visible) pickCards.push(m);
   }
   for (const [id, m] of meshes) if (!T.has(id)){    // left the table: glide to its pile, then disappear
@@ -1512,7 +1601,9 @@ function buildStack(){                              // shared stack panel: your 
     row.querySelector('i').style.width = Math.max(0, Math.min(100, L / game.maxLife * 100)) + '%'; row.classList.toggle('tgt', !!(placing && placing.def.playerTarget) || !!(game.choice && !game.choice.labels && game.choice.options.includes('P:' + p))); row.querySelector('b').textContent = L;
   }
   const pk = document.getElementById('pick'), pkc = game.choice && game.choice.labels ? game.choice : null;
-  pk.hidden = !pkc;
+  if (extraAsk && !placing) extraAsk = null;
+  pk.hidden = !pkc && !extraAsk;
+  if (extraAsk && !pkc){ pk.innerHTML = '<div class="mt"></div>'; pk.firstChild.textContent = extraAsk.c.def.name + ': also spend your major action (additional cost)?'; [['Pay the additional cost', true], ['Do not pay', false]].forEach(([t, v]) => { const b = document.createElement('button'); b.className = 'abtn'; b.textContent = t; b.onclick = () => { const a = extraAsk; extraAsk = null; send(Object.assign({}, a.cmd, {extra:v})); }; pk.appendChild(b); }); }
   if (pkc){ pk.innerHTML = '<div class="mt"></div>'; pk.firstChild.textContent = pkc.prompt; pkc.options.forEach(o => { const b = document.createElement('button'); b.className = 'abtn'; b.textContent = pkc.labels[o]; b.onclick = () => send({type:'Choose', player:pkc.player, option:o}); pk.appendChild(b); }); }
   if (openList) buildList();
   if (selected && selected.loc === 'hand' && selected.owner !== ui.view) selected = null;
@@ -2073,6 +2164,48 @@ function selfTest(){
     check('Shieldguard: the attack opens a response window and damage waits', !!s.respond && s.respond.kind === 'attack' && s.life.Opponent === 20 && !s.stack.length);
     D(s, {type:'Activate', iid:sg.iid, ab:0}); pass2(s);
     eq('Shieldguard swap: soldier returns to hand, Shieldguard takes its zone', [ally.loc, sg.slot], ['hand', 'Opponent|front|1']); }
+  // ================= War Drum, Deep Sea Shark, Quick Intuition, Ambush of the Night =================
+  { let s = start(200); const so = take(s, 'Opponent', 'soldier', 'board', 'Opponent|front|1'), far = take(s, 'Opponent', 'wolf', 'board', 'Opponent|front|3'), kn = take(s, 'Player', 'knight', 'board', 'Player|front|2'), wd = take(s, 'Player', 'wardrum', 'hand');
+    so.damage = [{amount:3, source:so.iid, type:'effect', turn:1, seq:1}]; far.damage = [{amount:3, source:far.iid, type:'effect', turn:1, seq:2}];
+    D(s, {type:'PlayCard', iid:wd.iid, slot:'Player|back|1'}); drain(s);
+    eq('War Drum -1/-1: a 3/3 holding 3 damage in its column dies (HP 2), one two columns away lives', [so.loc, far.loc], ['gy', 'board']);
+    const dr = Object.values(s.cards).find(x => x.def.id === 'drummer-token' && x.loc === 'board');
+    check('Drummer token (3/3) is created on the Drum\u2019s column; own cards in range get +1/+1 (knight 4/5 -> 5/6)', !!dr && dr.slot === 'Player|front|1' && Sim.atkOf(kn) === 5 && Sim.hpOf(kn) === 6 && Sim.atkOf(dr) === 4);
+    eq('Drum is listed before Drummer on a card affected by both (older source first)', (kn.mods || []).map(m => m.name), ['Drummer']);
+    s.slots['Opponent|front|1'] = null; so.loc = 'gy';
+    kn.slot = 'Player|front|4'; s.slots['Player|front|2'] = null; s.slots['Player|front|4'] = kn.iid; D(s, {type:'Draw', player:'Player'});
+    eq('moving out of the Drummer\u2019s columns removes the bonus', [Sim.atkOf(kn), Sim.hpOf(kn)], [4, 5]);
+    s = start(201); const g = take(s, 'Player', 'knight', 'gy'), w2 = take(s, 'Player', 'wardrum', 'hand'); const l0 = s.life.Opponent;
+    D(s, {type:'PlayCard', iid:w2.iid, slot:'Player|back|1', extra:true}); drain(s);
+    check('War Drum paid: major action spent, creature picker is open', s.majorUsed && s.choice && s.choice.kind === 'pick');
+    D(s, {type:'Choose', player:'Player', option:g.iid}); D(s, {type:'Choose', player:'Player', option:'Player|front|0'}); drain(s);
+    eq('the returned Knight attacks at once outside combat (4 +1 Drummer = 5 to the face)', [g.loc, s.attackPhase, s.life.Opponent], ['board', false, l0 - 5]);
+    s = start(202); const w3 = take(s, 'Player', 'wardrum', 'hand'); D(s, {type:'Draw', player:'Player'});
+    rej('additional cost cannot be paid once the major action is used', s, {type:'PlayCard', iid:w3.iid, slot:'Player|back|1', extra:true}, 'additional cost'); }
+  { let s = start(203); const sh = take(s, 'Player', 'shark', 'hand'); D(s, {type:'PlayCard', iid:sh.iid, slot:'Player|front|0'}); drain(s); D(s, {type:'Choose', player:'Player', option:'0'}); drain(s);
+    eq('Shark: 3 life paid, opponent flagged to skip combat', [s.life.Player, s.skipCombat && s.skipCombat.Opponent], [17, true]);
+    endTurnFlow(s); D(s, {type:'SetAttackPhase', player:'Opponent', on:true});
+    eq('opponent presses combat: it becomes End turn, flag consumed, major action untouched', [s.attackPhase, s.respond && s.respond.kind, s.majorUsed, s.skipCombat.Opponent], [false, 'end', false, false]);
+    s = start(204); take(s, 'Player', 'shark', 'board', 'Player|front|0'); const wf = take(s, 'Player', 'wolf', 'board', 'Player|front|1'), oh = s.piles.Opponent.hand.length;
+    D(s, {type:'SetAttackPhase', player:'Player', on:true}); D(s, {type:'Attack', iid:wf.iid}); D(s, {type:'SetAttackPhase', player:'Player', on:false}); pass2(s); D(s, {type:'Choose', player:'Player', option:'0'});
+    check('Shark second combat: opponent drew 5 (cost), attack phase is on again, attacked list reset', s.piles.Opponent.hand.length === oh + 5 && s.attackPhase && !s.attacked.length);
+    D(s, {type:'Attack', iid:wf.iid}); eq('the Wolf attacks a second time (3 + 3)', s.life.Opponent, 14); }
+  { let s = start(205); const qi = take(s, 'Player', 'intuition', 'hand'); D(s, {type:'PlayCard', iid:qi.iid}); pass2(s);
+    eq('Quick Intuition draws until 7 cards in hand', s.piles.Player.hand.length, 7);
+    s = start(206); const so = take(s, 'Opponent', 'soldier', 'board', 'Opponent|front|1'), gi = take(s, 'Player', 'giant', 'board', 'Player|front|1'), q2 = take(s, 'Player', 'intuition', 'hand');
+    D(s, {type:'PlayCard', iid:q2.iid, zone:'Opponent|front|1'}); pass2(s); s.attackPhase = true; D(s, {type:'Attack', iid:gi.iid});
+    eq('damage to the protected creature is denied (it still absorbs its HP: 6 - 3 tramples)', [so.loc, so.damage.length, s.life.Opponent], ['board', 0, 17]);
+    s = start(207); const q3 = take(s, 'Opponent', 'intuition', 'gy'), wf = take(s, 'Player', 'wolf', 'board', 'Player|front|1'); s.attackPhase = true; D(s, {type:'Attack', iid:wf.iid});
+    check('an attack opens a response window when the defender has Cancel Attack in the GY', !!s.respond && s.priority === 'Opponent');
+    D(s, {type:'Activate', iid:q3.iid, ab:0}); drain(s);
+    eq('cancelled attack: no damage, Quick Intuition exiled by its cost', [s.life.Opponent, q3.loc, s.pending], [20, 'exile', null]); }
+  { const s = start(208), am = take(s, 'Player', 'ambush', 'hand'), kg = take(s, 'Player', 'knight', 'gy'); take(s, 'Player', 'soldier', 'hand'); const oh = s.piles.Opponent.hand.length;
+    D(s, {type:'PlayCard', iid:am.iid}); pass2(s);
+    eq('Ambush: step 2 asks which GY card to return (the only card + Done)', [s.choice.kind, s.choice.options], ['upto', [kg.iid, 'done']]);
+    D(s, {type:'Choose', player:'Player', option:kg.iid});
+    check('returned Knight is in hand; step 3 (put into play) is now asked, the later steps are still pending', kg.loc === 'hand' && s.choice.e.then === 'play' && s.choice.cont.length > 0);
+    let n = 0; while (s.choice && n++ < 5) D(s, {type:'Choose', player:s.choice.player, option:'done'});
+    eq('Ambush finishes in one resolution: opponent drew 2, major action spent, spell in GY', [s.piles.Opponent.hand.length, s.majorUsed, am.loc], [oh + 2, true, 'gy']); }
   out.push('---- ' + out.filter(l => l.startsWith('PASS')).length + ' passed, ' + out.filter(l => l.startsWith('FAIL')).length + ' failed, ' + out.filter(l => l.startsWith('XFAIL')).length + ' known bug(s) documented');
   console.log(out.join('\n')); return out;
 }
