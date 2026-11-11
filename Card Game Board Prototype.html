@@ -92,6 +92,7 @@
   #pick{left:50%;transform:translateX(-50%);top:calc(110px + env(safe-area-inset-top,0px));width:min(320px,60vw);padding:10px;display:flex;flex-direction:column;gap:6px;z-index:4;box-shadow:0 4px 18px rgba(0,0,0,.4)}
   #pick[hidden]{display:none}
   #pick .mt{font-size:12px;font-weight:600;opacity:.85}
+  #pick{max-height:min(60vh,420px)}
 
   #hud,#status,#help,#deckPanel,#inspect{z-index:1}
   .hpr{position:relative}
@@ -192,7 +193,7 @@ const cardColor = def => def.type === 'spell' && def.timing === 'Slow' ? '#8e5bd
 const Fx = {
   // effects (run when a spell/ability resolves)
   dealDamage: (to, amount) => ({op:'DealDamage', to, amount}),   // to: 'player' | 'target'
-  gainLife: amount => ({op:'GainLife', amount}),
+  gainLife: (amount, to) => ({op:'GainLife', amount, to}),   // puts life counters on the controller (default) or on the target card
   draw: n => ({op:'Draw', n}),
   damageStack: amount => ({op:'DamageStack', amount}),
   sacrificeSelf: () => ({op:'SacrificeSelf'}),                   // also usable as a cost
@@ -227,7 +228,17 @@ const Fx = {
   obscure: () => ({op:'Obscure'}),                               // passive: a black cloud covers each of the controller's other zones
   exileColumn: () => ({op:'ExileColumn'}),                       // effect: exile every card on the targeted column
   makeColumnUnusable: () => ({op:'MakeColumnUnusable'}),         // effect: the targeted column's four zones become unusable for the rest of the game
-  returnToHand: () => ({op:'ReturnToHand'})                      // effect: this spell goes to its owner's hand instead of the graveyard
+  returnToHand: () => ({op:'ReturnToHand'}),
+  modes: (...modes) => ({op:'ChooseMode', modes}),                       // controller picks one mode whose [min,max] foe-creature range fits
+  mode: (name, min, max, ...effects) => ({name, min, max, effects}),
+  pickCard: (from, then, amount) => ({op:'PickCard', from, then, amount}),   // from: foeHand | foeBoard | anyTarget | myCreatures; then: toGY | toHand | damage | summon
+  destroyAll: () => ({op:'DestroyAll'}),
+  drawPerFoeCreature: () => ({op:'DrawPerFoeCreature'}),
+  vaultFromDeck: n => ({op:'VaultFromDeck', n}),
+  revealVault: () => ({op:'RevealVault'}),
+  swapIn: () => ({op:'SwapIn'}),
+  shieldAll: color => ({op:'ShieldAll', color}),
+  noLifeGain: () => ({op:'NoLifeGain'})                      // effect: this spell goes to its owner's hand instead of the graveyard
 };
 // Each card is an independent module: a factory that receives the API and returns its definition.
 const Cards = {list: [], add(factory){ this.list.push(factory(Fx)); }};
@@ -287,6 +298,24 @@ Cards.add(Fx => ({id:'blackhawk', name:'Black Hawk', type:'creature', atk:1, hp:
   text:'At the beginning of your combat step: double this card\u2019s power 5 times.', triggers:[Fx.trigger.combat(Fx.repeat(5, Fx.doublePower()))]}));
 Cards.add(Fx => ({id:'boltmaster', name:'Bolt Master', type:'creature', atk:2, hp:3,
   text:'When this enters: add a Superbolt from your deck to your hand.', triggers:[Fx.trigger.enter(Fx.fetch('superbolt'))]}));
+Cards.add(Fx => ({id:'heavensun', name:'Heaven and Sun', type:'enchantment', hp:5,
+  text:'When this enters: choose 5 cards from your deck and exile them (stack HP 7). At the start of your turn: your opponent picks one of those exiled cards; put it into your hand.',
+  triggers:[Object.assign(Fx.trigger.enter(Fx.vaultFromDeck(5)), {hp:7}), Fx.trigger.turnStart(Fx.revealVault())]}));
+Cards.add(Fx => ({id:'parasite', name:'Creeping Parasite', type:'creature', atk:0, hp:0, flash:true,
+  text:'Flash (play it as a Quick spell; it does not use the major action). When this enters, choose one effect unlocked by the number of creatures your opponent controls. 0: look at their hand and send a card to the GY. 1+: 4 damage to any target. 2+: return a card they control to hand. 3+: put a creature from your hand, GY or exile into play. 4+: draw cards equal to their creature count. 5: destroy all cards on the board.',
+  triggers:[Fx.trigger.enter(Fx.modes(
+    Fx.mode('0: look at their hand, send a card to the GY', 0, 99, Fx.pickCard('foeHand', 'toGY')),
+    Fx.mode('1+: 4 damage to any target', 1, 99, Fx.pickCard('anyTarget', 'damage', 4)),
+    Fx.mode('2+: return a card they control to hand', 2, 99, Fx.pickCard('foeBoard', 'toHand')),
+    Fx.mode('3+: put a creature from hand, GY or exile into play', 3, 99, Fx.pickCard('myCreatures', 'summon')),
+    Fx.mode('4+: draw cards equal to their creature count', 4, 99, Fx.drawPerFoeCreature()),
+    Fx.mode('5: destroy all cards on the board', 5, 99, Fx.destroyAll())))]}));
+Cards.add(Fx => ({id:'shieldguard', name:'Shieldguard', type:'creature', atk:5, hp:15, retaliate:true,
+  text:'Retaliate (whenever this takes damage it deals damage equal to its power to the source: the damaging creature, or the controller of the spell). Fast, from your hand: after an opposing creature attacks, if you control a creature in that column, return that creature to your hand and put this card into its zone. (Stack HP 1)',
+  abilities:[{name:'Swap In', speed:'Fast', zone:'hand', req:['attackedCol'], hp:1, effects:[Fx.swapIn()]}]}));
+Cards.add(Fx => ({id:'spirit', name:'Spirit of the Sand', type:'spell', timing:'Quick', hp:0,
+  text:'Quick, 0 HP. Choose one: each card you control gets a red shield counter (cannot be targeted), or each gets a blue shield counter (unaffected by spells and abilities that do not target it; attacks still hit it). You cannot gain life for the rest of the game.',
+  effects:[Fx.modes(Fx.mode('Red shield on each card you control', 0, 99, Fx.shieldAll('red')), Fx.mode('Blue shield on each card you control', 0, 99, Fx.shieldAll('blue'))), Fx.noLifeGain()]}));
 const DEFS = Cards.list;
 </script>
 <script>
@@ -302,6 +331,8 @@ const Sim = (function(){
   let byId = {};                                      // def id -> definition (filled by create)
   const abDef = c => { const d = [...(c.damage || [])].reverse().find(x => x.xform); return d ? byId[d.xform] : c.def; };   // ability layer: the newest damage instance carrying a rider decides; remove that damage and the effect ends. c.def is never edited
   const isPerm = c => c.def.type !== 'spell' && c.def.type !== 'ability';
+  const has = (c, k) => !!(c && c.counters && c.counters[k]);          // shield counters: red = cannot be targeted, blue = unaffected by anything that does not target it
+  const slowish = c => (isPerm(c) && !c.def.flash) || c.def.timing === 'Slow';   // Flash permanents are played like Quick spells
   const slotRow = c => c.def.type === 'creature' ? 'front' : 'back';
   function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
   function buildDeck(owner, seed, defs){                  // CardInstances, top of deck first
@@ -312,7 +343,7 @@ const Sim = (function(){
   }
   function create(n, defs){                         // content is injected: the Sim never reads globals
     byId = Object.fromEntries(defs.map(d => [d.id, d]));
-    const s = {n, phase:'deck', ready:{Player:false, Opponent:false}, cards:{}, piles:{}, slots:{}, stack:[], active:'Player', priority:'Player', passes:0, attackPhase:false, life:{Player:20, Opponent:20}, maxLife:20, attacked:[], turn:1, seq:0, majorUsed:false, sid:0, choice:null, pending:null, unusable:{}, respond:null};   // respond: null | {kind:'enter'|'end'} = the non-turn player may respond before play continues
+    const s = {n, phase:'deck', ready:{Player:false, Opponent:false}, cards:{}, piles:{}, slots:{}, stack:[], active:'Player', priority:'Player', passes:0, attackPhase:false, life:{Player:20, Opponent:20}, log:{Player:[], Opponent:[]}, maxLife:20, attacked:[], turn:1, seq:0, majorUsed:false, sid:0, choice:null, pending:null, unusable:{}, respond:null};   // respond: null | {kind:'enter'|'end'} = the non-turn player may respond before play continues
     for (const [p, seed] of [['Player', n*2+1], ['Opponent', n*2]]){
       const deck = buildDeck(p, seed, defs); deck.forEach(c => s.cards[c.iid] = c);
       s.piles[p] = {deck, hand:[], gy:[], exile:[]};   // opening hands are dealt when both players press Start
@@ -323,11 +354,11 @@ const Sim = (function(){
   const freeSlots = (s, c) => Object.keys(s.slots).filter(k => !s.slots[k] && !s.unusable[k] && k.startsWith(c.owner+'|'+slotRow(c)+'|'));   // an unusable zone is never free
   const colKeys = col => ['Opponent|back|', 'Opponent|front|', 'Player|front|', 'Player|back|'].map(p => p + col);   // the 4 zones of a column
   // Clouds (King Eye) are derived from the board, so they vanish when King Eye leaves: slotKey -> King Eye iid. They cover the controller's OTHER zones.
-  const cloudMap = s => { const m = {}; for (const c of Object.values(s.cards)) if (c.loc === 'board' && (c.def.passives || []).some(p => p.op === 'Obscure')) for (const row of ['front', 'back']) for (let i = 0; i < 5; i++){ const k = c.owner + '|' + row + '|' + i; if (k !== c.slot) m[k] = c.iid; } return m; };
+  const cloudMap = s => { const m = {}; for (const c of Object.values(s.cards)) if (c.loc === 'board' && (abDef(c).passives || []).some(p => p.op === 'Obscure')) for (const row of ['front', 'back']) for (let i = 0; i < 5; i++){ const k = c.owner + '|' + row + '|' + i; if (k !== c.slot) m[k] = c.iid; } return m; };
   // third argument true = TARGETING (a cloud counts as a card/zone there); false = RESOLUTION (only what is really underneath)
   const COLTARGETS = {fullColumn: (s, col, clouds) => { const m = clouds ? cloudMap(s) : {}; return colKeys(col).every(k => s.slots[k] || m[k]) ? null : 'Requirement: the column must be fully filled'; }};
   const targetColumns = (s, c) => c.def.colTarget ? [0, 1, 2, 3, 4].filter(col => !COLTARGETS[c.def.colTarget](s, col, true)) : [];
-  const ZONETARGETS = {anyPermanent: s => { const m = cloudMap(s); return Object.keys(s.slots).filter(k => !s.unusable[k] && (s.slots[k] || m[k])); }};   // a cloud counts as a target even over an empty zone
+  const ZONETARGETS = {anyPermanent: s => { const m = cloudMap(s); return Object.keys(s.slots).filter(k => !s.unusable[k] && (m[k] || (s.slots[k] && !has(s.cards[s.slots[k]], 'red')))); }};   // a cloud counts as a target even over an empty zone
   const targetZones = (s, c) => c.def.zoneTarget ? ZONETARGETS[c.def.zoneTarget](s, c) : [];
   const RIDERS = {InheritAbilities: (s, src, tgt, ev) => { const id = abDef(src).id, d = tgt.damage[tgt.damage.length - 1]; if (tgt.loc === 'board' && d && tgt.def.id !== id){ d.xform = id; ev.push({t:'AbilitiesTransformed', iid:tgt.iid, from:id}); } }};   // the rider tags the damage instance just dealt; the effect lives and dies with that instance
   function askCounters(s, who, src, t, left, ev){      // remove `left` damage points from t; the controller picks instances one at a time
@@ -343,11 +374,11 @@ const Sim = (function(){
     if (s.phase !== 'play') return 'The game has not started';
     if (c.loc !== 'hand') return 'Not in hand';
     if (c.owner !== s.priority) return 'Not this player\u2019s priority';
-    if (s.attackPhase && (isPerm(c) || c.def.timing !== 'Quick')) return 'Only Quick spells during the battle phase';
-    if ((isPerm(c) || c.def.timing === 'Slow') && c.owner !== s.active) return 'Slow cards: turn player only';
-    if ((isPerm(c) || c.def.timing === 'Slow') && majorUsed(s)) return 'Major action already used this turn';
+    if (s.attackPhase && !c.def.flash && (isPerm(c) || c.def.timing !== 'Quick')) return 'Only Quick spells during the battle phase';
+    if (slowish(c) && c.owner !== s.active) return 'Slow cards: turn player only';
+    if (slowish(c) && majorUsed(s)) return 'Major action already used this turn';
     if (isPerm(c)){
-      if (s.stack.length) return 'Only when the stack is empty';
+      if (s.stack.length && !c.def.flash) return 'Only when the stack is empty';
       if (!freeSlots(s, c).length) return 'No free ' + slotRow(c) + ' zone';
     } else {
       if (c.def.timing === 'Slow' && s.stack.length) return 'Slow spells need an empty stack';
@@ -362,16 +393,17 @@ const Sim = (function(){
   const RULES = {oneMajor:true};                    // console: cardGame.Sim.RULES.oneMajor = false to sandbox freely
   const majorUsed = s => RULES.oneMajor && s.majorUsed;
 // ---- Published effect API. Cards reference these by name through Fx; add an entry here to give every card a new building block.
-  const TARGETS = {opposingFront: (s, c) => { const col = c.slot && c.slot.split('|')[2], id = col != null && s.slots[other(c.owner) + '|front|' + col]; return id ? s.cards[id] : null; }};
+  const TARGETS = {opposingFront: (s, c) => { const col = c.slot && c.slot.split('|')[2], id = col != null && s.slots[other(c.owner) + '|front|' + col]; return id && !has(s.cards[id], 'red') ? s.cards[id] : null; }};
   const findTarget = (s, c, a) => a.target && TARGETS[a.target] ? TARGETS[a.target](s, c) : null;
   const REQS = {                                    // -> reason string, or null if satisfied
     front: (s, c) => (c.slot || '').includes('|front|') ? null : 'Requirement: must be in a front-row zone',
     hurt: (s, c) => s.life[c.owner] >= s.maxLife ? 'Requirement: life is already full' : null,
     target: (s, c, a) => findTarget(s, c, a) || (a.target === 'opposingFront' && c.slot && cloudMap(s)[other(c.owner) + '|front|' + c.slot.split('|')[2]]) ? null : 'Requirement: no legal target',   // an enemy cloud counts as a target; an empty one fizzles
-    stack: s => s.stack.length ? null : 'Requirement: there must be a stack object to target'
+    stack: s => s.stack.length ? null : 'Requirement: there must be a stack object to target',
+    attackedCol: (s, c) => { const a = s.pending && s.cards[s.pending.iid]; return a && a.loc === 'board' && a.owner !== c.owner && COND.ownInAttackCol(s, c, a) ? null : 'Requirement: an opposing creature attacked and you control a creature in that column'; }
   };
   const COSTS = {                                   // check -> reason|null; pay mutates (never refunded if countered)
-    PayLife: {check: (s, c, k) => s.life[c.owner] <= k.n ? 'Cost: not enough life' : null, pay: (s, c, k, ev) => { s.life[c.owner] -= k.n; ev.push({t:'LifePaid', player:c.owner, amount:k.n}); }},
+    PayLife: {check: (s, c, k) => s.life[c.owner] <= k.n ? 'Cost: not enough life' : null, pay: (s, c, k, ev) => { s.life[c.owner] -= k.n; s.log[c.owner].push({kind:'paid', amount:k.n, source:c.def.name, type:'cost', turn:s.turn, seq:++s.seq}); ev.push({t:'LifePaid', player:c.owner, amount:k.n}); }},
     ExileFromGY: {check: (s, c, k) => s.piles[c.owner].gy.length < k.n ? 'Cost: graveyard has too few cards' : null,
       pay: (s, c, k, ev) => { for (let i = 0; i < k.n; i++){ const x = s.piles[c.owner].gy.pop(); x.loc = 'exile'; s.piles[c.owner].exile.push(x); ev.push({t:'CardExiled', iid:x.iid}); } }},
     ExileSelf: {check: (s, c) => c.loc === 'gy' ? null : 'Cost: this card must be in the graveyard',
@@ -382,7 +414,7 @@ const Sim = (function(){
   function canActivate(s, c, i){                    // reason string, or null. Order: 1 requirements, 2 timing, 3 costs
     const a = c && abDef(c).abilities && abDef(c).abilities[i];
     if (!a) return 'No such ability';
-    const zone = a.zone || 'board'; if (c.loc !== zone) return 'Requirement: must be ' + (zone === 'gy' ? 'in the graveyard' : 'on the board');
+    const zone = a.zone || 'board'; if (c.loc !== zone) return 'Requirement: must be ' + ({gy:'in the graveyard', hand:'in hand'}[zone] || 'on the board');
     for (const r of a.req || []){ const why = REQS[r] && REQS[r](s, c, a); if (why) return why; }
     if (c.owner !== s.priority) return 'Timing: you do not have priority';
     if (a.speed === 'Slow'){
@@ -396,20 +428,22 @@ const Sim = (function(){
   }
       function hitStack(s, u, n, ev){                   // stack HP: <= -1 is countered, 0 still resolves
     u.hp -= n; ev.push({t:'StackObjectDamaged', sid:u.sid, amount:n});
-    if (u.hp <= -1){
-      s.stack.splice(s.stack.indexOf(u), 1);
-      if (u.kind === 'spell'){ const c = s.cards[u.iid]; c.loc = 'gy'; s.piles[c.owner].gy.unshift(c); } else s.cards[u.iid].loc = 'gone';
-      ev.push({t:'StackObjectCountered', sid:u.sid});
-    }
+    // at HP <= -1 the object stays on the stack and is countered when it would resolve (see Pass)
   }
 const zoneGrid = k => { const [o, row, col] = k.split('|'); return {r: o === 'Opponent' ? (row === 'back' ? 0 : 1) : (row === 'front' ? 2 : 3), c: +col}; };   // 4 x 5 grid, opponent back row on top
   const zoneDist = (a, b) => { const p = zoneGrid(a), q = zoneGrid(b); return Math.abs(p.r - q.r) + Math.abs(p.c - q.c); };   // The Vine's own distance function (Manhattan)
 const OPS = {                                     // effect handlers: (ctx, effect). ctx = {s, ev, src, t, who, foe}
-    DealDamage: (x, e) => { if (e.to === 'target' && !x.tp) dealDamage(x.s, x.src, x.t, e.amount, x.ev, 'effect'); else { const p = e.to === 'target' ? x.tp : x.foe; x.s.life[p] -= e.amount; x.ev.push({t:'PlayerDamaged', player:p, amount:e.amount}); } },
+    DealDamage: (x, e) => { if (e.to === 'target' && !x.tp) dealDamage(x.s, x.src, x.t, e.amount, x.ev, 'effect', true); else { const p = e.to === 'target' ? x.tp : x.foe; hurt(x.s, p, e.amount, x.src.def.name, 'effect'); x.ev.push({t:'PlayerDamaged', player:p, amount:e.amount}); } },
     Mill: (x, e) => { const p = x.tp || x.who, P = x.s.piles[p]; for (let i = 0; i < e.n; i++){ const d = P.deck.shift(); if (!d) break; d.loc = 'gy'; P.gy.unshift(d); x.ev.push({t:'CardMilled', iid:d.iid, player:p}); } },
     FetchFromDeck: (x, e) => { const P = x.s.piles[x.who], i = P.deck.findIndex(d => d.def.id === e.card); if (i < 0) return; const d = P.deck.splice(i, 1)[0]; d.loc = 'hand'; P.hand.push(d); x.ev.push({t:'CardAdded', iid:d.iid, player:x.who}); },
     DoublePower: x => { const c = x.src; if (c.loc === 'board') c.atk = (c.atk ?? c.def.atk) * 2; },
-    GainLife: (x, e) => { x.s.life[x.who] += e.amount; },   // life may exceed the starting value
+    GainLife: (x, e) => {                         // gaining life puts life counters on a player (or +HP counters on a target card)
+      if (x.s.noGain && x.s.noGain[x.who]) return;
+      const k = {amount:e.amount, source:x.src.def.name, turn:x.s.turn, seq:++x.s.seq};
+      if (e.to === 'target' && x.t && x.t.loc === 'board') (x.t.life = x.t.life || []).push(k);
+      else { x.s.life[x.who] += e.amount; x.s.log[x.who].push(Object.assign({kind:'life'}, k)); }
+      x.ev.push({t:'LifeCounterAdded', amount:e.amount});
+    },   // life may exceed the starting value
     SacrificeSelf: x => { if (x.src.loc === 'board') destroy(x.s, x.src, x.ev); },   // effect-sacrifice: only if the effect resolves
     Draw: (x, e) => { for (let i = 0; i < e.n; i++){ const d = x.s.piles[x.who].deck.shift(); if (d){ d.loc = 'hand'; x.s.piles[x.who].hand.push(d); x.ev.push({t:'CardDrawn', iid:d.iid, player:x.who}); } } },
     DamageStack: (x, e) => { const u = x.s.stack[x.s.stack.length - 1]; if (u) hitStack(x.s, u, e.amount, x.ev); },
@@ -429,46 +463,109 @@ const OPS = {                                     // effect handlers: (ctx, effe
       }
       x.zone = best;
     },
-    DestroyOnZone: x => { const id = x.zone && x.s.slots[x.zone]; if (id) destroy(x.s, x.s.cards[id], x.ev); },
+    DestroyOnZone: x => { const id = x.zone && x.s.slots[x.zone]; if (id && !has(x.s.cards[id], 'blue')) destroy(x.s, x.s.cards[id], x.ev); },
     CreateToken: (x, e) => {
       const def = x.src.def.tokens && x.src.def.tokens[e.token]; if (!x.zone || !def || x.s.slots[x.zone] || x.s.unusable[x.zone]) return;
       const n = x.s.tokN = (x.s.tokN || 0) + 1, t = {iid:'tk-' + n, def, owner:x.who, loc:'board', slot:x.zone, damage:[], token:true};
       x.s.cards[t.iid] = t; x.s.slots[x.zone] = t.iid; x.ev.push({t:'PermanentSummoned', iid:t.iid, slot:x.zone}); fire(x.s, x.ev, 'enter', t);
     },
-    ExileColumn: x => { if (x.col == null) return; for (const k of colKeys(x.col)){ const id = x.s.slots[k]; if (!id) continue; const c = x.s.cards[id]; x.s.slots[k] = null; c.slot = null; c.damage = [];
+    ExileColumn: x => { if (x.col == null) return; for (const k of colKeys(x.col)){ const id = x.s.slots[k]; if (!id) continue; const c = x.s.cards[id]; if (has(c, 'blue')) continue; x.s.slots[k] = null; c.slot = null; c.damage = [];
       if (c.token) c.loc = 'gone'; else { c.loc = 'exile'; x.s.piles[c.owner].exile.push(c); } x.ev.push({t:'CardExiled', iid:c.iid}); } },
     MakeColumnUnusable: x => { if (x.col == null) return; for (const k of colKeys(x.col)){ x.s.unusable[k] = true; x.ev.push({t:'ZoneUnusable', slot:k}); } },
     ReturnToHand: x => { if (x.o) x.o.toHand = true; },
     DamageAnother: (x, e) => {                    // controller picks another creature on the board (automatic when there is only one)
-      const opts = Object.values(x.s.cards).filter(c => c.loc === 'board' && c.def.type === 'creature' && c !== x.src).map(c => c.iid);
-      if (opts.length === 1) dealDamage(x.s, x.src, x.s.cards[opts[0]], e.amount, x.ev, 'effect');
+      const opts = Object.values(x.s.cards).filter(c => c.loc === 'board' && c.def.type === 'creature' && c !== x.src && !has(c, 'red')).map(c => c.iid);
+      if (opts.length === 1) dealDamage(x.s, x.src, x.s.cards[opts[0]], e.amount, x.ev, 'effect', true);
       else if (opts.length){ x.s.choice = {player:x.who, iid:x.src.iid, kind:'damage', amount:e.amount, options:opts, prompt:x.src.def.name + ': deal ' + e.amount + ' damage to another creature.'}; x.ev.push({t:'ChoiceRequested', player:x.who}); }
     },
     RemoveDamage: (x, e) => { if (x.t && x.t.loc === 'board') askCounters(x.s, x.who, x.src, x.t, e.n, x.ev); },
-    Repeat: (x, e) => { for (let i = 0; i < e.n; i++) runFx(x, e.effects); }
+    Repeat: (x, e) => { for (let i = 0; i < e.n; i++) runFx(x, e.effects); },
+    ChooseMode: (x, e) => {                       // only one fitting mode: run it; several: the controller picks
+      const n = foeCreatures(x), ok = e.modes.filter(m => n >= (m.min || 0) && n <= (m.max ?? 99));
+      if (!ok.length) return; if (ok.length === 1) return runFx(x, ok[0].effects);
+      x.s.choice = {player:x.who, iid:x.src.iid, kind:'mode', options:ok.map((m, i) => String(i)), labels:Object.fromEntries(ok.map((m, i) => [String(i), m.name])), modes:ok, prompt:x.src.def.name + ': choose one effect (opponent controls ' + n + ' creatures).'}; x.ev.push({t:'ChoiceRequested', player:x.who});
+    },
+    PickCard: (x, e) => {
+      const s = x.s, cs = Object.values(s.cards), mine = c => c.owner === x.who;
+      const ids = e.from === 'foeHand' ? s.piles[x.foe].hand.map(c => { (c.revealed = c.revealed || {})[x.who] = true; return c.iid; })
+        : e.from === 'foeBoard' ? cs.filter(c => c.loc === 'board' && !mine(c) && !has(c, 'red')).map(c => c.iid)
+        : e.from === 'anyTarget' ? cs.filter(c => c.loc === 'board' && !has(c, 'red')).map(c => c.iid).concat(['P:Player', 'P:Opponent'])
+        : cs.filter(c => mine(c) && c.def.type === 'creature' && !c.token && ['hand', 'gy', 'exile'].includes(c.loc)).map(c => c.iid);
+      if (ids.length) ask(s, x.who, x.src, 'pick', ids, e.from === 'myCreatures' && ids.some(i => s.cards[i].loc !== 'hand') ? i => cname(s, i) + ' (' + s.cards[i].loc + ')' : null, x.src.def.name + ': ' + (e.from === 'foeHand' ? 'click a revealed card to discard it.' : e.from === 'myCreatures' ? 'pick a creature to put into play.' : 'click a card or a life bar.'), {then:e.then, amount:e.amount || 0}, x.ev);
+    },
+    DestroyAll: x => { for (const c of Object.values(x.s.cards)) if (c.loc === 'board' && !has(c, 'blue')) destroy(x.s, c, x.ev); },
+    DrawPerFoeCreature: x => OPS.Draw(x, {n:foeCreatures(x)}),
+    VaultFromDeck: (x, e) => askDeck(x.s, x.src, e.n, x.ev),
+    RevealVault: x => { const c = x.src, v = (c.vault || []).filter(i => x.s.cards[i].loc === 'exile'); if (c.loc === 'board' && v.length) ask(x.s, x.foe, c, 'vaultpick', v, i => cname(x.s, i), c.def.name + ': pick one exiled card to put into the controller\'s hand.', {}, x.ev); },
+    SwapIn: x => {
+      const s = x.s, a = s.pending && s.cards[s.pending.iid], src = x.src; if (!a || a.loc !== 'board' || src.loc !== 'hand') return;
+      const ids = colKeys(a.slot.split('|')[2]).map(k => s.slots[k]).filter(id => id && s.cards[id].owner === src.owner && s.cards[id].def.type === 'creature'); if (!ids.length) return;
+      if (ids.length === 1) CH.swap(s, null, src, {option:ids[0]}, x.ev); else ask(s, x.who, src, 'swap', ids, null, 'Click the creature to return to your hand.', {}, x.ev);
+    },
+    ShieldAll: (x, e) => { for (const c of Object.values(x.s.cards)) if (c.loc === 'board' && c.owner === x.who){ c.counters = c.counters || {}; c.counters[e.color] = (c.counters[e.color] || 0) + 1; x.ev.push({t:'CounterAdded', iid:c.iid, color:e.color}); } },
+    NoLifeGain: x => { (x.s.noGain = x.s.noGain || {})[x.who] = true; }
   };
   const runFx = (x, list) => { for (const e of list || []) if (OPS[e.op]) OPS[e.op](x, e); };
+  const foeCreatures = x => Object.values(x.s.cards).filter(c => c.loc === 'board' && c.def.type === 'creature' && c.owner !== x.who).length;
+  const cname = (s, i) => s.cards[i].def.name;
+  const hpOf = c => c.def.hp + (c.life || []).reduce((n, d) => n + d.amount, 0);   // printed HP + life counters
+  function hurt(s, p, amount, source, type){ s.life[p] -= amount; s.log[p].push({kind:'damage', amount, source, type, turn:s.turn, seq:++s.seq}); }   // player damage is recorded as an instance, like card damage
+  function ask(s, who, src, kind, ids, label, prompt, extra, ev){ s.choice = Object.assign({player:who, iid:src.iid, kind, options:ids, labels:label ? Object.fromEntries(ids.map(i => [i, label(i)])) : undefined, prompt}, extra); ev.push({t:'ChoiceRequested', player:who}); }
+  function askDeck(s, c, n, ev){ const ids = s.piles[c.owner].deck.map(d => d.iid); if (ids.length) ask(s, c.owner, c, 'vault', ids, i => cname(s, i), c.def.name + ': exile a card from your deck (' + n + ' left).', {left:n}, ev); }
+  function bounce(s, t, ev){ if (t.slot) s.slots[t.slot] = null; t.slot = null; t.damage = []; t.counters = {}; t.life = []; t.revealed = null; t.xform = null; t.atk = t.def.atk; if (t.token) t.loc = 'gone'; else { t.loc = 'hand'; s.piles[t.owner].hand.push(t); } ev.push({t:'PermanentReturned', iid:t.iid}); }
+  function enterBoard(s, t, slot, ev){ const P = s.piles[t.owner]; for (const k of ['hand', 'gy', 'exile']){ const i = P[k].indexOf(t); if (i >= 0) P[k].splice(i, 1); } s.slots[slot] = t.iid; t.slot = slot; t.loc = 'board'; t.revealed = null; ev.push({t:'PermanentSummoned', iid:t.iid, slot}); fire(s, ev, 'enter', t); }
+  function retaliate(s, from, pw, src, ev){ if (pw <= 0) return; if (src.def.type === 'spell'){ hurt(s, src.owner, pw, from.def.name, 'retaliate'); ev.push({t:'PlayerDamaged', player:src.owner, amount:pw}); } else if (src.loc === 'board') dealDamage(s, from, src, pw, ev, 'retaliate'); }   // Retaliate: the source (creature, or the spell's controller) takes damage equal to the retaliator's power; retaliation never retaliates
+  const COND = {ownInAttackCol: (s, c, a) => !!(a && a.slot) && colKeys(a.slot.split('|')[2]).some(k => { const m = s.slots[k] && s.cards[s.slots[k]]; return !!m && m.owner === c.owner && m.def.type === 'creature'; })};
+  const THEN = {
+    toGY: (s, w, c, t, k, ev) => { const P = s.piles[t.owner], i = P.hand.indexOf(t); if (i >= 0) P.hand.splice(i, 1); t.loc = 'gy'; t.revealed = null; P.gy.unshift(t); ev.push({t:'CardDiscarded', iid:t.iid}); },
+    toHand: (s, w, c, t, k, ev) => { if (t.loc === 'board') bounce(s, t, ev); },
+    damage: (s, w, c, t, k, ev) => { if (t.loc === 'board') dealDamage(s, c, t, k.amount, ev, 'effect', true); },
+    summon: (s, w, c, t, k, ev) => { const f = freeSlots(s, t); if (f.length === 1) enterBoard(s, t, f[0], ev); else if (f.length) ask(s, w, c, 'place', f, null, 'Click a highlighted zone for ' + t.def.name + '.', {card:t.iid}, ev); }
+  };
+  const CH = {                                      // answers to non-shift choices (Choose command)
+    mode: (s, k, c, cmd, ev) => runFx({s, ev, src:c, who:k.player, foe:other(k.player), t:null}, k.modes[+cmd.option].effects),
+    pick: (s, k, c, cmd, ev) => { if (cmd.option.startsWith('P:')){ const p = cmd.option.slice(2); hurt(s, p, k.amount, c.def.name, 'effect'); ev.push({t:'PlayerDamaged', player:p, amount:k.amount}); } else THEN[k.then](s, k.player, c, s.cards[cmd.option], k, ev); },
+    place: (s, k, c, cmd, ev) => enterBoard(s, s.cards[k.card], cmd.option, ev),
+    swap: (s, k, c, cmd, ev) => { if (cmd.option === 'stay' || c.loc !== 'hand') return; const t = s.cards[cmd.option]; if (t.loc !== 'board') return; const slot = t.slot; bounce(s, t, ev); enterBoard(s, c, slot, ev); },
+    vault: (s, k, c, cmd, ev) => { const d = s.cards[cmd.option], P = s.piles[c.owner]; P.deck.splice(P.deck.indexOf(d), 1); d.loc = 'exile'; P.exile.push(d); (c.vault = c.vault || []).push(d.iid); ev.push({t:'CardExiled', iid:d.iid}); if (k.left > 1) askDeck(s, c, k.left - 1, ev); },
+    vaultpick: (s, k, c, cmd, ev) => { const d = s.cards[cmd.option], P = s.piles[d.owner]; P.exile.splice(P.exile.indexOf(d), 1); c.vault = c.vault.filter(i => i !== d.iid); d.loc = 'hand'; P.hand.push(d); ev.push({t:'CardAdded', iid:d.iid, player:d.owner}); }
+  };
+  function statuses(s, c){                          // what other cards have put on this card (shown in the inspector)
+    const o = [];
+    if (has(c, 'red')) o.push('Red shield: cannot be targeted');
+    if (has(c, 'blue')) o.push('Blue shield: unaffected by spells and abilities that do not target it (attacks still hit)');
+    if (c.loc === 'hand' && c.revealed) o.push('Revealed to the opponent while it stays in hand');
+    if ((c.damage || []).some(d => d.xform)) o.push('Ability replaced: uses the abilities of ' + abDef(c).name + ' (ends when that damage is removed)');
+    if (c.loc === 'board' && c.atk != null && c.atk !== c.def.atk) o.push('Power ' + c.atk + ' (printed ' + c.def.atk + ')');
+    if (c.loc === 'board' && s.attacked.includes(c.iid)) o.push('Restriction: already attacked this turn');
+    if (c.loc === 'board' && cloudMap(s)[c.slot]) o.push('Covered by a King Eye cloud');
+    if (c.life && c.life.length) o.push('Life counters: +' + c.life.reduce((n, d) => n + d.amount, 0) + ' HP');
+    if (c.vault && c.vault.length) o.push('Has ' + c.vault.length + ' card(s) exiled by it');
+    return o;
+  }
   function resolveObj(s, o, ev){                   // the object is already popped
     const src = s.cards[o.src || o.iid], def = o.kind === 'spell' ? src.def : byId[o.from][o.list][o.ab];
     let t = o.target ? s.cards[o.target] : null;
-    if (def.zoneTarget && !o.tplayer){ const id = s.slots[o.zone]; t = id ? s.cards[id] : null; if (!t){ ev.push({t:'StackObjectFizzled', sid:o.sid}); return; } }   // a cloud was the target and nothing is underneath
+    if (def.zoneTarget && !o.tplayer){ const id = s.slots[o.zone]; t = id ? s.cards[id] : null; if (!t || has(t, 'red')){ ev.push({t:'StackObjectFizzled', sid:o.sid}); return; } }   // a cloud was the target and nothing is underneath
     if (def.target && !(t && t.loc === 'board')){ ev.push({t:'StackObjectFizzled', sid:o.sid}); return; }   // target became illegal
     if (def.colTarget && COLTARGETS[def.colTarget](s, o.col)){ ev.push({t:'StackObjectFizzled', sid:o.sid}); return; }   // nothing legal under the clouds: it fizzles and nothing is revealed   // the column is no longer a legal target
     runFx({s, ev, src, t, who:o.controller, foe:other(o.controller), col:o.col, o, tp:o.tplayer}, def.effects);
   }
   function sweepUnusable(s, ev){                    // a card that somehow ends up on an unusable zone goes to the graveyard
-    for (const k of Object.keys(s.unusable)){ const id = s.slots[k]; if (id) destroy(s, s.cards[id], ev); }
+    for (const k of Object.keys(s.unusable)){ const id = s.slots[k]; if (id && !has(s.cards[id], 'blue')) destroy(s, s.cards[id], ev); }
   }
       function destroy(s, c, ev){                       // leaves the field for the graveyard; damage counters go away
-    s.slots[c.slot] = null; c.slot = null; c.damage = []; c.xform = null; c.atk = c.def.atk;
+    s.slots[c.slot] = null; c.slot = null; c.damage = []; c.xform = null; c.counters = {}; c.life = []; c.atk = c.def.atk;
     if (c.token) c.loc = 'gone'; else { c.loc = 'gy'; s.piles[c.owner].gy.unshift(c); } ev.push({t:'PermanentDestroyed', iid:c.iid});
   }
-  function dealDamage(s, src, tgt, amount, ev, type){     // adds a damage counter; destroyed once damage exceeds HP
+  function dealDamage(s, src, tgt, amount, ev, type, targeted){ if (has(tgt, 'blue') && !targeted && (type || 'combat') !== 'combat') return;   // blue shield: only effects that target it can touch it
+        // adds a damage counter; destroyed once damage exceeds HP
     tgt.damage.push({amount, source:src.iid, type:type || 'combat', turn:s.turn, seq:++s.seq});
     ev.push({t:'DamageDealt', source:src.iid, target:tgt.iid, amount, type:type || 'combat'});
     if ((type || 'combat') === 'combat') fire(s, ev, 'damaged', tgt);      // triggers see the victim before it is destroyed
     const rd = abDef(src).rider; if (rd && RIDERS[rd.op]) RIDERS[rd.op](s, src, tgt, ev);
-    if (totalDamage(tgt) > tgt.def.hp) destroy(s, tgt, ev);
+    const pw = tgt.atk ?? tgt.def.atk; if (totalDamage(tgt) > hpOf(tgt)) destroy(s, tgt, ev);
+    if (tgt.def.retaliate && type !== 'retaliate') retaliate(s, tgt, pw, src, ev);
   }
   function canAttack(s, c){                         // reason string, or null if legal
     if (!c || c.loc !== 'board' || c.def.type !== 'creature') return 'Only creatures on the board can attack';
@@ -489,9 +586,10 @@ const OPS = {                                     // effect handlers: (ctx, effe
   function fire(s, ev, on, subject){                // event -> ALL matching triggers go onto the stack together, then priority passes (non-turn player first)
     const hits = [];                                // 1) collect every trigger that matches this event
     for (const c of Object.values(s.cards)){
-      if (c.loc !== 'board') continue;
+      if (c.loc === 'stack' || c.loc === 'gone') continue;
       (abDef(c).triggers || []).forEach((t, i) => {
-        if (t.on !== on) return;
+        if (t.on !== on || (t.zone || 'board') !== c.loc) return;
+        if (t.cond && !COND[t.cond](s, c, subject)) return;
         if (on === 'enter' && c !== subject) return;
         if (on === 'damaged' && c !== subject) return;
         if (on === 'turnStart' && c.owner !== s.active) return;
@@ -507,18 +605,19 @@ const OPS = {                                     // effect handlers: (ctx, effe
     if (hits.length) s.priority = other(s.active);   // 3) only now does priority pass: the NON-turn player responds first
   }
   function strike(s, c, ev){                        // damage flows down the attacker's CURRENT column
-    const col = c.slot.split('|')[2], foe = other(c.owner); let left = c.atk ?? c.def.atk;   // damage goes toward the controller's opponent; a card standing on the foe's side skips itself
+    const at = c.slot.split('|'), col = at[2], foe = other(c.owner);   /* at: where it stood when it struck (it may die mid-strike, e.g. to Retaliate) */ let left = c.atk ?? c.def.atk;   // damage goes toward the controller's opponent; a card standing on the foe's side skips itself
    
     for (const row of ['front', 'back']){
+      if (at[0] === foe && (row === 'front' || at[1] === 'back')) continue;   // an attacker standing on the foe's side only hits what lies beyond it, never backward
       const id = s.slots[foe + '|' + row + '|' + col]; if (!id || left <= 0) continue;
-      if (id === c.iid || s.cards[id].owner === c.owner) continue;   // never absorbed by the attacker's own cards (e.g. your own Vines standing in that column)
-      const t = s.cards[id], remaining = t.def.hp - totalDamage(t);
+      if (id === c.iid) continue;   // every card on the foe's side of the column absorbs damage, whoever controls it   // never absorbed by the attacker's own cards (e.g. your own Vines standing in that column)
+      const t = s.cards[id], remaining = hpOf(t) - totalDamage(t);
       dealDamage(s, c, t, left, ev); left = Math.max(0, left - remaining);
     }
-    if (left > 0){ s.life[foe] -= left; ev.push({t:'PlayerDamaged', player:foe, amount:left, combat:true, source:c.iid}); }
+    if (left > 0){ hurt(s, foe, left, c.def.name, 'combat'); ev.push({t:'PlayerDamaged', player:foe, amount:left, combat:true, source:c.iid}); }
   }
   function settle(s, ev){                           // deferred combat runs once no trigger or choice is outstanding
-    if (!s.pending || s.choice || s.stack.length) return;
+    if (!s.pending || s.choice || s.stack.length || s.respond) return;
     const c = s.cards[s.pending.iid]; s.pending = null;
     if (c.loc === 'board') strike(s, c, ev);        // an attacker that left the field deals no damage
   }
@@ -572,9 +671,9 @@ const OPS = {                                     // effect handlers: (ctx, effe
         const tp = c.def.playerTarget && ['Player', 'Opponent'].includes(cmd.tplayer) ? cmd.tplayer : null;
         if (c.def.playerTarget && !c.def.zoneTarget && !tp) return fail('Target a player');
         if (c.def.zoneTarget && !tp && !targetZones(s, c).includes(cmd.zone)) return fail('Illegal target zone');
-        const h = s.piles[c.owner].hand; h.splice(h.indexOf(c), 1);
-        if (isPerm(c) || c.def.timing === 'Slow') s.majorUsed = true;
-        if (isPerm(c)){ s.slots[cmd.slot] = c.iid; c.slot = cmd.slot; c.loc = 'board'; ev.push({t:'PermanentSummoned', iid:c.iid, slot:cmd.slot}); fire(s, ev, 'enter', c); openRespond(s, ev, 'enter'); }
+        const h = s.piles[c.owner].hand; h.splice(h.indexOf(c), 1); c.revealed = null;
+        if (slowish(c)) s.majorUsed = true;
+        if (isPerm(c)){ s.slots[cmd.slot] = c.iid; c.slot = cmd.slot; c.loc = 'board'; ev.push({t:'PermanentSummoned', iid:c.iid, slot:cmd.slot}); fire(s, ev, 'enter', c); if (c.owner === s.active && !s.respond) openRespond(s, ev, 'enter'); }
         else { c.loc = 'stack'; s.stack.push({sid:++s.sid, kind:'spell', iid:c.iid, controller:c.owner, hp:c.def.hp, name:c.def.name + (c.def.colTarget ? ' \u2192 col ' + (cmd.col + 1) : ''), col:cmd.col, zone:c.def.zoneTarget && !tp ? cmd.zone : null, tplayer:tp}); s.passes = 0; s.priority = other(c.owner); ev.push({t:'StackObjectCreated', iid:c.iid}); }   // the opponent gets priority first; the stack resolves only after two passes in a row
         break;
       }
@@ -583,13 +682,13 @@ const OPS = {                                     // effect handlers: (ctx, effe
         if (!s.stack.length){                       // passing in an empty-stack response window closes it
           if (!s.respond) return fail('Nothing on the stack');
           const k = s.respond.kind; s.respond = null; ev.push({t:'ResponseWindowClosed', kind:k});
-          if (k === 'end') endTurn(s, ev); else s.priority = s.active;
+          if (k === 'end') endTurn(s, ev); else { s.priority = s.active; settle(s, ev); }
           break;
         }
         if (++s.passes >= 2){
-          const o = s.stack.pop(), c = s.cards[o.iid]; resolveObj(s, o, ev);
+          const o = s.stack.pop(), c = s.cards[o.iid], dead = o.hp <= -1; if (dead) ev.push({t:'StackObjectCountered', sid:o.sid}); else resolveObj(s, o, ev);
           if (o.kind === 'spell'){ if (o.toHand){ c.loc = 'hand'; s.piles[c.owner].hand.push(c); } else { c.loc = 'gy'; s.piles[c.owner].gy.unshift(c); } } else c.loc = 'gone';   // ability tokens cease to exist   // newest first
-          s.passes = 0; s.priority = s.respond ? other(s.active) : s.active; ev.push({t:'StackObjectResolved', iid:c.iid}); settle(s, ev);
+          s.passes = 0; s.priority = s.respond ? other(s.active) : s.active; if (!dead) ev.push({t:'StackObjectResolved', iid:c.iid}); settle(s, ev);
         } else { s.priority = other(s.priority); ev.push({t:'PriorityPassed', to:s.priority}); }
         break;
       }
@@ -605,14 +704,17 @@ const OPS = {                                     // effect handlers: (ctx, effe
         if (why) return fail(why);
         s.attacked.push(c.iid);
         ev.push({t:'CreatureAttackDeclared', iid:c.iid, col:+c.slot.split('|')[2]});
-        s.pending = {iid:c.iid}; fire(s, ev, 'attack', c); settle(s, ev);   // damage waits for attack triggers to resolve
+        s.pending = {iid:c.iid}; fire(s, ev, 'attack', c);
+        if (s.piles[other(s.active)].hand.some(h => (abDef(h).abilities || []).some(a => (a.req || []).includes('attackedCol') && !REQS.attackedCol(s, h)))) openRespond(s, ev, 'attack');   // the defender may answer with a hand ability before damage
+        settle(s, ev);   // damage waits for attack triggers to resolve
         break;
       }
       case 'Choose': {
         const k = s.choice;
         if (!k) return fail('Nothing to choose'); if (cmd.player !== k.player) return fail('Not your choice'); if (!k.options.includes(cmd.option)) return fail('Illegal option');
         s.choice = null; const c = s.cards[k.iid];
-        if (k.kind === 'damage') dealDamage(s, c, s.cards[cmd.option], k.amount, ev, 'effect');
+        if (CH[k.kind]) CH[k.kind](s, k, c, cmd, ev);
+        else if (k.kind === 'damage') dealDamage(s, c, s.cards[cmd.option], k.amount, ev, 'effect', true);
         else if (k.kind === 'counter'){ const t = s.cards[k.target], d = t.damage.find(y => String(y.seq) === cmd.option), r = Math.min(k.left, d.amount); d.amount -= r; if (!d.amount) t.damage.splice(t.damage.indexOf(d), 1); ev.push({t:'DamageRemoved', target:t.iid, amount:r}); askCounters(s, k.player, c, t, k.left - r, ev); }
         else
         if (cmd.option !== 'stay'){ s.slots[c.slot] = null; s.slots[cmd.option] = c.iid; c.slot = cmd.option; ev.push({t:'PermanentMoved', iid:c.iid, slot:cmd.option}); }
@@ -644,9 +746,9 @@ const OPS = {                                     // effect handlers: (ctx, effe
     if (turn && !s.attackPhase && !majorUsed(s) && P.deck.length) return true;
     if (P.hand.some(c => !canPlay(s, c))) return true;
     if (s.attackPhase ? mine.some(c => !canAttack(s, c)) : turn && !majorUsed(s) && mine.some(c => c.def.type === 'creature')) return true;
-    return mine.some(c => (abDef(c).abilities || []).some((a, i) => !canActivate(s, c, i)));
+    return mine.concat(P.hand).some(c => (abDef(c).abilities || []).some((a, i) => !canActivate(s, c, i)));
   }
-  return {API:{effects:Object.keys(OPS), costs:Object.keys(COSTS), requirements:Object.keys(REQS), targets:Object.keys(TARGETS), colTargets:Object.keys(COLTARGETS), zoneTargets:Object.keys(ZONETARGETS), riders:Object.keys(RIDERS), triggers:['enter', 'attack', 'turnStart', 'damaged', 'combat'], passives:['Obscure']}, cloudMap, abDef, targetZones, create, dispatch, canPlay, canActivate, hasAction, majorUsed, RULES, canAttack, totalDamage, freeSlots, targetColumns, colKeys, other, isPerm};
+  return {API:{effects:Object.keys(OPS), costs:Object.keys(COSTS), requirements:Object.keys(REQS), targets:Object.keys(TARGETS), colTargets:Object.keys(COLTARGETS), zoneTargets:Object.keys(ZONETARGETS), riders:Object.keys(RIDERS), triggers:['enter', 'attack', 'turnStart', 'damaged', 'combat'], passives:['Obscure']}, cloudMap, abDef, statuses, hpOf, targetZones, create, dispatch, canPlay, canActivate, hasAction, majorUsed, RULES, canAttack, totalDamage, freeSlots, targetColumns, colKeys, other, isPerm};
 })();
 
 // Validate that every card only uses published APIs (fails loudly at load, not mid-game)
@@ -816,6 +918,9 @@ function makeSword(){
 }
 async function attackJob(pre, ev){                    // sword flies down the column; every hit gets a splat; splats go away, THEN the numbers update
   const comb = ev.filter(e => (e.t === 'DamageDealt' && e.type === 'combat') || (e.t === 'PlayerDamaged' && e.combat)); if (!comb.length) return;
+  const moved = ev.filter(e => e.t === 'PermanentMoved');   // a shift happened before the strike: move the card first, so the attack runs straight down its NEW column
+  for (const e of moved){ const mm = meshes.get(e.iid), z = slotZones[e.slot]; if (mm && z){ mm.userData.tx = z.position.x; mm.userData.tz = z.position.z; } }
+  if (moved.length) await sleep(600);
   const a = meshes.get(comb[0].source); if (!a) return;
   const sword = makeSword(), undo = []; let cur = {x:a.position.x, z:a.position.z}; sword.position.set(cur.x, .9, cur.z); scene.add(sword);
   for (const e of comb){
@@ -841,12 +946,17 @@ function send(cmd){
     eventLog.push(...r.events); if (eventLog.length > 200) eventLog.splice(0, eventLog.length - 200);
     placing = null; selected = null; inspHold = true;                                   // any action closes the inspection panel
     jobs = fxJobs(pre, sim);
-    if (r.events.some(e => (e.t === 'DamageDealt' && e.type === 'combat') || (e.t === 'PlayerDamaged' && e.combat))) jobs.push(() => attackJob(pre, r.events));
+    if (r.events.some(e => (e.t === 'DamageDealt' && e.type === 'combat') || (e.t === 'PlayerDamaged' && e.combat))){   // order: attack animation -> damage numbers -> triggered abilities appear on the stack
+      const A = new Set(pre.stack.map(o => o.sid)), ent = jobs.filter(j => j.enter);
+      jobs = jobs.filter(j => !j.enter);
+      jobs.push(() => attackJob(pre, r.events), async () => { const m = structuredClone(sim); m.stack = m.stack.filter(o => A.has(o.sid)); game = m; sync(); await sleep(700); }, ...ent);
+    }
     if (r.events.some(e => e.t === 'TurnChanged')){ const hold = ui.autoView; if (hold) viewHold = true; jobs.unshift(async () => {   // turn ends: the banner plays for BOTH players, first for the one whose turn ended, then for the new turn player
-      if (hold){ setView(pre.active); await sleep(650); }
+      if (hold){ ui.pin = null; setView(pre.active); await camArrive(); await sleep(200); }
       bannerEl.textContent = NAME[pre.active] + ': Turn Ended'; bannerEl.hidden = false; await sleep(900);
-      if (hold){ viewHold = false; game = sim; sync(); await sleep(650); }
-      bannerEl.textContent = NAME[sim.active] + ': Your Turn'; bannerEl.hidden = false; await sleep(900); bannerEl.hidden = true; }); }
+      if (hold){ game = sim; setView(sim.active); sync(); await camArrive(); await sleep(200); }   // viewHold stays on: the new turn player sees their banner
+      bannerEl.textContent = NAME[sim.active] + ': Your Turn'; bannerEl.hidden = false; await sleep(900); bannerEl.hidden = true;
+      if (hold){ viewHold = false; setView(sim.choice ? sim.choice.player : sim.priority); sync(); await camArrive(); await sleep(200); } }); }   // then the seat holding priority (e.g. the Vine trigger responder) watches the stack animation
     else if (ui.autoView && pre.stack.length > sim.stack.length){ viewHold = true; setView(sim.choice ? sim.choice.player : sim.priority); }   // something resolved: the animation plays from the seat that gets priority next
   }
   if (jobs.length){ game = pre; sync(); fxRun(jobs, () => { game = sim; sync(); autoStep(); }); }   // keep showing the old state until the animation ends
@@ -871,6 +981,7 @@ function play(c){ if (uiCanPlay(c)) return; if (isPerm(c) || c.def.colTarget || 
 const place = (c, zone) => send({type:'PlayCard', iid:c.iid, slot:zone.userData.slotKey, zone:zone.userData.slotKey, col:zone.userData.slot.col});
 function undo(){ if (!undoStack.length || fxBusy) return; sim = undoStack.pop(); game = sim; placing = null; fxReset(); closeMenu(); sync(); }
 let camAngle = 0, camGoal = 0;
+const camArrive = () => new Promise(r => { const t0 = performance.now(); (function w(){ if (camAngle === camGoal || performance.now() - t0 > 1800) r(); else setTimeout(w, 30); })(); });   // resolves once the seat camera has finished turning
 // ---- top-down orthographic view (toggle, bottom left) ----
 const ortho = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 200), tv = {on:false, cx:0, cz:0, zoom:1};
 let cam = camera, panFrom = null;
@@ -892,7 +1003,7 @@ renderer.domElement.addEventListener('wheel', e => { if (!tv.on) return; e.preve
 renderer.domElement.addEventListener('contextmenu', e => e.preventDefault());
 function setView(p){ ui.view = p; camGoal = p === 'Opponent' ? Math.PI : 0; placing = null; closeMenu(); if (game.phase === 'deck'){ deckPanel.hidden = true; openList = null; inspect.hidden = true; selected = null; openDeckEditor(); } }
 function openDeckEditor(){ if (game.phase === 'deck' && !game.ready[ui.view]) showList(ui.view, 'deck'); }   // deck building: your deck list opens by default
-function switchPlayer(){ setView(other(ui.view)); sync(); }          // debug: seat only
+function switchPlayer(){ ui.pin = game.choice ? game.choice.player : game.priority; setView(other(ui.view)); sync(); }          // debug: seat only
 function resetGame(){
   sim = Sim.create(newSeed(), DEFS); game = sim; fxReset(); undoStack.length = 0; eventLog.length = 0;
   for (const m of meshes.values()) cardGroup.remove(m); meshes.clear();
@@ -907,7 +1018,7 @@ const FN = [
   {id:'start', cls:'c-go', label:() => game.ready[ui.view] ? NAME[ui.view] + ' ready \u2713' : 'Start (' + NAME[ui.view] + ')', run:() => { const r = send({type:'Start', player:ui.view}); if (r.ok && game.phase === 'deck' && !game.ready[other(ui.view)]){ setView(other(ui.view)); sync(); } },   // after Start, hand the seat to the player who is still arranging
   on:() => !placing && !game.ready[ui.view], show:() => game.phase === 'deck'},
   {id:'draw', cls:'c-go', label:() => 'Draw 2', run:draw, on:() => myPriority() && !game.stack.length && !game.respond && ui.view === game.active && !game.attackPhase && !Sim.majorUsed(game) && game.piles[ui.view].deck.length > 0, show:inPlay},
-  {id:'pass', cls:'c-pass', label:() => game.respond && !game.stack.length ? 'Pass (' + (game.respond.kind === 'end' ? 'end step' : 'entered') + ')' : 'Pass', run:pass, on:() => myPriority() && (game.stack.length > 0 || !!game.respond), show:inPlay},
+  {id:'pass', cls:'c-pass', label:() => game.respond && !game.stack.length ? 'Pass (' + ({end:'end step', attack:'attack declared'}[game.respond.kind] || 'entered') + ')' : 'Pass', run:pass, on:() => myPriority() && (game.stack.length > 0 || !!game.respond), show:inPlay},
   {id:'battle', cls:'c-atk', label:() => 'Attack: ' + (game.attackPhase ? 'on' : 'off'), run:toggleAttack, on:() => myPriority() && !game.stack.length && !game.respond && ui.view === game.active && (game.attackPhase || !Sim.majorUsed(game)), show:inPlay},
   {id:'endturn', label:() => 'End turn', run:() => send({type:'EndTurn', player:game.priority}), on:() => !placing && !game.choice && !game.stack.length && !game.respond && game.priority === game.active, show:inPlay}
 ];
@@ -934,7 +1045,7 @@ function updateDbg(){
 // ---- Card meshes ------------------------------------------------------------
 const CW = 1.6, CD = 2.3, cardGeo = new THREE.BoxGeometry(CW, 0.08, CD);
 const matCache = {}, sideMat = new THREE.MeshStandardMaterial({color:0x1b1d24});
-const effHp = c => c.def.hp - (c.loc === 'board' ? Sim.totalDamage(c) : 0);   // HP left after damage counters
+const effHp = c => Sim.hpOf(c) - (c.loc === 'board' ? Sim.totalDamage(c) : 0);   // HP left after damage counters
 // ---- Simple 3D artwork: each card name maps to a small model, rendered once to a canvas ----
 const mk = (geo, color, x, y, z, rx, rz, em) => { const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({color, roughness:.5, metalness:.15, emissive:em || 0})); m.position.set(x || 0, y || 0, z || 0); m.rotation.x = rx || 0; m.rotation.z = rz || 0; return m; };
 const Bx = (w, h, d) => new THREE.BoxGeometry(w, h, d), Sp = r => new THREE.SphereGeometry(r, 20, 14), Cl = (a, b, h) => new THREE.CylinderGeometry(a, b, h, 18), Cn = (r, h, s) => new THREE.ConeGeometry(r, h, s || 18), Tr = (r, t, arc) => new THREE.TorusGeometry(r, t, 10, 32, arc || Math.PI*2);
@@ -972,6 +1083,10 @@ const SHAPES = {
 SHAPES.kingeye = () => [mk(Sp(.7),0xf2f2f2), mk(Sp(.32),0x7a2bd0,0,0,.52), mk(Sp(.15),0x000000,0,0,.8)];
 SHAPES.vine = () => [mk(Cl(.08,.14,1.6),0x3f8f3a), mk(Sp(.22),0x5fbf4a,.35,.5,0), mk(Sp(.2),0x5fbf4a,-.3,.1,0), mk(Sp(.18),0x4aa83e,.3,-.4,0), mk(Tr(.4,.05,Math.PI*1.4),0x2f6f2c,0,-.5,0)];
 SHAPES['vine-token'] = SHAPES.vine;
+SHAPES.heavensun = () => [mk(Sp(.5),0xffd54a,0,.3,0,0,0,0xaa7700), mk(Tr(.8,.05),0xffe9a0,0,.3,0,H), mk(Cn(.5,.7),0x6fa8ff,0,-.6,0)];
+SHAPES.parasite = () => [mk(Sp(.35),0x6b2f7a,0,.2,0)].concat(ring(6, a => mk(Cl(.04,.04,.8),0x8a4a9a,Math.cos(a)*.4,-.4,Math.sin(a)*.4)));
+SHAPES.shieldguard = () => [mk(Bx(1.1,1.4,.15),0x8d98ad), mk(Bx(.2,1.5,.2),0xe0b341), mk(Bx(.8,.2,.2),0xe0b341,0,.2,0)];
+SHAPES.spirit = () => [mk(Sp(.5),0xe8f4ff,0,0,0,0,0,0x335577), mk(Tr(.8,.06),0xd4524f), mk(Tr(.8,.06),0x3f7fd8,0,0,0,H)];
 const artCache = {}, artURLs = {};
 let artR = null, artScene = null, artCam = null;
 function artCanvas(def){
@@ -1041,7 +1156,7 @@ function setGlow(m, on){
   if (on && !g){ const p = new THREE.Mesh(glowGeo, glowMat); p.rotation.x = -Math.PI/2; p.position.y = 0.05; p.raycast = () => {}; m.add(p); m.userData.glow = p; }
   else if (!on && g){ m.remove(g); m.userData.glow = null; }
 }
-const canUse = c => c.owner === ui.view && (c.loc === 'hand' ? !Sim.canPlay(game, c) : c.loc === 'board' && (Sim.abDef(c).abilities || []).some((a, i) => !Sim.canActivate(game, c, i)));
+const canUse = c => (game.choice && game.choice.kind === 'pick' && !game.choice.labels && game.choice.options.includes(c.iid)) || c.owner === ui.view && (c.loc === 'hand' ? (!Sim.canPlay(game, c) || (Sim.abDef(c).abilities || []).some((a, i) => !Sim.canActivate(game, c, i))) : c.loc === 'board' && (Sim.abDef(c).abilities || []).some((a, i) => !Sim.canActivate(game, c, i)));
 let pickCards = [];
 </script>
 <script>
@@ -1087,14 +1202,14 @@ function buildList(){
 }
 function showCard(c, pin = true){
   const d = c.def, T = TYPES[d.type], pile = game.piles[c.owner][c.loc], idx = pile ? pile.indexOf(c) : -1;
-  if (pin) selected = c;
+  if (pin){ selected = c; selP = null; }
   deckPanel.querySelectorAll('.row').forEach((r, i) => r.classList.toggle('sel', !!openList && listCards(openList)[i] === selected));
   const stats = d.type === 'creature' ? ['ATK ' + (c.atk ?? d.atk), 'HP ' + d.hp] : d.type === 'spell' ? [d.timing, 'HP ' + d.hp] : ['HP ' + d.hp];
   const where = {deck:'Position in deck: ' + (idx+1) + ' of ' + (pile||[]).length + (idx === 0 ? ' (top)' : ''),
                  gy:'Graveyard: ' + (idx+1) + ' of ' + (pile||[]).length + (idx === 0 ? ' (most recent)' : ''),
                  exile:'In exile (' + NAME[c.owner] + ')', hand:'In ' + NAME[c.owner] + '\u2019s hand', board:'On the board (' + NAME[c.owner] + ')', stack:'On the stack (' + NAME[c.owner] + ')'}[c.loc];
-  const gyActs = c.loc === 'gy' ? (Sim.abDef(c).abilities || []).map((a, i) => ({a, i, why: c.owner !== ui.view ? 'Not your card' : Sim.canActivate(game, c, i)})).filter(x => x.a.zone === 'gy') : [];
-  const key = c.iid + '|' + where + '|' + c.atk + '|' + c.damage.length + '|' + Sim.totalDamage(c) + '|' + gyActs.map(x => x.why || 'ok').join();
+  const gyActs = (c.loc === 'gy' || c.loc === 'hand') ? (Sim.abDef(c).abilities || []).map((a, i) => ({a, i, why: c.owner !== ui.view ? 'Not your card' : Sim.canActivate(game, c, i)})).filter(x => x.a.zone === c.loc) : [];
+  const key = c.iid + '|' + where + '|' + c.atk + '|' + c.damage.length + '|' + Sim.totalDamage(c) + '|' + gyActs.map(x => x.why || 'ok').join() + '|' + Sim.statuses(game, c).join();
   if (inspect.hidden || inspect.dataset.key !== key){
   inspect.dataset.key = key;
   inspect.innerHTML = '<div class="phead"><b>Inspect</b><button class="xbtn" data-close="inspect" aria-label="Close inspection panel">\u00d7</button></div>' +
@@ -1107,7 +1222,8 @@ function showCard(c, pin = true){
   inspect.querySelector('p').textContent = d.text;
   inspect.querySelector('.where').textContent = where;
   if (gyActs.length){ const bar = document.createElement('div'); bar.className = 'acts'; gyActs.forEach(({a, i, why}) => { const b = document.createElement('button'); b.className = 'abtn'; b.textContent = a.speed + ': ' + a.name; b.disabled = !!why; b.title = why || ''; if (!why) b.onclick = () => send({type:'Activate', iid:c.iid, ab:i}); bar.appendChild(b); }); inspect.appendChild(bar); }
-  const dl = inspect.querySelector('.dmg');
+  const dl = inspect.querySelector('.dmg'), sts = Sim.statuses(game, c);
+  if (sts.length){ const h = document.createElement('b'); h.textContent = 'Status'; dl.appendChild(h); sts.forEach(t => { const r = document.createElement('div'); r.textContent = '• ' + t; dl.appendChild(r); }); dl.appendChild(document.createElement('br')); }
   if (c.damage.length){
     const h = document.createElement('b'); h.textContent = 'Damage counters (' + Sim.totalDamage(c) + ' / HP ' + d.hp + ')'; dl.appendChild(h);
     c.damage.forEach(x => { const r = document.createElement('div'); r.textContent = x.amount + ' from ' + game.cards[x.source].def.name + ' \u00b7 turn ' + x.turn + ', #' + x.seq; dl.appendChild(r); });
@@ -1115,11 +1231,37 @@ function showCard(c, pin = true){
   }
   inspect.hidden = false;
 }
+let hoverP = null, selP = null;                     // player inspection: hovered / pinned (click a life bar)
+function showPlayer(p, pin){
+  if (pin){ selP = p; selected = null; }
+  const s = game, P = s.piles[p], n = Object.values(s.cards).filter(c => c.loc === 'board' && c.owner === p).length;
+  const stats = ['Life ' + s.life[p] + ' / ' + s.maxLife, 'Permanents ' + n, 'Hand ' + P.hand.length, 'Deck ' + P.deck.length, 'GY ' + P.gy.length, 'Exile ' + P.exile.length];
+  const sts = []; if (s.noGain && s.noGain[p]) sts.push('Cannot gain life for the rest of the game (Spirit of the Sand)');
+  const where = (s.active === p ? 'Turn player' : 'Not the turn player') + (s.priority === p ? ' · has priority' : '');
+  const L = s.log[p] || [], dmg = L.filter(d => d.kind === 'damage'), gain = L.filter(d => d.kind === 'life'), paid = L.filter(d => d.kind === 'paid'), sum = a => a.reduce((n, d) => n + d.amount, 0);
+  const key = 'P|' + p + stats.join() + sts.join() + where + L.length;
+  if (inspect.hidden || inspect.dataset.key !== key){
+    inspect.dataset.key = key;
+    inspect.innerHTML = '<div class="phead"><b>Inspect</b><button class="xbtn" data-close="inspect" aria-label="Close inspection panel">×</button></div><div class="art"></div><div class="pbody"><h3></h3><div class="meta">Player</div><div class="stats"></div><p></p><div class="where"></div><div class="dmg"></div></div>';
+    inspect.style.setProperty('--tc', p === 'Player' ? '#3f7fd8' : '#d4524f');
+    inspect.querySelector('.art').textContent = NAME[p]; inspect.querySelector('h3').textContent = NAME[p];
+    inspect.querySelector('.stats').innerHTML = stats.map(x => '<span class="stat">' + x + '</span>').join('');
+    inspect.querySelector('p').textContent = 'Life total, piles and rules that affect this player.';
+    inspect.querySelector('.where').textContent = where;
+    const dl = inspect.querySelector('.dmg');
+    const sec = (h, a, f) => { if (!a.length) return; const b = document.createElement('b'); b.textContent = h; dl.appendChild(b); a.forEach(d => { const r = document.createElement('div'); r.textContent = f(d); dl.appendChild(r); }); dl.appendChild(document.createElement('br')); };
+    sec('Damage taken (' + sum(dmg) + ')', dmg, d => d.amount + ' from ' + d.source + ' · ' + d.type + ', turn ' + d.turn + ', #' + d.seq);
+    sec('Life counters (+' + sum(gain) + ')', gain, d => '+' + d.amount + ' from ' + d.source + ' · turn ' + d.turn + ', #' + d.seq);
+    sec('Life paid (' + sum(paid) + ')', paid, d => d.amount + ' for ' + d.source + ' · turn ' + d.turn + ', #' + d.seq);
+    if (sts.length){ dl.insertAdjacentHTML('beforeend', '<b>Status</b>'); sts.forEach(t => { const r = document.createElement('div'); r.textContent = '• ' + t; dl.appendChild(r); }); }
+  }
+  inspect.hidden = false;
+}
 function actionsFor(c){
   const acts = [];
   if (c.loc === 'hand' && c.owner === ui.view) acts.push({t:'Play', why:uiCanPlay(c), run:() => play(c)});
   if (c.loc === 'board' && c.def.type === 'creature') acts.push({t:'Attack', why: c.owner !== ui.view ? 'Not your creature' : Sim.canAttack(game, c), run:() => send({type:'Attack', iid:c.iid})});
-  if (c.loc === 'board') (Sim.abDef(c).abilities || []).forEach((a, i) => (a.zone || 'board') === 'board' && acts.push({t:a.speed + ': ' + a.name, why: c.owner !== ui.view ? 'Not your card' : Sim.canActivate(game, c, i), run:() => send({type:'Activate', iid:c.iid, ab:i})}));
+  if (c.loc === 'board' || c.loc === 'hand') (Sim.abDef(c).abilities || []).forEach((a, i) => (a.zone || 'board') === c.loc && acts.push({t:a.speed + ': ' + a.name, why: c.owner !== ui.view ? 'Not your card' : Sim.canActivate(game, c, i), run:() => send({type:'Activate', iid:c.iid, ab:i})}));
   if (c.loc === 'board' && c.def.type === 'enchantment' && !c.def.abilities) acts.push({t:'Activate', why:'This card has no ability yet'});
   return acts;
 }
@@ -1142,10 +1284,10 @@ function openMenu(c, x, y){
   menu.style.top  = Math.max(8, Math.min(y + 10, innerHeight - h - 8)) + 'px';
 }
 function refreshInspect(){                          // hovered card wins; otherwise the pinned (clicked) one; otherwise hidden
-  const c = inspHold ? null : (preview || selected);
-  if (c && !(c.loc === 'hand' && c.owner !== ui.view) && !seenHidden(c)) showCard(c, false); else inspect.hidden = true;
+  const c = inspHold ? null : (preview || (hoverP ? null : selected)), p = inspHold || c ? null : (hoverP || selP);
+  if (c && !(c.loc === 'hand' && c.owner !== ui.view && !(c.revealed && c.revealed[ui.view])) && !seenHidden(c)) showCard(c, false); else if (p) showPlayer(p); else inspect.hidden = true;
 }
-function hideInspect(){ inspect.hidden = true; selected = null; deckPanel.querySelectorAll('.row.sel').forEach(r => r.classList.remove('sel')); sync(); }
+function hideInspect(){ inspect.hidden = true; selected = null; selP = null; deckPanel.querySelectorAll('.row.sel').forEach(r => r.classList.remove('sel')); sync(); }
 function hideList(){ deckPanel.hidden = true; openList = null; hideInspect(); }
 function closeAll(){ closeMenu(); if (!deckPanel.hidden) hideList(); else if (!inspect.hidden) hideInspect(); }
 document.addEventListener('click', e => {
@@ -1172,7 +1314,7 @@ function targets(){                                 // iid -> where the card sho
   for (const p of ['Player', 'Opponent']){          // hands: only the viewer sees their own
     const hand = game.piles[p].hand, n = hand.length, opp = p === 'Opponent';
     const sp = n > 1 ? Math.min(1.75, (HAND_W - CW - 0.4) / (n-1)) : 0;
-    hand.forEach((c, i) => put(c, (i - (n-1)/2) * sp * (opp ? -1 : 1), opp ? -HZ : HZ, 0.1 + i*0.02, opp ? Math.PI : 0, p !== ui.view, p));
+    hand.forEach((c, i) => put(c, (i - (n-1)/2) * sp * (opp ? -1 : 1), opp ? -HZ : HZ, 0.1 + i*0.02, opp ? Math.PI : 0, p !== ui.view && !(c.revealed && c.revealed[ui.view]), p));
   }
   for (const k in game.slots){
     const id = game.slots[k]; if (!id) continue;
@@ -1265,7 +1407,7 @@ stackEl.addEventListener('pointermove', e => { if (e.pointerType !== 'mouse') re
 stackEl.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') setLink(null); });
 stackEl.addEventListener('pointerdown', e => { if (e.pointerType === 'mouse') return; const el = e.target.closest && e.target.closest('.sc'); if (el){ linkPin = true; setLink({t:'entry', sid:+el.dataset.sid}); } });   // touch/pen: tap pins the arrow (lifting the finger no longer clears it)
 document.addEventListener('pointerdown', e => { if (!linkPin || (e.target.closest && e.target.closest('#stack .sc, #hp .hpr'))) return; linkPin = false; if (linkSrc && (linkSrc.t === 'entry' || linkSrc.t === 'player')) setLink(null); }, true);
-document.querySelectorAll('#hp .hpr').forEach(r => { r.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') setLink({t:'player', p:r.dataset.p}); }); r.addEventListener('pointerdown', e => { if (e.pointerType !== 'mouse'){ linkPin = true; setLink({t:'player', p:r.dataset.p}); } }); r.addEventListener('click', () => { if (placing && placing.def.playerTarget) send({type:'PlayCard', iid:placing.iid, tplayer:r.dataset.p}); }); r.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') setLink(null); }); });
+document.querySelectorAll('#hp .hpr').forEach(r => { r.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse'){ setLink({t:'player', p:r.dataset.p}); hoverP = r.dataset.p; inspHold = false; refreshInspect(); } }); r.addEventListener('pointerdown', e => { if (e.pointerType !== 'mouse'){ linkPin = true; setLink({t:'player', p:r.dataset.p}); } }); r.addEventListener('click', () => { if (placing && placing.def.playerTarget) send({type:'PlayCard', iid:placing.iid, tplayer:r.dataset.p}); else if (game.choice && game.choice.options.includes('P:' + r.dataset.p)) send({type:'Choose', player:game.choice.player, option:'P:' + r.dataset.p}); else if (!placing) showPlayer(r.dataset.p, true); }); r.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse'){ setLink(null); hoverP = null; refreshInspect(); } }); });
 
 // ---- Showcase animations. The simulation has already moved on; the screen keeps the OLD state until they finish ----
 const hiddenSids = new Set(); const fxReset = () => hiddenSids.clear();
@@ -1303,7 +1445,7 @@ function fxJobs(pre, post){                         // stack diff: gone = resolv
   pre.stack.forEach(o => { if (!B.has(o.sid)) jobs.push(() => leaveJob(pre, o)); });
   if (post.stack.some(o => { const c = pre.cards[o.src || o.iid]; return !A.has(o.sid) && o.kind !== 'spell' && c && c.loc === 'hand' && post.cards[c.iid].loc === 'board'; }))
     jobs.push(async () => { const m = structuredClone(post); m.stack = m.stack.filter(o => A.has(o.sid)); game = m; sync(); await sleep(650); });   // the card lands on the board BEFORE its enter trigger is shown
-  post.stack.forEach(o => { if (!A.has(o.sid)){ const i = n++; jobs.push(() => enterJob(pre, o, i)); } });
+  post.stack.forEach(o => { if (!A.has(o.sid)){ const i = n++, j = () => enterJob(pre, o, i); j.enter = true; jobs.push(j); } });
   return jobs;
 }
 async function fxRun(jobs, done){
@@ -1317,13 +1459,14 @@ function buildStack(){                              // shared stack panel: your 
     const o = game.stack[i], mk = maskOf(o), c = mk || game.cards[o.iid], d = c.def, own = game.cards[o.src || o.iid].owner, el = document.createElement('div');
     el.className = 'sc ' + (own === 'Player' ? 'p' : 'o') + (i === game.stack.length - 1 ? ' top' : '') + (hiddenSids.has(o.sid) ? ' pend' : '');
     el.dataset.sid = o.sid; el.style.setProperty('--tc', cardColor(d));
-    el.innerHTML = '<b></b><div class="sm"><span>HP ' + o.hp + '</span><span></span></div>';
+    el.innerHTML = '<b></b><div class="sm"><span>HP ' + o.hp + (o.hp <= -1 ? ' \u2716 countered on resolve' : '') + '</span><span></span></div>';
     el.firstChild.textContent = stackName(o); el.querySelector('.sm span:last-child').textContent = NAME[own]; el.onclick = () => showCard(c); stackEl.appendChild(el);
   }
 }
   function sync(){
   const seat = game.choice ? game.choice.player : game.priority;
-  if (ui.autoView && !viewHold && game.phase === 'play' && ui.view !== seat) setView(seat);
+  if (ui.pin && ui.pin !== seat) ui.pin = null;                      // a manual seat switch holds until priority moves on
+  if (ui.autoView && !viewHold && !ui.pin && game.phase === 'play' && ui.view !== seat) setView(seat);
   updateDbg(); buildStack(); applyLink();
   selected = selected && game.cards[selected.iid]; placing = placing && game.cards[placing.iid];
   if (selected && selected.loc === 'gone'){ selected = null; inspect.hidden = true; }
@@ -1342,7 +1485,7 @@ function buildStack(){                              // shared stack panel: your 
   }
   for (const [id, m] of meshes) if (!T.has(id)){    // left the table: glide to its pile, then disappear
     const c = game.cards[id];
-    if (c.loc === 'stack' || c.loc === 'gone'){ cardGroup.remove(m); meshes.delete(id); continue; }   // the showcase animation carries it to the stack instead
+    if (!c || c.loc === 'stack' || c.loc === 'gone'){ cardGroup.remove(m); meshes.delete(id); continue; }   // !c: the card no longer exists (undo removed a generated token)   // the showcase animation carries it to the stack instead
     const z = sideZones[c.owner + (c.loc === 'gy' ? 'gy' : c.loc === 'exile' ? 'exile' : 'deck')];
     Object.assign(m.userData, {tx:z.position.x, tz:z.position.z, ty:0.11, dying:true, card:null}); setGlow(m, false);
   }
@@ -1354,19 +1497,19 @@ function buildStack(){                              // shared stack panel: your 
   const CM = Sim.cloudMap(game);
   for (const k in clouds){ const col = +k.split('|')[2], on = !!CM[k] && !game.unusable[k]; clouds[k].visible = on; if (on) clouds[k].material = k.split('|')[0] === ui.view ? cloudOwn : cloudHide; }   // owner sees through; revealed columns are clean
   const held = placing || (drag && drag.card), free = held && isPerm(held) ? new Set(Sim.freeSlots(game, held)) : null, tz = held && !isPerm(held) && (held.def.zoneTarget || held.def.playerTarget) ? new Set(Sim.targetZones(game, held)) : null, tcols = held && !isPerm(held) && held.def.colTarget ? Sim.targetColumns(game, held) : null;
-  const ch = game.choice, chCur = ch && !ch.kind ? game.cards[ch.iid].slot : null, chSlots = !ch ? [] : ch.kind === 'damage' ? ch.options.map(i => game.cards[i].slot) : ch.kind ? [] : ch.options;   // shift choice: highlight left / right / current zone
+  const ch = game.choice, chCur = ch && !ch.kind ? game.cards[ch.iid].slot : null, chSlots = !ch ? [] : ch.kind === 'place' ? ch.options : ['damage', 'pick', 'swap'].includes(ch.kind) ? ch.options.map(i => game.cards[i] && game.cards[i].slot).filter(Boolean) : ch.kind ? [] : ch.options;   // shift choice: highlight left / right / current zone
   const valid = ch ? zones.filter(z => chSlots.includes(z.userData.slotKey) || z.userData.slotKey === chCur) : !held ? [] : free ? zones.filter(z => free.has(z.userData.slotKey)) : tz ? zones.filter(z => tz.has(z.userData.slotKey)) : tcols ? zones.filter(z => z.userData.slot && tcols.includes(z.userData.slot.col)) : zones.filter(z => z.userData.slot && !game.unusable[z.userData.slotKey]);
   zones.forEach(z => { const cur = ch && z.userData.slotKey === chCur; z.userData.baseEm = valid.includes(z) ? (cur ? 0x7a5c14 : 0x1f6b2f) : 0; z.userData.hoverEm = cur ? 0xc99a2a : 0; applyEm(z); });
   zones.forEach(z => { const dead = !!(z.userData.slotKey && game.unusable[z.userData.slotKey]); z.visible = !dead; z.userData.plane.visible = !dead; });   // an unusable zone vanishes from the board
   stackEl.classList.toggle('drop', !!(drag && !isPerm(drag.card) && !drag.card.def.colTarget && !drag.card.def.zoneTarget));
   statusEl.textContent = game.phase === 'deck' ? deckStatus() : drag ? 'Drop ' + drag.card.def.name + (isPerm(drag.card) || drag.card.def.colTarget || drag.card.def.zoneTarget ? ' on a highlighted zone' : ' on the board or the stack') :
-    game.choice ? NAME[game.choice.player] + ': ' + game.choice.prompt + (game.choice.kind === 'damage' ? ' Click a highlighted creature.' : game.choice.kind ? ' Pick an option in the list.' : ' Click a green zone to shift there, or the amber zone to stay.') :
+    game.choice ? NAME[game.choice.player] + ': ' + game.choice.prompt + (['damage', 'pick', 'swap', 'place'].includes(game.choice.kind) && !game.choice.labels ? ' Click a highlighted card, zone or life bar.' : game.choice.kind ? ' Pick an option in the list.' : ' Click a green zone to shift there, or the amber zone to stay.') :
     placing ? (placing.def.zoneTarget || placing.def.playerTarget ? 'Targeting for ' + placing.def.name + ': click ' + (placing.def.zoneTarget ? 'a highlighted zone' : '') + (placing.def.zoneTarget && placing.def.playerTarget ? ' or ' : '') + (placing.def.playerTarget ? 'a life bar' : '') + ' (Esc to cancel)' : placing.def.colTarget ? 'Targeting for ' + placing.def.name + ': click a zone in a highlighted column (Esc to cancel)' : 'Placing ' + placing.def.name + ': click a highlighted zone (Esc to cancel)') :
-    NAME[game.active] + '\u2019s turn' + (game.attackPhase ? ' (attack phase)' : '') + (game.majorUsed ? ' (major action used)' : '') + ' \u00b7 ' + (ui.note ? ui.note + ' \u00b7 ' : '') + (game.stack.length ? 'Stack (top last): ' + game.stack.map(o => stackName(o) + ' [HP ' + o.hp + ']').join(' \u2192 ') + ' \u00b7 ' : (game.respond ? 'Response window: ' + (game.respond.kind === 'end' ? 'end step' : 'permanent entered') + ' \u00b7 ' : 'Stack empty \u00b7 ')) +
+    NAME[game.active] + '\u2019s turn' + (game.attackPhase ? ' (attack phase)' : '') + (game.majorUsed ? ' (major action used)' : '') + ' \u00b7 ' + (ui.note ? ui.note + ' \u00b7 ' : '') + (game.stack.length ? 'Stack (top last): ' + game.stack.map(o => stackName(o) + ' [HP ' + o.hp + ']').join(' \u2192 ') + ' \u00b7 ' : (game.respond ? 'Response window: ' + ({end:'end step', attack:'attack declared'}[game.respond.kind] || 'permanent entered') + ' \u00b7 ' : 'Stack empty \u00b7 ')) +
     NAME[game.priority] + ' has priority' + (ui.view !== game.priority ? ' (viewing ' + NAME[ui.view] + ')' : '');
   for (const p of ['Player', 'Opponent']){          // life bars
     const row = document.querySelector('#hp [data-p="' + p + '"]'), L = game.life[p];
-    row.querySelector('i').style.width = Math.max(0, Math.min(100, L / game.maxLife * 100)) + '%'; row.classList.toggle('tgt', !!(placing && placing.def.playerTarget)); row.querySelector('b').textContent = L;
+    row.querySelector('i').style.width = Math.max(0, Math.min(100, L / game.maxLife * 100)) + '%'; row.classList.toggle('tgt', !!(placing && placing.def.playerTarget) || !!(game.choice && !game.choice.labels && game.choice.options.includes('P:' + p))); row.querySelector('b').textContent = L;
   }
   const pk = document.getElementById('pick'), pkc = game.choice && game.choice.labels ? game.choice : null;
   pk.hidden = !pkc;
@@ -1460,7 +1603,7 @@ addEventListener('pointerup', e => {
   downAt = null;
   const o = pickAt(e.clientX, e.clientY), u = o ? o.userData : {};
   if (game.choice){                                 // shift choice answered on the board itself
-    const k = game.choice, occ = u.slotKey && game.slots[u.slotKey], opt = k.kind ? (k.kind === 'damage' ? (u.card ? u.card.iid : occ) : null) : u.slotKey && u.baseEm ? (u.slotKey === game.cards[k.iid].slot ? 'stay' : u.slotKey) : (u.card && u.card.iid === k.iid ? 'stay' : null);
+    const k = game.choice, occ = u.slotKey && game.slots[u.slotKey], opt = k.kind === 'place' ? (u.slotKey && k.options.includes(u.slotKey) ? u.slotKey : null) : k.kind ? (['damage', 'pick', 'swap'].includes(k.kind) ? (u.card ? u.card.iid : occ) : null) : u.slotKey && u.baseEm ? (u.slotKey === game.cards[k.iid].slot ? 'stay' : u.slotKey) : (u.card && u.card.iid === k.iid ? 'stay' : null);
     if (opt && k.options.includes(opt)){ send({type:'Choose', player:k.player, option:opt}); return; }
   }
   const zo = u.slot ? o : (u.card && u.card.loc === 'board' && slotZones[u.card.slot]) || null;   // a card standing on a zone counts as that zone
@@ -1508,7 +1651,9 @@ function selfTest(){
   const xfail = (name, ok) => out.push(ok ? 'FAIL (known bug looks fixed: turn into a normal check) ' + name : 'XFAIL (known bug) ' + name);
   // rej: the command must fail, for the stated reason, with no events and NO change to the game state at all
   const rej = (name, s, cmd, why) => { const before = JSON.stringify(s), r = D(s, cmd); check(name, !r.ok && r.why.includes(why) && !r.events.length && JSON.stringify(s) === before, r.ok ? 'command succeeded' : 'why="' + r.why + '", events=' + r.events.length + ', stateUnchanged=' + (JSON.stringify(s) === before)); };
-  const start = seed => { const s = Sim.create(seed, DEFS.concat(FIXTURES)); for (const p of ['Player', 'Opponent']) D(s, {type:'Start', player:p}); return s; };
+  const start = seed => { const s = Sim.create(seed, DEFS.concat(FIXTURES)); for (const p of ['Player', 'Opponent']) D(s, {type:'Start', player:p});
+    for (const p of ['Player', 'Opponent']){ const P = s.piles[p], i = P.hand.findIndex(c => c.def.id === 'shieldguard'); if (i >= 0){ const c = P.hand.splice(i, 1)[0]; c.loc = 'deck'; P.deck.push(c); const n = P.deck.shift(); n.loc = 'hand'; P.hand.push(n); } }   // Shieldguard in an opening hand would open an attack response window and skew unrelated combat tests
+    return s; };
   const take = (s, o, id, loc, slot) => {           // move a named card out of its pile into hand / gy / a board slot
     const c = Object.values(s.cards).find(x => x.owner === o && x.def.id === id), P = s.piles[o];
     for (const k of ['deck', 'hand', 'gy']){ const i = P[k].indexOf(c); if (i >= 0) P[k].splice(i, 1); }
@@ -1718,7 +1863,9 @@ function selfTest(){
     eq('adding a response resets the pass count: one pass after it does not resolve anything', [s.stack.length, s.passes, s.priority], [2, 1, 'Player']); }
   { let s = start(83); const z = take(s, 'Player', 'zap', 'hand'), b = take(s, 'Opponent', 'bolt', 'hand');
     D(s, {type:'PlayCard', iid:z.iid}); D(s, {type:'PlayCard', iid:b.iid}); const r = pass2(s);
-    eq('Bolt (3) on Zap (HP 0) -> HP -3: countered; Zap\u2019s effect never happens; both spells in their GYs', [z.loc, b.loc, s.life.Opponent, s.stack.length, r.events.filter(e => e.t === 'StackObjectCountered').length], ['gy', 'gy', 20, 0, 1]);
+    eq('Bolt (3) on Zap (HP 0) -> HP -3: Zap stays on the stack at negative HP, Bolt is resolved', [z.loc, b.loc, s.stack.length, s.stack[0] && s.stack[0].hp], ['stack', 'gy', 1, -3]);
+    const r2 = pass2(s);
+    eq('...and is countered only when it would resolve: Zap\u2019s effect never happens, no Resolved event', [z.loc, s.life.Opponent, s.stack.length, r2.events.filter(e => e.t === 'StackObjectCountered').length, r2.events.filter(e => e.t === 'StackObjectResolved').length], ['gy', 20, 0, 1, 0]);
     s = start(84); const he = take(s, 'Player', 'heal', 'hand'), b2 = take(s, 'Opponent', 'bolt', 'hand'); D(s, {type:'PlayCard', iid:he.iid}); D(s, {type:'PlayCard', iid:b2.iid}); pass2(s);
     eq('boundary: Bolt (3) on Heal (HP 3) leaves HP 0: NOT countered, still on the stack', [s.stack.length, s.stack[0] && s.stack[0].hp, he.loc, b2.loc], [1, 0, 'stack', 'gy']);
     pass2(s); eq('...and it then resolves normally (+3 life)', [s.life.Player, he.loc], [23, 'gy']);
@@ -1755,7 +1902,7 @@ function selfTest(){
     rej('Volley (Slow) after the major action was used', s, {type:'Activate', iid:a4.iid, ab:0}, 'major action already used');
     s = start(95); const a5 = take(s, 'Player', 'archer', 'board', 'Player|front|0'), zz = take(s, 'Player', 'zap', 'hand'); D(s, {type:'PlayCard', iid:zz.iid}); D(s, {type:'Pass', player:'Opponent'});
     rej('Volley (Slow) needs an empty stack', s, {type:'Activate', iid:a5.iid, ab:0}, 'empty stack');
-    s = start(96); const a6 = take(s, 'Player', 'archer', 'board', 'Player|front|0'), bo = take(s, 'Opponent', 'bolt', 'hand'); D(s, {type:'Activate', iid:a6.iid, ab:0}); D(s, {type:'PlayCard', iid:bo.iid}); pass2(s);
+    s = start(96); const a6 = take(s, 'Player', 'archer', 'board', 'Player|front|0'), bo = take(s, 'Opponent', 'bolt', 'hand'); D(s, {type:'Activate', iid:a6.iid, ab:0}); D(s, {type:'PlayCard', iid:bo.iid}); pass2(s); pass2(s);
     eq('countered ability (stack HP 1 - 3): cost is NOT refunded, effect never happens, source stays, token removed', [s.life.Player, s.life.Opponent, a6.loc, bo.loc, s.stack.length, abTokens(s).every(t => t.loc === 'gone')], [19, 20, 'board', 'gy', 0, true]); }
   { let s = start(97); const ch = take(s, 'Player', 'charm', 'board', 'Player|back|0');
     rej('Recall needs a card in the graveyard to exile', s, {type:'Activate', iid:ch.iid, ab:0}, 'too few');
@@ -1766,7 +1913,7 @@ function selfTest(){
     s = start(98); const w = take(s, 'Player', 'ward', 'board', 'Player|back|0');
     rej('Ward needs lost life', s, {type:'Activate', iid:w.iid, ab:0}, 'already full'); s.life.Player = 15; D(s, {type:'Activate', iid:w.iid, ab:0}); pass2(s);
     eq('Ward: +3 life, then sacrificed (in GY, zone freed)', [s.life.Player, w.loc, s.slots['Player|back|0']], [18, 'gy', null]);
-    s = start(99); const w2 = take(s, 'Player', 'ward', 'board', 'Player|back|0'), bo2 = take(s, 'Opponent', 'bolt', 'hand'); s.life.Player = 19; D(s, {type:'Activate', iid:w2.iid, ab:0}); D(s, {type:'PlayCard', iid:bo2.iid}); pass2(s);
+    s = start(99); const w2 = take(s, 'Player', 'ward', 'board', 'Player|back|0'), bo2 = take(s, 'Opponent', 'bolt', 'hand'); s.life.Player = 19; D(s, {type:'Activate', iid:w2.iid, ab:0}); D(s, {type:'PlayCard', iid:bo2.iid}); pass2(s); pass2(s);
     eq('Ward countered at exactly HP -1 (2 - 3): object removed, no life gained, Ward is NOT sacrificed (sacrifice is an effect)', [s.life.Player, w2.loc, s.stack.length, abTokens(s).every(t => t.loc === 'gone')], [19, 'board', 0, true]); }
 
   // ================= Infinity Wall, unusable zones, response windows =================
@@ -1877,7 +2024,7 @@ function selfTest(){
     s = start(145); const tb = take(s, 'Player', 'soldier', 'board', 'Opponent|front|1'), ob = take(s, 'Opponent', 'knight', 'board', 'Opponent|back|1'); tb.def = VT; tb.token = true; s.attackPhase = true; D(s, {type:'Attack', iid:tb.iid});
     eq('...and damages the foe\u2019s back card in its column, not the player', [ob.damage.length, s.life.Opponent], [1, 20]);
     s = start(146); const av = take(s, 'Player', 'vine', 'board', 'Player|front|1'), ally = take(s, 'Player', 'soldier', 'board', 'Opponent|front|1'); ally.def = VT; ally.token = true; s.attackPhase = true; D(s, {type:'Attack', iid:av.iid});
-    eq('your own Vine in the foe\u2019s column does not absorb your attack', [ally.damage.length, ally.loc, s.life.Opponent], [0, 'board', 19]); }
+    eq('Vine Y (yours) standing in the foe\u2019s column blocks Vine X\u2019s attack: Y takes the damage, the player is untouched', [ally.damage.length, ally.loc, s.life.Opponent], [1, 'board', 20]); }
 
   // ================= combat is a phase; Avatar dying to its own trigger =================
   { let s = start(160); const a = take(s, 'Player', 'wolf', 'board', 'Player|front|0'), b = take(s, 'Player', 'knight', 'board', 'Player|front|1'); D(s, {type:'SetAttackPhase', player:'Player', on:true});
@@ -1889,6 +2036,10 @@ function selfTest(){
     check('Avatar destroyed by the damage that triggers it: its trigger is already on the stack', av.loc === 'gy' && s.stack.length === 1 && s.life.Opponent === 16);
     pass2(s);
     eq('current rule: the trigger still resolves after Avatar died (1 effect damage from Avatar to the other creature)', g.damage.map(d => [d.amount, d.type, d.source]), [[1, 'effect', av.iid]]); }
+  { const q = start(170), ke = take(q, 'Opponent', 'kingeye', 'board', 'Opponent|front|1'), hid = take(q, 'Opponent', 'soldier', 'board', 'Opponent|front|0'), av = take(q, 'Player', 'avatar', 'board', 'Player|front|1'); q.attackPhase = true;
+    check('King Eye cloud covers the soldier before the attack', !!Sim.cloudMap(q)['Opponent|front|0']);
+    D(q, {type:'Attack', iid:av.iid}); pass2(q); D(q, {type:'Choose', player:'Player', option:'stay'});
+    check('Avatar damages King Eye: it gains Avatar\u2019s abilities and its clouds disappear', Sim.abDef(ke).id === 'avatar' && !Object.keys(Sim.cloudMap(q)).length); }
   // ================= turn structure, life boundaries =================
   { let s = start(150); const wf = take(s, 'Player', 'wolf', 'board', 'Player|front|0'); D(s, {type:'SetAttackPhase', player:'Player', on:true}); D(s, {type:'Attack', iid:wf.iid});
     rej('EndTurn by the non-turn player', s, {type:'EndTurn', player:'Opponent'}, 'turn player');
@@ -1904,6 +2055,24 @@ function selfTest(){
     check('life can go above the starting value (no cap): 20 + 3 = 23', s.life.Player === 23);
     s = start(153); s.life.Opponent = 5; const sb = take(s, 'Player', 'superbolt', 'hand'); D(s, {type:'PlayCard', iid:sb.iid, tplayer:'Opponent'}); pass2(s);
     check('life can go below zero: 5 - 20 = -15', s.life.Opponent === -15); }
+  // ================= Flash, Retaliate, shields, Spirit of the Sand =================
+  { const s = start(180), p = take(s, 'Opponent', 'parasite', 'hand'); s.priority = 'Opponent';
+    check('Flash: the non-turn player can play a Flash creature while holding priority', Sim.canPlay(s, p) === null);
+    D(s, {type:'PlayCard', iid:p.iid, slot:'Opponent|front|0'});
+    check('Flash creature entered without using the major action', p.loc === 'board' && !s.majorUsed); }
+  { const s = start(181), sg = take(s, 'Opponent', 'shieldguard', 'board', 'Opponent|front|1'), w = take(s, 'Player', 'wolf', 'board', 'Player|front|1'); s.attackPhase = true; D(s, {type:'Attack', iid:w.iid});
+    eq('Retaliate: Shieldguard takes 3 and hits the attacker back for 5 (wolf HP 3 dies)', [sg.damage.length, w.loc], [1, 'gy']); }
+  { const s = start(182), v = take(s, 'Opponent', 'soldier', 'board', 'Opponent|front|1'), sb = take(s, 'Player', 'superbolt', 'hand'), g = take(s, 'Player', 'giant', 'board', 'Player|front|1');
+    v.counters = {red:1}; check('Red shield: its zone is not a legal target', !Sim.targetZones(s, sb).includes('Opponent|front|1'));
+    v.counters = {blue:1}; s.attackPhase = true; D(s, {type:'Attack', iid:g.iid});
+    eq('Blue shield: attacks still hit it (soldier dies, 3 tramples)', [v.loc, s.life.Opponent], ['gy', 17]); }
+  { const s = start(183), a = take(s, 'Player', 'soldier', 'board', 'Player|front|0'), sp = take(s, 'Player', 'spirit', 'hand'); D(s, {type:'PlayCard', iid:sp.iid}); pass2(s);
+    check('Spirit of the Sand asks red or blue', !!s.choice && s.choice.kind === 'mode'); D(s, {type:'Choose', player:'Player', option:'1'});
+    eq('Spirit (blue): counter on each own board card; life gain is disabled', [a.counters, s.noGain], [{blue:1}, {Player:true}]); }
+  { const s = start(184), sg = take(s, 'Opponent', 'shieldguard', 'hand'), ally = take(s, 'Opponent', 'soldier', 'board', 'Opponent|front|1'), w = take(s, 'Player', 'wolf', 'board', 'Player|front|1'); s.attackPhase = true; D(s, {type:'Attack', iid:w.iid});
+    check('Shieldguard: the attack opens a response window and damage waits', !!s.respond && s.respond.kind === 'attack' && s.life.Opponent === 20 && !s.stack.length);
+    D(s, {type:'Activate', iid:sg.iid, ab:0}); pass2(s);
+    eq('Shieldguard swap: soldier returns to hand, Shieldguard takes its zone', [ally.loc, sg.slot], ['hand', 'Opponent|front|1']); }
   out.push('---- ' + out.filter(l => l.startsWith('PASS')).length + ' passed, ' + out.filter(l => l.startsWith('FAIL')).length + ' failed, ' + out.filter(l => l.startsWith('XFAIL')).length + ' known bug(s) documented');
   console.log(out.join('\n')); return out;
 }
