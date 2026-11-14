@@ -177,6 +177,7 @@ function buildStack(){                              // shared stack panel: your 
     Object.assign(m.userData, {name: t.down ? 'Face-down card' : t.c.def.name, card: t.down ? null : t.c, tx:t.x, tz:t.z, ty:t.y, owner:t.owner, dying:false});
     setGlow(m, !t.down && canUse(t.c));
     setBadges(m, t.down ? null : {pw: t.c.def.type === 'creature' ? [Sim.atkOf(t.c), t.c.def.atk] : null, hp:[effHp(t.c), t.c.def.hp], opp: !!t.rot});
+    setSword(m, !t.down && t.c.loc === 'board' && Sim.canAttack(game, t.c) === null, !!t.rot);
     m.visible = !seenHidden(t.c); if (!t.down && m.visible) pickCards.push(m);
   }
   for (const [id, m] of meshes) if (!T.has(id)){    // left the table: glide to its pile, then disappear

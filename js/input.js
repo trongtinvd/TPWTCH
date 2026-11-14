@@ -5,6 +5,7 @@ const pickables = () => pickList || (pickList = [...pickCards, ...zones.filter(z
 function aim(x, y){ mouse.set((x-VX())/VW()*2-1, -((y-VY())/VH())*2+1); ray.setFromCamera(mouse, cam); }
 function pickAt(x, y, list){ aim(x, y); const h = ray.intersectObjects(list || pickables())[0]; return h ? h.object : null; }
 let downAt = null;
+function passByRightClick(){ const b = FN.find(x => x.id === 'pass'); if (!b || !b.on()) return false; closeMenu(); b.run(); return true; }   // right click on empty space = the Pass button
 addEventListener('pointerdown', e => {
   if (e.target !== renderer.domElement){ if (!menu.contains(e.target)) closeMenu(); return; }
   downAt = {x:e.clientX, y:e.clientY};
@@ -52,6 +53,7 @@ addEventListener('pointerup', e => {
   if (!downAt || e.target !== renderer.domElement || Math.hypot(e.clientX-downAt.x, e.clientY-downAt.y) > 6){ downAt = null; return; }
   downAt = null;
   const o = pickAt(e.clientX, e.clientY), u = o ? o.userData : {};
+  if (e.button === 2 && !u.card && !u.deckOf && !u.gyOf && !u.exileOf && !placing && passByRightClick()) return;   // (a right-drag pan moved > 6px and never gets here)
   if (game.choice){                                 // shift choice answered on the board itself
     const k = game.choice, occ = u.slotKey && game.slots[u.slotKey], opt = k.kind === 'place' ? (u.slotKey && k.options.includes(u.slotKey) ? u.slotKey : null) : k.kind ? (['damage', 'pick', 'swap'].includes(k.kind) ? (u.card ? u.card.iid : occ) : null) : u.slotKey && u.baseEm ? (u.slotKey === game.cards[k.iid].slot ? 'stay' : u.slotKey) : (u.card && u.card.iid === k.iid ? 'stay' : null);
     if (opt && k.options.includes(opt)){ send({type:'Choose', player:k.player, option:opt}); return; }

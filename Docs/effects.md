@@ -18,7 +18,7 @@ Card factory -> Fx builders -> plain {op:...} -> Sim.dispatch -> stack object ->
 | `Sim.API` | Sim | Published list of all names above, plus trigger and passive names. |
 | `apiErrors()` | Validation | At load every card is checked against `Sim.API`; unknown names fail loudly. Nested `modes` effects are not walked yet. |
 
-Runtime `runFx` silently skips unknown ops. Definitions are deep-frozen; runtime state lives on instances: `{iid, def, owner, loc, slot, statuses[]}`. To add a block: add a handler entry + matching `Fx` builder. Each card is a factory `Cards.add(Fx => ({...}))`.
+Runtime `runFx` silently skips unknown ops. Definitions are deep-frozen; runtime state lives on instances: `{iid, def, owner, loc, slot, statuses[], logs[]}`. To add a block: add a handler entry + matching `Fx` builder. Each card is a factory `Cards.add(Fx => ({...}))`.
 
 Card `type`: `creature`, `enchantment` (any non-creature permanent), `spell` (`timing` Quick or Slow); `ability` is internal (stack tokens). Flags: `flash:true`, `retaliate:true`, `extraCost:{major:true}`.
 

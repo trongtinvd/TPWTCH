@@ -571,6 +571,37 @@ function selfTest(){
     eq('the defender may also boost the Attack (effect has whose:any): bonus 4', s.stack[0].bonus, 4);
     s = start(323); const w4 = take(s, 'Player', 'wolf', 'board', 'Player|front|1'), k4 = take(s, 'Player', 'knight', 'board', 'Player|front|2'), g4 = take(s, 'Opponent', 'guard', 'board', 'Opponent|front|1'), rr = take(s, 'Player', 'rage', 'hand'); s.attackPhase = true; D(s, {type:'Attack', iid:w4.iid}); s.priority = 'Player'; D(s, {type:'PlayCard', iid:rr.iid}); pass2(s); w4.loc = 'gy'; s.slots['Player|front|1'] = null; w4.slot = null; pass2(s);
     eq('the bonus still lands after the attacker left the board; the attacker\u2019s own power does not (guard HP 6 absorbs 4)', [g4.loc, Sim.totalDamage(g4), s.life.Opponent], ['board', 4, 20]); }
+  // ================= zone gone is a RULE (blue does not protect); logs[] =================
+  { const q = start(400), bar = take(q, 'Opponent', 'barrier', 'board', 'Opponent|back|2'), blue = take(q, 'Opponent', 'soldier', 'board', 'Opponent|front|2'), kn = take(q, 'Player', 'knight', 'board', 'Player|front|2'); take(q, 'Player', 'aura', 'board', 'Player|back|2');
+    const bs = shield(q, blue, 'blue'), w = take(q, 'Player', 'infinitywall', 'hand');
+    D(q, {type:'PlayCard', iid:w.iid, col:2}); D(q, {type:'Pass', player:'Opponent'}); const r = D(q, {type:'Pass', player:'Player'});
+    eq('Infinity Wall: unshielded cards are exiled', [bar.loc, kn.loc], ['exile', 'exile']);
+    eq('the blue card is not exiled (an effect cannot touch it) but its zone is gone: the RULES send it to the GY, the slot is empty', [blue.loc, q.piles.Opponent.gy.includes(blue), q.slots['Opponent|front|2']], ['gy', true, null]);
+    check('that destruction is marked as a rule (event + status removal reason + log)', r.events.some(e => e.t === 'PermanentDestroyed' && e.iid === blue.iid && e.by === 'rule') && !!bs.removed && /zone/.test(bs.removed.why) && /rules/.test(blue.logs.filter(e => e.kind === 'zone').pop().how)); }
+  { const s = Sim.create(401, DEFS.concat(FIXTURES)), c = s.piles.Player.deck[2];
+    check('logs: a card starts with its shuffled deck position', c.logs.length === 1 && c.logs[0].kind === 'start' && c.logs[0].pos === 3 && c.logs[0].to === 'deck');
+    D(s, {type:'ReorderDeck', player:'Player', from:2, to:0}); D(s, {type:'Start', player:'Player'}); D(s, {type:'Start', player:'Opponent'});
+    eq('logs: deck position when the deck locked, then leaving the deck (opening hand) and how', [c.logs.map(e => e.kind), c.logs[1].pos, c.logs[2].from, c.logs[2].to, c.logs[2].how], [['start', 'locked', 'zone'], 1, 'deck', 'hand', 'drawn']); }
+  { const s = start(402), top = s.piles.Player.deck[0]; D(s, {type:'Draw', player:'Player'});
+    const z = top.logs.filter(e => e.kind === 'zone').pop();
+    eq('logs: Draw is recorded as deck -> hand (drawn)', [z.from, z.to, z.how], ['deck', 'hand', 'drawn']);
+    const q = start(403), gf = take(q, 'Player', 'grainfall', 'hand'), first = q.piles.Opponent.deck[0]; D(q, {type:'PlayCard', iid:gf.iid, tplayer:'Opponent'}); drain(q);
+    const m = first.logs.filter(e => e.kind === 'zone').pop();
+    eq('logs: a milled card shows deck -> gy (milled); a spell shows stack, then gy', [m.from, m.to, m.how, gf.logs.filter(e => e.kind === 'zone').map(e => e.to), gf.logs.filter(e => e.kind === 'zone').pop().how], ['deck', 'gy', 'milled', ['stack', 'gy'], 'resolved']); }
+  { const s = start(404), so = take(s, 'Opponent', 'soldier', 'board', 'Opponent|front|1'), g = take(s, 'Player', 'giant', 'board', 'Player|front|1'), d = dmg(s, so, 1), sh = shield(s, so, 'red');
+    Sim.removeStatus(s, d, 'test');
+    check('logs: applying and removing a status are both recorded with the status id and the reason', so.logs.some(e => e.kind === 'status+' && e.id === d.seq) && so.logs.some(e => e.kind === 'status-' && e.id === d.seq && e.why === 'test') && !so.logs.some(e => e.kind === 'status-' && e.id === sh.seq));
+    s.attackPhase = true; AT(s, g.iid);
+    check('logs: when the card dies every status it ever had has a matching removal entry', so.loc === 'gy' && so.logs.filter(e => e.kind === 'status+').every(a => so.logs.some(r => r.kind === 'status-' && r.id === a.id)));
+    check('logs: chronological (n strictly increasing) and the last entry is the move to the GY', so.logs.every((e, i) => !i || e.n > so.logs[i - 1].n) && so.logs[so.logs.length - 1].to === 'gy');
+    setLife(s, 'Player', 10);
+    check('logs: players have a log too (life changes are statuses)', s.players.Player.logs.some(e => e.kind === 'status+' && e.sk === 'damage') && Sim.logLines(s.players.Player).length === 1); }
+  { const s = start(405), wf = take(s, 'Player', 'wolf', 'board', 'Player|front|1'), ow = take(s, 'Opponent', 'wolf', 'board', 'Opponent|front|1');
+    check('sword rule: no creature can attack outside the combat phase', Sim.canAttack(s, wf) !== null);
+    s.attackPhase = true;
+    check('sword rule: in the combat phase the turn player\u2019s creature can attack, the other player\u2019s cannot', Sim.canAttack(s, wf) === null && Sim.canAttack(s, ow) !== null);
+    D(s, {type:'Attack', iid:wf.iid});
+    check('sword rule: once it attacked (and while the stack is not empty) the sword is gone', Sim.canAttack(s, wf) !== null); }
   out.push('---- ' + out.filter(l => l.startsWith('PASS')).length + ' passed, ' + out.filter(l => l.startsWith('FAIL')).length + ' failed, ' + out.filter(l => l.startsWith('XFAIL')).length + ' known bug(s) documented');
   console.log(out.join('\n')); return out;
 }

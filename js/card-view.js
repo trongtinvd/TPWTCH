@@ -113,6 +113,12 @@ function setBadges(m, spec){                          // power (bottom left): br
   };
   if (spec.pw) add(spec.pw[0], spec.pw[1], true, PW_PAL); add(spec.hp[0], spec.hp[1], false, HP_PAL);
 }
+let swordProto = null;
+function setSword(m, on, opp){                      // a sword on top of every creature that can attack right now (combat phase, empty stack, not yet attacked); the tip points at the foe
+  const u = m.userData, cur = u.sword;
+  if (on && !cur){ swordProto = swordProto || makeSword(); const g = swordProto.clone(); g.scale.setScalar(0.85); g.position.set(0, 0.45, 0); g.rotation.y = opp ? 0 : Math.PI; g.traverse(x => { x.raycast = () => {}; }); m.add(g); u.sword = g; }
+  else if (!on && cur){ m.remove(cur); u.sword = null; }
+}
 function setGlow(m, on){
   const g = m.userData.glow;
   if (on && !g){ const p = new THREE.Mesh(glowGeo, glowMat); p.rotation.x = -Math.PI/2; p.position.y = 0.05; p.raycast = () => {}; m.add(p); m.userData.glow = p; }

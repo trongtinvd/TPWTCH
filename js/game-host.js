@@ -10,7 +10,7 @@ const deckStatus = () => 'Deck building \u00b7 ' + ['Player', 'Opponent'].map(p 
 const newSeed = () => Math.floor(Math.random() * 1e9) + 1;   // fresh random seed per launch / restart (the seed is kept in game.n)
 let sim = Sim.create(newSeed(), DEFS), game = sim;      // sim: authoritative state. game: what is on screen (lags the sim while animations play)
 const undoStack = [], eventLog = [];                  // snapshots for undo; recent rule events
-const ui = {view:'Player', autoView:true, autoTurn:true, actions:'normal', showRemoved:false};   // showRemoved: show greyed-out removed statuses in the inspectors
+const ui = {view:'Player', autoView:true, autoTurn:true, actions:'normal', showRemoved:false, inspLog:false};   // showRemoved: show greyed-out removed statuses in the inspectors
 let preview = null, inspHold = false, fxBusy = false;   // preview: hovered card; inspHold: suppress inspect until the pointer moves on
 let placing = null, openList = null, selected = null, hovered = null, drag = null, dragCand = null;
 let dirty = true, hoverDirty = true, pulse = false, lastPulse = 0;                // render on demand
@@ -75,7 +75,7 @@ function send(cmd){
     if (r.events.some(e => e.t === 'TurnChanged')){ const hold = ui.autoView; if (hold) viewHold = true; jobs.unshift(async () => {   // turn ends: the banner plays for BOTH players, first for the one whose turn ended, then for the new turn player
       if (hold){ ui.pin = null; setView(pre.active); await camArrive(); await sleep(200); }
       bannerEl.textContent = NAME[pre.active] + ': Turn Ended'; bannerEl.hidden = false; await sleep(900);
-      if (hold){ game = sim; setView(sim.active); sync(); await camArrive(); await sleep(200); }   // viewHold stays on: the new turn player sees their banner
+      if (hold){ const m = structuredClone(sim); m.stack = pre.stack.slice(); game = m; setView(sim.active); sync(); await camArrive(); await sleep(200); }   // BUG FIX: the new turn's triggers (The Vine) must not show on the stack before their own animation   // viewHold stays on: the new turn player sees their banner
       bannerEl.textContent = NAME[sim.active] + ': Your Turn'; bannerEl.hidden = false; await sleep(900); bannerEl.hidden = true;
       if (hold){ viewHold = false; setView(sim.choice ? sim.choice.player : sim.priority); sync(); await camArrive(); await sleep(200); } }); }   // then the seat holding priority (e.g. the Vine trigger responder) watches the stack animation
     else if (ui.autoView && pre.stack.length > sim.stack.length){ viewHold = true; setView(sim.choice ? sim.choice.player : sim.priority); }   // something resolved: the animation plays from the seat that gets priority next
@@ -143,6 +143,7 @@ const FN = [
   {id:'pass', cls:'c-pass', label:() => game.respond && !game.stack.length ? 'Pass (' + ({end:'end step', attack:'attack declared'}[game.respond.kind] || 'entered') + ')' : 'Pass', run:pass, on:() => myPriority() && (game.stack.length > 0 || !!game.respond), show:inPlay},
   {id:'battle', cls:'c-atk', label:() => 'Attack: ' + (game.attackPhase ? 'on' : 'off'), run:toggleAttack, on:() => myPriority() && !game.stack.length && !game.respond && ui.view === game.active && (game.attackPhase || !Sim.majorUsed(game)), show:inPlay},
   {id:'notarget', cls:'c-go', label:() => 'Cast without target', run:() => send({type:'PlayCard', iid:placing.iid}), on:() => !!(placing && placing.def.optionalTarget), show:() => !!(placing && placing.def.optionalTarget)},
+  {id:'cancel', cls:'c-atk', label:() => 'Cancel', run:() => { placing = null; sync(); }, on:() => !!placing, show:() => !!placing},   // a game feature (Esc does the same): back out of picking a zone / target before anything is committed
   {id:'endturn', label:() => 'End turn', run:() => send({type:'EndTurn', player:game.priority}), on:() => !placing && !game.choice && !game.stack.length && !game.respond && game.priority === game.active, show:inPlay}
 ];
 const DBTN = [

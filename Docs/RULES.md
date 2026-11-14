@@ -51,6 +51,9 @@ Everything that changes a card or a player after it was printed/started is a **s
 
 King Eye clouds are **derived from the board** (a passive), not stored statuses; the inspector lists them as a derived line.
 
+## Logs (one per card and per player, next to statuses) [proto]
+`card.logs[]` / `players[p].logs[]`: append-only history since the duel began. **statuses[] rebuilds the current state; logs[] rebuilds the whole story.** Entries: `start` (position in the shuffled deck), `locked` (position when the deck was locked), `zone` (from -> to and **how**: drawn, milled, entered the board, shifted, destroyed, destroyed by the rules, exiled, returned to hand, put on the stack, resolved, countered), `status+` (applied, with id) and `status-` (removed, with id and reason). The inspector toggles between Statuses and Log; both list the newest on top. Ability tokens have no log. Own counter (`s.lseq`), so status ids do not change.
+
 ## Keywords
 - **Flash** (Creeping Parasite, War Drum): the permanent can be played like a Quick spell: whenever its owner holds priority, including the opponent's turn and the battle phase, even with objects on the stack. It does **not** use the major action. It still needs a free zone in the right row. It opens the "permanent entered" window only when the turn player played it. [proto]
 - **Retaliate** (Shieldguard): whenever the card takes damage (combat or effect) it deals damage equal to its *current* power back to the source: the creature that dealt it, or, if the source was a spell, the spell's controller. Power is read before the card is destroyed. Retaliation damage has type `retaliate` and never retaliates again. [proto]
@@ -107,7 +110,7 @@ Gaining life adds a `life` status to a player (or +HP to a target card). Life to
 ## Shields and other card statuses [proto]
 - **Red shield:** cannot be targeted (zone targets, Scout, Avatar's choice, Parasite lists). A red card under a cloud still makes the cloud targetable; the effect fizzles if it lands on it.
 - **Blue shield:** unaffected by spells and abilities that do not target it (The Vine, Infinity Wall, destroy-all, non-targeted damage, Retaliate). Attacks still hit it.
-- Shields are statuses; they go when the card leaves the board. A blue card left on a zone that becomes unusable stays there.
+- Shields are statuses; they go when the card leaves the board. A blue card on a zone that becomes unusable is NOT exiled by Infinity Wall (an effect cannot touch it), but its zone is gone, so the **rules** (not an effect) send it to the GY: blue does not protect it, and its statuses are removed with the reason "its zone became unusable".
 - **Revealed:** Creeping Parasite's 0 mode adds a `revealed` status (to the Parasite's controller) to each card in the opponent's hand. It lives in the hand: it is removed (greyed) when the card leaves it.
 - **Auras (War Drum -1/-1 on foes, Drummer +1/+1 on own):** while the source is on the board each card in range (its column and the adjacent ones) holds a `mod` status. Leaving the range, or the source leaving, removes it; coming back adds a new one.
 

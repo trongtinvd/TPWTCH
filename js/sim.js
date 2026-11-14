@@ -13,8 +13,20 @@ const Sim = (function(){
   // req (re-checked by recalc; fails -> removed), link (seq of another status on the same card; removed when that one is), expires ('turnEnd').
   const stOf = o => o.statuses || (o.statuses = []);
   const live = o => stOf(o).filter(x => !x.removed);
-  const addStatus = (s, o, st) => { st = Object.assign({turn:s.turn}, st); st.seq = ++s.seq; st.removed = null; stOf(o).push(st); return st; };
-  const removeStatus = (s, st, why) => { if (st && !st.removed) st.removed = {why, turn:s.turn, seq:++s.seq}; };
+  // ---- LOGS: one append-only history per card and per player (o.logs), next to statuses[]. statuses = the current state; logs = the whole story: deck position, every zone change and how, every status applied / removed. Own counter (s.lseq): status ids (s.seq) are untouched.
+  const lg = (s, o, e) => { if (o) (o.logs || (o.logs = [])).push(Object.assign({n:(s.lseq = (s.lseq || 0) + 1), turn:s.turn}, e)); };
+  const ownKey = (s, o) => o.iid || (o === s.players.Player ? 'Player' : o === s.players.Opponent ? 'Opponent' : null);
+  const ownerOf = (s, st) => s.cards[st.own] || s.players[st.own];
+  const whereOf = c => c.loc === 'board' ? 'board ' + c.slot : c.loc;
+  const HOW = {CardDrawn:['drawn', 'hand'], CardAdded:['added to hand', 'hand'], CardMilled:['milled', 'gy'], CardDiscarded:['discarded', 'gy'], CardExiled:['exiled', 'exile', 'gone'], PermanentSummoned:['entered the board', 'board'], PermanentMoved:['shifted', 'board'], PermanentDestroyed:['destroyed', 'gy', 'gone'], PermanentReturned:['returned to hand', 'hand', 'gone'], StackObjectCreated:['put on the stack', 'stack'], StackObjectResolved:['resolved', 'gy', 'hand'], StackObjectCountered:['countered', 'gy']};
+  function howOf(ev, c){ for (let i = ev.length - 1; i >= 0; i--){ const e = ev[i], h = HOW[e.t]; if (h && e.iid === c.iid && h.slice(1).includes(c.loc)) return e.t === 'PermanentDestroyed' && e.by === 'rule' ? 'destroyed by the rules: its zone is gone' : h[0]; } return 'moved'; }   // the label comes from the rule events of this command
+  function syncLogs(s, ev){ for (const c of Object.values(s.cards)){ if (c.def.type === 'ability') continue;   // ability tokens are transient: no history
+      const w = whereOf(c), L = c.logs || (c.logs = []); let last = null; for (let i = L.length - 1; i >= 0; i--) if (L[i].to !== undefined){ last = L[i].to; break; }
+      if (last !== w) lg(s, c, {kind:'zone', from:last, to:w, how:howOf(ev, c)}); } }
+  const logText = e => 'T' + e.turn + ' #' + e.n + ' \u00b7 ' + ({start:() => 'shuffled into the deck at position ' + e.pos + ' of ' + e.of, locked:() => 'deck locked at position ' + e.pos + ' of ' + e.of, zone:() => (e.from || 'nowhere') + ' \u2192 ' + e.to + ' (' + e.how + ')', 'status+':() => 'applied: ' + e.text, 'status-':() => 'removed #' + e.id + ' (' + e.sk + '): ' + e.why}[e.kind] || (() => e.kind))();
+  const logLines = o => (o.logs || []).map(e => ({text:logText(e), n:e.n, e}));   // oldest first; the UI shows newest on top
+  const addStatus = (s, o, st) => { st = Object.assign({turn:s.turn, own:ownKey(s, o)}, st); st.seq = ++s.seq; st.removed = null; stOf(o).push(st); lg(s, o, {kind:'status+', id:st.seq, sk:st.kind, text:describe(st).split(' \u00b7 turn ')[0]}); return st; };
+  const removeStatus = (s, st, why) => { if (st && !st.removed){ st.removed = {why, turn:s.turn, seq:++s.seq}; lg(s, ownerOf(s, st), {kind:'status-', id:st.seq, sk:st.kind, why}); } };
   const clearStatuses = (s, o, why) => live(o).forEach(x => { if (!x.keep) removeStatus(s, x, why); });
   const hasSt = (o, kind, f) => !!o && live(o).some(x => x.kind === kind && (!f || f(x)));
   const abDef = c => { const d = live(c).filter(x => x.kind === 'ability').pop(); return d ? byId[d.to] : c.def; };   // ability layer: the newest active 'ability' status decides; c.def is never edited
@@ -49,7 +61,7 @@ const Sim = (function(){
     byId = Object.fromEntries(defs.map(d => [d.id, d]));
     const s = {n, phase:'deck', ready:{Player:false, Opponent:false}, cards:{}, piles:{}, slots:{}, stack:[], active:'Player', priority:'Player', passes:0, attackPhase:false, life:{Player:20, Opponent:20}, players:{Player:{statuses:[]}, Opponent:{statuses:[]}}, maxLife:20, turn:1, seq:0, majorUsed:false, sid:0, choice:null, pending:null, unusable:{}, respond:null};   // respond: null | {kind:'enter'|'end'} = the non-turn player may respond before play continues
     for (const [p, seed] of [['Player', n*2+1], ['Opponent', n*2]]){
-      const deck = buildDeck(p, seed, defs); deck.forEach(c => s.cards[c.iid] = c);
+      const deck = buildDeck(p, seed, defs); deck.forEach((c, i) => { s.cards[c.iid] = c; lg(s, c, {kind:'start', to:'deck', pos:i + 1, of:deck.length}); });
       s.piles[p] = {deck, hand:[], gy:[], exile:[]};   // opening hands are dealt when both players press Start
       for (const row of ['front','back']) for (let c = 0; c < 5; c++) s.slots[p+'|'+row+'|'+c] = null;   // slot -> iid
     }
@@ -176,7 +188,7 @@ const OPS = {                                     // effect handlers: (ctx, effe
     CreateToken: (x, e) => {
       const def = x.src.def.tokens && x.src.def.tokens[e.token]; if (!x.zone || !def || x.s.slots[x.zone] || x.s.unusable[x.zone]) return;
       const n = x.s.tokN = (x.s.tokN || 0) + 1, t = {iid:'tk-' + n, def, owner:x.who, loc:'board', slot:x.zone, statuses:[], token:true};
-      x.s.cards[t.iid] = t; x.s.slots[x.zone] = t.iid; recalc(x.s, x.ev); x.ev.push({t:'PermanentSummoned', iid:t.iid, slot:x.zone}); fire(x.s, x.ev, 'enter', t);
+      x.s.cards[t.iid] = t; x.s.slots[x.zone] = t.iid; x.ev.push({t:'PermanentSummoned', iid:t.iid, slot:x.zone}); recalc(x.s, x.ev); fire(x.s, x.ev, 'enter', t);
     },
     ExileColumn: x => { if (x.col == null) return; for (const k of colKeys(x.col)){ const id = x.s.slots[k]; if (!id) continue; const c = x.s.cards[id]; if (has(c, 'blue')) continue; x.s.slots[k] = null; c.slot = null; clearStatuses(x.s, c, 'left the board');
       if (c.token) c.loc = 'gone'; else { c.loc = 'exile'; x.s.piles[c.owner].exile.push(c); } x.ev.push({t:'CardExiled', iid:c.iid}); } },
@@ -259,7 +271,7 @@ const OPS = {                                     // effect handlers: (ctx, effe
       const dead = board.filter(c => c.loc === 'board' && totalDamage(c) > hpOf(c));   // only the final value decides: at -1 HP inside the columns a card lives, leave them and it dies
       if (!dead.length) break; dead.forEach(c => destroy(s, c, ev)); }
       for (const p of ['Player', 'Opponent']) syncLife(s, p);
-    } finally { rcBusy = false; } }
+    } finally { rcBusy = false; } syncLogs(s, ev); }
   function declareAttack(s, c, ev, extra){          // an attack is an object on the stack: it is NOT a snapshot of the attacker, it reads the attacker (if still on the board) when it resolves
     if (c.loc !== 'board' || c.def.type !== 'creature') return;
     const o = {sid:++s.sid, kind:'attack', iid:c.iid, src:c.iid, controller:c.owner, hp:null, name:'Attack: ' + c.def.name, slotAt:c.slot, bonus:0};
@@ -276,7 +288,7 @@ const OPS = {                                     // effect handlers: (ctx, effe
   }
   function askDeck(s, c, n, ev){ const ids = s.piles[c.owner].deck.map(d => d.iid); if (ids.length) ask(s, c.owner, c, 'vault', ids, i => cname(s, i), c.def.name + ': exile a card from your deck (' + n + ' left).', {left:n}, ev); }
   function bounce(s, t, ev){ if (t.slot) s.slots[t.slot] = null; t.slot = null; clearStatuses(s, t, 'left the board'); if (t.token) t.loc = 'gone'; else { t.loc = 'hand'; s.piles[t.owner].hand.push(t); } ev.push({t:'PermanentReturned', iid:t.iid}); recalc(s, ev); }
-  function enterBoard(s, t, slot, ev){ const P = s.piles[t.owner]; for (const k of ['hand', 'gy', 'exile']){ const i = P[k].indexOf(t); if (i >= 0) P[k].splice(i, 1); } s.slots[slot] = t.iid; t.slot = slot; t.loc = 'board'; recalc(s, ev); ev.push({t:'PermanentSummoned', iid:t.iid, slot}); fire(s, ev, 'enter', t); }
+  function enterBoard(s, t, slot, ev){ const P = s.piles[t.owner]; for (const k of ['hand', 'gy', 'exile']){ const i = P[k].indexOf(t); if (i >= 0) P[k].splice(i, 1); } s.slots[slot] = t.iid; t.slot = slot; t.loc = 'board'; ev.push({t:'PermanentSummoned', iid:t.iid, slot}); recalc(s, ev); fire(s, ev, 'enter', t); }
   function retaliate(s, from, pw, src, ev){ if (pw <= 0) return; if (src.def.type === 'spell'){ hurt(s, src.owner, pw, from.def.name, 'retaliate'); ev.push({t:'PlayerDamaged', player:src.owner, amount:pw}); } else if (src.loc === 'board') dealDamage(s, from, src, pw, ev, 'retaliate'); }   // Retaliate: the source (creature, or the spell's controller) takes damage equal to the retaliator's power; retaliation never retaliates
   const COND = {extraPaid: (s, c) => hasSt(c, 'extraPaid'), firstCombat: (s, c) => s.combats === 1 && c.owner === s.active, ownInAttackCol: (s, c, a) => !!(a && a.slot) && colKeys(a.slot.split('|')[2]).some(k => { const m = s.slots[k] && s.cards[s.slots[k]]; return !!m && m.owner === c.owner && m.def.type === 'creature'; })};
   const THEN = {
@@ -308,11 +320,11 @@ const OPS = {                                     // effect handlers: (ctx, effe
     runFx({s, ev, src, t, who:o.controller, foe:other(o.controller), col:o.col, o, tp:o.tplayer}, def.effects);
   }
   function sweepUnusable(s, ev){                    // a card that somehow ends up on an unusable zone goes to the graveyard
-    for (const k of Object.keys(s.unusable)){ const id = s.slots[k]; if (id && !has(s.cards[id], 'blue')) destroy(s, s.cards[id], ev); }
+    for (const k of Object.keys(s.unusable)){ const id = s.slots[k]; if (id) destroy(s, s.cards[id], ev, 'left the board: its zone became unusable (a rule, not an effect)'); }
   }
-  function destroy(s, c, ev){                       // leaves the field for the graveyard; its statuses are removed (they stay in the list, greyed)
-    s.slots[c.slot] = null; c.slot = null; clearStatuses(s, c, 'left the board');
-    if (c.token) c.loc = 'gone'; else { c.loc = 'gy'; s.piles[c.owner].gy.unshift(c); } ev.push({t:'PermanentDestroyed', iid:c.iid}); recalc(s, ev);
+  function destroy(s, c, ev, why){                       // leaves the field for the graveyard; its statuses are removed (they stay in the list, greyed)
+    s.slots[c.slot] = null; c.slot = null; clearStatuses(s, c, why || 'left the board');
+    if (c.token) c.loc = 'gone'; else { c.loc = 'gy'; s.piles[c.owner].gy.unshift(c); } ev.push(why ? {t:'PermanentDestroyed', iid:c.iid, by:'rule'} : {t:'PermanentDestroyed', iid:c.iid}); recalc(s, ev);
   }
   function dealDamage(s, src, tgt, amount, ev, type, targeted){ if (hasSt(tgt, 'nodamage')){ ev.push({t:'DamageDenied', target:tgt.iid, amount}); return; } if (has(tgt, 'blue') && !targeted && (type || 'combat') !== 'combat') return;   // blue shield: only effects that target it can touch it
     const d = addStatus(s, tgt, {kind:'damage', amount, orig:amount, type:type || 'combat', source:src.iid, srcName:src.def.name});   // damage is a status
@@ -397,7 +409,7 @@ const OPS = {                                     // effect handlers: (ctx, effe
       case 'Start': {
         if (s.phase !== 'deck') return fail('The game has already started');
         if (s.ready[cmd.player]) return fail('Already ready');
-        s.ready[cmd.player] = true; ev.push({t:'PlayerReady', player:cmd.player});
+        s.ready[cmd.player] = true; ev.push({t:'PlayerReady', player:cmd.player}); s.piles[cmd.player].deck.forEach((c, i, a) => lg(s, c, {kind:'locked', pos:i + 1, of:a.length}));
         if (s.ready.Player && s.ready.Opponent){
           s.phase = 'play';
           for (const p of ['Player', 'Opponent']){ const P = s.piles[p]; P.hand = P.deck.splice(0, 5); P.hand.forEach(c => { c.loc = 'hand'; ev.push({t:'CardDrawn', iid:c.iid, player:p}); }); }
@@ -430,7 +442,7 @@ const OPS = {                                     // effect handlers: (ctx, effe
         if (cmd.extra && !(c.def.extraCost && canPayExtra(s, c))) return fail('Cannot pay the additional cost');
         const h = s.piles[c.owner].hand; h.splice(h.indexOf(c), 1); const paid = !!(cmd.extra && c.def.extraCost); if (paid) s.majorUsed = true;
         if (slowish(c)) s.majorUsed = true;
-        if (isPerm(c)){ s.slots[cmd.slot] = c.iid; c.slot = cmd.slot; c.loc = 'board'; if (paid) addStatus(s, c, {kind:'extraPaid', srcName:'additional cost'}); recalc(s, ev); ev.push({t:'PermanentSummoned', iid:c.iid, slot:cmd.slot}); fire(s, ev, 'enter', c); if (c.owner === s.active && !s.respond) openRespond(s, ev, 'enter'); }
+        if (isPerm(c)){ s.slots[cmd.slot] = c.iid; c.slot = cmd.slot; c.loc = 'board'; if (paid) addStatus(s, c, {kind:'extraPaid', srcName:'additional cost'}); ev.push({t:'PermanentSummoned', iid:c.iid, slot:cmd.slot}); recalc(s, ev); fire(s, ev, 'enter', c); if (c.owner === s.active && !s.respond) openRespond(s, ev, 'enter'); }
         else { c.loc = 'stack'; s.stack.push({sid:++s.sid, kind:'spell', iid:c.iid, controller:c.owner, hp:c.def.hp, name:c.def.name + (c.def.colTarget ? ' \u2192 col ' + (cmd.col + 1) : ''), col:cmd.col, zone:c.def.zoneTarget && !tp && !tsid ? (cmd.zone || null) : null, tplayer:tp, tsid}); s.passes = 0; s.priority = other(c.owner); ev.push({t:'StackObjectCreated', iid:c.iid}); }   // the opponent gets priority first; the stack resolves only after two passes in a row
         break;
       }
@@ -443,7 +455,7 @@ const OPS = {                                     // effect handlers: (ctx, effe
           break;
         }
         if (++s.passes >= 2){
-          const o = s.stack.pop(), c = s.cards[o.iid], dead = o.hp <= -1; if (dead) ev.push({t:'StackObjectCountered', sid:o.sid}); else resolveObj(s, o, ev);
+          const o = s.stack.pop(), c = s.cards[o.iid], dead = o.hp <= -1; if (dead) ev.push({t:'StackObjectCountered', sid:o.sid, iid:o.iid}); else resolveObj(s, o, ev);
           if (o.kind === 'attack'){} else if (o.kind === 'spell'){ if (o.toHand){ c.loc = 'hand'; s.piles[c.owner].hand.push(c); } else { c.loc = 'gy'; s.piles[c.owner].gy.unshift(c); } } else c.loc = 'gone';   // ability tokens cease to exist   // newest first
           s.passes = 0; s.priority = s.respond ? other(s.active) : s.active; if (!dead) ev.push({t:'StackObjectResolved', iid:c.iid}); settle(s, ev);
         } else { s.priority = other(s.priority); ev.push({t:'PriorityPassed', to:s.priority}); }
@@ -498,7 +510,7 @@ const OPS = {                                     // effect handlers: (ctx, effe
     return {ok:true, events:ev};
   }
   function makeToken(s, def, owner, zone, ev){ const n = s.tokN = (s.tokN || 0) + 1, t = {iid:'tk-' + n, def, owner, loc:'board', slot:zone, statuses:[], token:true};
-    s.cards[t.iid] = t; s.slots[zone] = t.iid; recalc(s, ev); ev.push({t:'PermanentSummoned', iid:t.iid, slot:zone}); fire(s, ev, 'enter', t); }
+    s.cards[t.iid] = t; s.slots[zone] = t.iid; ev.push({t:'PermanentSummoned', iid:t.iid, slot:zone}); recalc(s, ev); fire(s, ev, 'enter', t); }
   function hasAction(s, p){                         // is there anything legal for p right now?
     if (s.phase !== 'play' || p !== s.priority) return false;
     const P = s.piles[p], mine = Object.values(s.cards).filter(c => c.owner === p && (c.loc === 'board' || c.loc === 'gy')), turn = p === s.active && !s.stack.length;
@@ -507,7 +519,7 @@ const OPS = {                                     // effect handlers: (ctx, effe
     if (s.attackPhase ? mine.some(c => !canAttack(s, c)) : turn && !majorUsed(s) && mine.some(c => c.def.type === 'creature')) return true;
     return mine.concat(P.hand).some(c => (abDef(c).abilities || []).some((a, i) => !canActivate(s, c, i)));
   }
-  return {addStatus, removeStatus, statusLines, describe, lifeOf, live, hasSt, has, isRevealed, attackedIds, API:{effects:Object.keys(OPS), costs:Object.keys(COSTS), requirements:Object.keys(REQS), targets:Object.keys(TARGETS), colTargets:Object.keys(COLTARGETS), zoneTargets:Object.keys(ZONETARGETS), riders:Object.keys(RIDERS), triggers:['enter', 'attack', 'turnStart', 'damaged', 'combat', 'combatEnd'], passives:['Obscure', 'Aura']}, cloudMap, abDef, hpOf, targetZones, create, dispatch, canPlay, canActivate, hasAction, majorUsed, canPayExtra, recalc, atkOf, RULES, canAttack, totalDamage, freeSlots, targetColumns, colKeys, other, isPerm};
+  return {addStatus, removeStatus, statusLines, logLines, describe, lifeOf, live, hasSt, has, isRevealed, attackedIds, API:{effects:Object.keys(OPS), costs:Object.keys(COSTS), requirements:Object.keys(REQS), targets:Object.keys(TARGETS), colTargets:Object.keys(COLTARGETS), zoneTargets:Object.keys(ZONETARGETS), riders:Object.keys(RIDERS), triggers:['enter', 'attack', 'turnStart', 'damaged', 'combat', 'combatEnd'], passives:['Obscure', 'Aura']}, cloudMap, abDef, hpOf, targetZones, create, dispatch, canPlay, canActivate, hasAction, majorUsed, canPayExtra, recalc, atkOf, RULES, canAttack, totalDamage, freeSlots, targetColumns, colKeys, other, isPerm};
 })();
 
 // Validate that every card only uses published APIs (fails loudly at load, not mid-game)

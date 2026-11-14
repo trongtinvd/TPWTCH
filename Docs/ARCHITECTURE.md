@@ -27,7 +27,7 @@ GameState, PlayerState, BoardState, CardInstance, PermanentInstance, StackObject
 
 ## Cards
 - **CardDefinition** (immutable). **[proto]** Deep-frozen; factories receive `Fx`.
-- **CardInstance** (mutable): zone, owner, slot and **`statuses[]`**. **[proto]** `{iid, def, owner, loc, slot, statuses[]}`; nothing else is stored on an instance (no `damage[]`, `life[]`, `counters`, `atk`, `xform`, `revealed`, `vault`, `extraPaid`).
+- **CardInstance** (mutable): zone, owner, slot and **`statuses[]`**. **[proto]** `{iid, def, owner, loc, slot, statuses[], logs[]}`; nothing else is stored on an instance (no `damage[]`, `life[]`, `counters`, `atk`, `xform`, `revealed`, `vault`, `extraPaid`).
 - Primitives (design): `DealDamage, Destroy, Exile, Move, Summon, Draw, ModifyStat, ModifyRule, AddAbility, RemoveAbility, CreateTrigger, CreateDelayedEffect, CreateChoice, WaitForInput`. **[proto]** see `effects.md`.
 - Effect kinds: one-shot, triggered, continuous, rule/restriction. **[proto]** One-shot and triggered effects; continuous effects are **statuses** (shield, nogain, skipCombat, mod, atkMul...).
 
@@ -39,6 +39,9 @@ GameState, PlayerState, BoardState, CardInstance, PermanentInstance, StackObject
 - Precedence is the list order ("newest applied last"). This answers Q8 for stat folds; it does not yet cover rule statuses that contradict each other (`cannot` vs `can`).
 - `Sim.statusLines(owner)` is the only thing the UI reads for statuses: card inspector and player panel are the same renderer, with a show/hide toggle for removed ones.
 - Derived, not stored: King Eye clouds (`cloudMap`). Not yet on the list: stack objects (`nodmg`), `s.combats`, `majorUsed`, `unusable` (zone state).
+
+## Logs [proto]
+`logs[]` sits next to `statuses[]` on every card and player: statuses = current state, logs = the whole history (deck position, zone changes with their reason taken from the rule events of the command, status applied / removed). Zone changes are detected by `syncLogs` (end of every `recalc`, so also at the end of every command) and labelled from the events; a move with no matching event is logged as "moved". Status add/remove hook into `addStatus` / `removeStatus` (status stamped with `own`). State grows: see Q43/Q44.
 
 ## Effective-state queries
 GameState is truth; queries apply statuses: `CanEnterZone, GetEffectiveStat, GetEffectiveDistance, GetEffectiveAbilities, GetVisibleInformation, CanDealDamage, CanTarget, CanMove, CanAttack`. **[proto]** Reason-string checks (`canPlay`, `canActivate`, `canAttack`) plus folds: `hpOf`, `atkOf`, `abDef` (ability layer), `has(card,'red'|'blue')`, `hasSt(o, kind)`, `isRevealed`, `cloudMap`. `canAttack` reads the `attacked` status.

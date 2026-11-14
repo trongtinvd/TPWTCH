@@ -21,7 +21,7 @@ Settle **before the card pool grows**; record decisions in `RULES.md`.
 - [ ] 16. Can effects create creatures in normally illegal zones? (*The Vine*) Proto: yes, any usable zone.
 - [ ] 23. **Flash and the stack:** a Flash permanent enters immediately, even with objects on the stack. Intended?
 - [ ] 24. **Retaliate:** any damage, reads power at damage time, hits the source or a spell's controller, blocked by blue shield, fires even if the retaliator dies. Keep?
-- [ ] 25. **Blue shield scope:** keyword effects and rule sweeps. (Proto: Retaliate and the Vine blocked, the unusable-zone sweep not.)
+- [ ] 25. **Blue shield scope:** keyword effects and rule sweeps. (Proto: Retaliate and the Vine blocked; the unusable-zone sweep is a rule, so it is NOT blocked: a blue card on a zone that becomes unusable goes to the GY.)
 - [ ] 26. **Life statuses:** can they be removed (drain)? Do card life statuses survive bounce (proto: no, all board statuses go)?
 - [ ] 27. **Simultaneous vs sequential selection** (The Vine picks 4 times, re-evaluating).
 - [ ] 28. **Reveal:** proto: a `revealed` status lives while the card is in the hand; two players = two statuses. Revealed on another player's turn change? Is the revealed-to player told when it ends?
@@ -39,6 +39,10 @@ Settle **before the card pool grows**; record decisions in `RULES.md`.
 - [ ] 40. **Resolving spell as a pick.** Proto: a resolving spell/ability source is never a legal pick of its own effects (Ambush of the Night could otherwise return itself). Keep as a generic rule? What about "from your GY" abilities of the same card?
 - [ ] 41. **`addAttackDamage` target.** Proto: the topmost Attack matching `whose`. With several Attacks on the stack (extra attacks) should the player choose?
 - [ ] 42. **Extra attacks and the empty-stack rule.** An effect (War Drum) declares an Attack while the stack is non-empty. Should the defender be able to respond before the creature's enter triggers resolve? (Proto: the Attack is above them.)
+
+- [ ] 43. **Log size and pruning.** Logs grow with every status and zone change and are copied by every undo snapshot. Cap, summarise old entries, or exclude from snapshots? (Joins Q32.)
+- [ ] 44. **Log visibility.** The log of a visible opponent card shows its starting deck position and history. Hide deck positions of the other player's cards? Revealed hand cards: whole log or only the part since revealed?
+- [ ] 45. **Destroyed by a rule vs by an effect.** Zone-gone destruction is marked `by:'rule'`. Should "when destroyed by an effect" triggers (future) ignore it? Should it trigger "destroyed" abilities at all?
 
 ## Timing and ordering
 - [ ] 6. Simultaneous trigger order? (Proto: turn player's first on the stack, other player's resolve first; within a player, creation order.)

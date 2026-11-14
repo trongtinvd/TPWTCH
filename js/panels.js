@@ -2,14 +2,21 @@
 // ---- Panels + the little action menu next to the clicked card -------------------
 const cloudMap_ = c => c.loc === 'board' && !!Sim.cloudMap(game)[c.slot];   // derived (a passive of King Eye), not a stored status
 // Statuses of a card or a player: the ordered list, oldest first. Removed ones are greyed and only shown when the toggle is on.
+function renderLog(dl, o, extra){                   // the whole history, newest on top
+  const L = Sim.logLines(o), h = document.createElement('b'); h.textContent = 'Log (' + L.length + ' entries, newest first)'; dl.appendChild(h);
+  if (extra){ const r = document.createElement('div'); r.textContent = '\u2022 ' + extra; dl.appendChild(r); }
+  L.slice().reverse().forEach(x => { const r = document.createElement('div'); r.textContent = '\u2022 ' + x.text; dl.appendChild(r); });
+  dl.appendChild(document.createElement('br'));
+}
 function renderStatuses(dl, o, extra){
-  const L = Sim.statusLines(o), nLive = L.filter(x => !x.removed).length, nGone = L.length - nLive, shown = L.filter(x => ui.showRemoved || !x.removed);
+  if (ui.inspLog){ renderLog(dl, o, extra); return; }
+  const L = Sim.statusLines(o), nLive = L.filter(x => !x.removed).length, nGone = L.length - nLive, shown = L.filter(x => ui.showRemoved || !x.removed).reverse();   // newest on top
   if (!L.length && !extra) return; const h = document.createElement('b'); h.textContent = 'Statuses (' + nLive + ' active' + (nGone ? ', ' + nGone + ' removed' : '') + ')'; dl.appendChild(h);
   if (extra) { const r = document.createElement('div'); r.textContent = '\u2022 ' + extra; dl.appendChild(r); }
   shown.forEach(x => { const r = document.createElement('div'); r.textContent = '\u2022 ' + x.text; if (x.removed){ r.style.opacity = '.45'; r.style.textDecoration = 'line-through'; } dl.appendChild(r); });
   dl.appendChild(document.createElement('br'));
 }
-const phead = () => '<div class="phead"><b>Inspect</b><span><button class="xbtn" data-toggle="removed" style="font-size:11px" aria-label="Show or hide removed statuses">Removed: ' + (ui.showRemoved ? 'shown' : 'hidden') + '</button><button class="xbtn" data-close="inspect" aria-label="Close inspection panel">\u00d7</button></span></div>';
+const phead = () => '<div class="phead"><b>Inspect</b><span><button class="xbtn" data-toggle="mode" style="font-size:11px" aria-label="Switch between statuses and log">View: ' + (ui.inspLog ? 'Log' : 'Statuses') + '</button>' + (ui.inspLog ? '' : '<button class="xbtn" data-toggle="removed" style="font-size:11px" aria-label="Show or hide removed statuses">Removed: ' + (ui.showRemoved ? 'shown' : 'hidden') + '</button>') + '<button class="xbtn" data-close="inspect" aria-label="Close inspection panel">\u00d7</button></span></div>';
 const posColor = (i, n, hue) => 'hsla(' + hue + ',90%,58%,' + (0.12 + 0.5 * (n > 1 ? 1 - i/(n-1) : 1)).toFixed(3) + ')';
 const listCards = l => { const a = game.piles[l.owner][l.kind]; return l.kind === 'exile' ? [...a].reverse() : a; };   // exile lists newest first
 function showList(owner, kind){
@@ -59,7 +66,7 @@ function showCard(c, pin = true){
                  gy:'Graveyard: ' + (idx+1) + ' of ' + (pile||[]).length + (idx === 0 ? ' (most recent)' : ''),
                  exile:'In exile (' + NAME[c.owner] + ')', hand:'In ' + NAME[c.owner] + '\u2019s hand', board:'On the board (' + NAME[c.owner] + ')', stack:'On the stack (' + NAME[c.owner] + ')'}[c.loc];
   const gyActs = (c.loc === 'gy' || c.loc === 'hand') ? (Sim.abDef(c).abilities || []).map((a, i) => ({a, i, why: c.owner !== ui.view ? 'Not your card' : Sim.canActivate(game, c, i)})).filter(x => x.a.zone === c.loc) : [];
-  const key = c.iid + '|' + where + '|' + ui.showRemoved + '|' + gyActs.map(x => x.why || 'ok').join() + '|' + Sim.statusLines(c).map(x => x.text).join('|') + '|' + (cloudMap_(c) ? 'cloud' : '');
+  const key = c.iid + '|' + where + '|' + ui.showRemoved + '|' + ui.inspLog + '|' + ((c.logs || []).length) + '|' + gyActs.map(x => x.why || 'ok').join() + '|' + Sim.statusLines(c).map(x => x.text).join('|') + '|' + (cloudMap_(c) ? 'cloud' : '');
   if (inspect.hidden || inspect.dataset.key !== key){
   inspect.dataset.key = key;
   inspect.innerHTML = phead() +
@@ -83,7 +90,7 @@ function showPlayer(p, pin){
   const s = game, P = s.piles[p], n = Object.values(s.cards).filter(c => c.loc === 'board' && c.owner === p).length;
   const stats = ['Life ' + s.life[p] + ' / ' + s.maxLife, 'Permanents ' + n, 'Hand ' + P.hand.length, 'Deck ' + P.deck.length, 'GY ' + P.gy.length, 'Exile ' + P.exile.length];
   const where = (s.active === p ? 'Turn player' : 'Not the turn player') + (s.priority === p ? ' · has priority' : '');
-  const key = 'P|' + p + stats.join() + where + ui.showRemoved + '|' + Sim.statusLines(s.players[p]).map(x => x.text).join('|');
+  const key = 'P|' + p + stats.join() + where + ui.showRemoved + '|' + ui.inspLog + ((s.players[p].logs || []).length) + '|' + Sim.statusLines(s.players[p]).map(x => x.text).join('|');
   if (inspect.hidden || inspect.dataset.key !== key){
     inspect.dataset.key = key;
     inspect.innerHTML = phead() + '<div class="art"></div><div class="pbody"><h3></h3><div class="meta">Player</div><div class="stats"></div><p></p><div class="where"></div><div class="dmg"></div></div>';
@@ -130,7 +137,7 @@ function hideInspect(){ inspect.hidden = true; selected = null; selP = null; dec
 function hideList(){ deckPanel.hidden = true; openList = null; hideInspect(); }
 function closeAll(){ closeMenu(); if (!deckPanel.hidden) hideList(); else if (!inspect.hidden) hideInspect(); }
 document.addEventListener('click', e => {
-  const tg = e.target.closest && e.target.closest('[data-toggle="removed"]'); if (tg){ ui.showRemoved = !ui.showRemoved; inspect.dataset.key = ''; if (inspLast && inspLast.c) showCard(inspLast.c, false); else if (inspLast && inspLast.p) showPlayer(inspLast.p, false); return; }
+  const tg = e.target.closest && e.target.closest('[data-toggle]'); if (tg){ if (tg.dataset.toggle === 'mode') ui.inspLog = !ui.inspLog; else ui.showRemoved = !ui.showRemoved; inspect.dataset.key = ''; if (inspLast && inspLast.c) showCard(inspLast.c, false); else if (inspLast && inspLast.p) showPlayer(inspLast.p, false); return; }
   const b = e.target.closest && e.target.closest('[data-close]');
   if (b) (b.dataset.close === 'inspect' ? hideInspect : hideList)();
 });
