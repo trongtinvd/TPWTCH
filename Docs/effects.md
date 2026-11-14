@@ -12,139 +12,126 @@ Card factory -> Fx builders -> plain {op:...} -> Sim.dispatch -> stack object ->
 | `COSTS` | Sim | `check` (payable?) and `pay` (mutates). |
 | `REQS` | Sim | Return reason string, or `null` if satisfied. |
 | `TARGETS` | Sim | Target finders. |
-| `COND` | Sim | Trigger conditions (`ownInAttackCol`), also used by `REQS.attackedCol`. |
-| `CH` / `THEN` | Sim | Answers to non-shift choices (`Choose`) and the "then" actions of `PickCard`. |
-| `Sim.API` | Sim | Published list of all names above, plus trigger names. |
-| `apiErrors()` | Validation | At load, every card is checked against `Sim.API`; unknown names fail loudly (console error). Nested `modes` effects are not walked yet. |
+| `COND` | Sim | Trigger conditions (`ownInAttackCol`, `extraPaid`, `firstCombat`). |
+| `CH` / `THEN` | Sim | Answers to `Choose` and the "then" actions of `PickCard`. |
+| Status API | Sim | `addStatus`, `removeStatus`, `statusLines`, `hpOf`, `atkOf`, `lifeOf`, `hasSt`, `isRevealed`. See below. |
+| `Sim.API` | Sim | Published list of all names above, plus trigger and passive names. |
+| `apiErrors()` | Validation | At load every card is checked against `Sim.API`; unknown names fail loudly. Nested `modes` effects are not walked yet. |
 
-Runtime `runFx` silently skips unknown ops. Definitions are deep-frozen; runtime state (`loc`, `slot`, `damage[]`, `counters`, `life[]`, `vault`, `revealed`) is on instances. To add a block: add a handler entry (`OPS/COSTS/REQS/TARGETS`) + matching `Fx` builder. Each card is a factory `Cards.add(Fx => ({...}))` returning its definition.
+Runtime `runFx` silently skips unknown ops. Definitions are deep-frozen; runtime state lives on instances: `{iid, def, owner, loc, slot, statuses[]}`. To add a block: add a handler entry + matching `Fx` builder. Each card is a factory `Cards.add(Fx => ({...}))`.
 
-Card `type` values: `creature`, `enchantment` (any non-creature permanent), `spell` (with `timing` `Quick` or `Slow`); `ability` is internal (stack tokens). Card flags: `flash:true` (play like a Quick spell), `retaliate:true`.
+Card `type`: `creature`, `enchantment` (any non-creature permanent), `spell` (`timing` Quick or Slow); `ability` is internal (stack tokens). Flags: `flash:true`, `retaliate:true`, `extraCost:{major:true}`.
+
+## Statuses
+One ordered list per card (`card.statuses`) and per player (`state.players[p].statuses`); see `RULES.md` for the rules and the kind table.
+- `Sim.addStatus(s, owner, {kind, ...})` appends (id = `++s.seq`, `turn`, `removed:null`). Optional fields: `zone` (default `'board'`; the status is removed when the card is not in that zone, unless `keep:true`), `aura` + `src` + `idx` (re-checked each recalc), `link` (seq of another status on the card), `expires:'turnEnd'`.
+- `Sim.removeStatus(s, st, why)` sets `removed:{why,turn,seq}`. It is never deleted. All folds skip removed statuses.
+- `recalc(s, ev)` runs after every command (and inside many ops): removes statuses that left their zone / failed their requirement / lost their link, adds `entered`, adds aura `mod` statuses (oldest source first), kills cards with damage > HP, refreshes the `state.life` cache.
+- Folds: `hpOf(c)` (printed HP + `life` + `mod.hp`), `atkOf(c)` (printed, then `mod` add and `atkMul` multiply in list order, min 0), `totalDamage(c)`, `lifeOf(s,p)`.
+- `Sim.statusLines(owner)` returns `[{text, removed, st}]` in list order: the inspector and player panel render exactly this (removed ones greyed, behind a toggle).
+- Effects write statuses; they never edit fields: `dealDamage` -> `damage`, `gainLife` -> `life`, `doublePower` -> `atkMul`, `shieldAll` -> `shield`, `noLifeGain` -> `nogain`, `noDamage` -> `nodamage` (turnEnd), `skipFoeCombat` -> `skipCombat` on the foe, `payLife` cost -> `paid`, `vaultFromDeck` -> `vault`, `pickCard foeHand` -> `revealed`, rider `inheritAbilities` -> linked `ability`.
 
 ## Effect sources
 | Source | Field | Runs |
 |---|---|---|
 | Spell | `effects: [...]` | On resolving off stack |
-| Activated ability | `abilities: [{name, speed, zone, req, cost, target, hp, effects}]` | Activate -> stack -> resolve. `zone`: `board` (default), `gy`, `hand` |
+| Activated ability | `abilities: [{name, speed, zone, req, cost, target, hp, effects}]` | Activate -> stack -> resolve. `zone`: `board`, `gy`, `hand` |
 | Triggered ability | `triggers: [{on, by, zone, cond, hp, effects}]` | Event -> stack -> resolve |
+| Passive | `passives: [obscure(), aura(...)]` | Read continuously (clouds; aura statuses) |
 | Cost | `cost: [...]` in ability | Paid on activation |
 
-Spells/abilities/triggers are **stack objects** with HP. Abilities/triggers are wrapped in a temp token card (`type:'ability'`, `loc:'stack'`, named `Card: Ability`) -> `loc:'gone'` after resolve/counter. Tokens reuse their source card's artwork.
+Spells/abilities/triggers are stack objects with HP. Abilities/triggers are wrapped in a temp token card (`type:'ability'`, `loc:'stack'`) -> `loc:'gone'` after resolve/counter. An **Attack** is a stack object of `kind:'attack'` (no HP, no token card).
 
 ## Ops
-Handlers get `x = {s, ev, src, t, who, foe}` (state, events, source, target, controller, opponent). Effects run in list order (Ward: gainLife(3) then sacrificeSelf()).
+Handlers get `x = {s, ev, src, t, who, foe, ...}`. Effects run in list order. An op that opens a choice suspends the rest of the list as a continuation; `Choose` resumes it.
 
 | Builder | Behavior |
 |---|---|
-| `dealDamage(to, n)` | `'target'`: damage instance (type `'effect'`) on the target card, or on a targeted player. `'player'`: damage instance on the controller's opponent. Target damage counts as targeted (passes blue shields). |
-| `gainLife(n, to?)` | Puts a **life counter** of `n` on the controller (default) or on the target card (`to:'target'`, +HP). Blocked by `noLifeGain`. Uncapped. |
-| `draw(n)` | Deck -> hand one at a time; empty deck = no draw, no error. |
-| `damageStack(n)` | Damages top stack object (resolving one already popped, so the one beneath). |
-| `sacrificeSelf()` | Destroys source if still on board at resolution. |
-| `shiftAdjacent()` | Lists empty adjacent same-row slots; sets a shift `choice` (`stay` + slots); waits for `Choose`. No free slot: nothing. |
+| `dealDamage(to, n)` | `'target'`: `damage` status on the target card (or a targeted player). `'player'`: on the controller's opponent. Target damage passes blue shields. Denied by `nodamage`. |
+| `gainLife(n, to?)` | `life` status on the controller (default) or target card (+HP). Blocked by `nogain`. |
+| `draw(n, who?)`, `drawUntil(n)` | Deck -> hand one at a time (`who:'foe'` = the opponent); empty deck = no draw. `drawUntil`: until n cards in hand. |
+| `damageStack(n)` | Damages the top stack object. **No effect on an Attack.** |
+| **`addAttackDamage(n, whose?)`** | **Adds n to the `bonus` of the topmost Attack object on the stack** (`whose`: `'mine'` / `'foe'` / `'any'` (default), relative to the effect's controller). The bonus is read when the Attack resolves and still lands if the attacker left. Requirement `attackOnStack` is available. |
+| `cancelAttack()` | Removes the targeted Attack object from the stack (target finder `attacker`). |
+| `noDamage()` | Target creature (or stack spell): damage to it is denied until end of turn (`nodamage` status, `expires:'turnEnd'`). |
+| `sacrificeSelf()` | Destroys source if still on board. |
+| `shiftAdjacent()` | Choice: `stay` + empty adjacent same-row slots. None free: nothing. |
 | `repeat(n, ...fx)` | Runs nested effects n times. |
-| `mill(n)`, `fetch(card)`, `doublePower()` | Mill target player; fetch a named card from deck to hand; double this card's power. |
-| `nearestZone(skip)`, `destroyOnZone()`, `createToken(t)` | The Vine's building blocks (re-evaluated every repetition). `destroyOnZone` skips blue-shielded cards. |
-| `exileColumn()`, `makeColumnUnusable()`, `returnToHand()` | Infinity Wall. `exileColumn` skips blue-shielded cards. |
-| `removeDamage(n)`, `damageAnother(n)` | Bandages / Avatar. Both set choices; red-shielded cards are excluded from `damageAnother`. |
-| `obscure()` (passive) | King Eye clouds. |
-| `modes(...mode)` / `mode(name, min, max, ...fx)` | Controller picks **one** mode whose `[min,max]` fits the number of creatures the opponent controls. One fitting mode runs directly; several open a popup `mode` choice. |
-| `pickCard(from, then, amount?)` | `from`: `foeHand` (reveals the hand, click a card), `foeBoard`, `anyTarget` (cards or life bars), `myCreatures` (hand/GY/exile; popup only if GY/exile hold creatures). `then`: `toGY`, `toHand` (bounce), `damage` (`amount`), `summon` (click a zone if several are free). Red-shielded cards are excluded. |
-| `destroyAll()` | Destroys every card on the board except blue-shielded ones. |
-| `drawPerFoeCreature()` | Draws one card per creature the opponent controls. |
-| `vaultFromDeck(n)` / `revealVault()` | Heaven and Sun: controller exiles `n` chosen deck cards one at a time (remembered on the card as `vault`); later the **opponent** picks one for the controller's hand. |
-| `swapIn()` | Shieldguard: return a creature in the attacked column to hand and put this card (from hand) in its zone; auto if one candidate, click if several. |
-| `shieldAll(color)` | Puts a `red` or `blue` shield counter on each card the controller controls on the board. |
-| `noLifeGain()` | Controller cannot gain life (or life counters) for the rest of the game (`state.noGain`). |
+| `mill`, `fetch`, `doublePower` | Mill target player; fetch a named card; `doublePower` adds an `atkMul` x2 status. |
+| `nearestZone`, `destroyOnZone`, `createToken` | The Vine (re-evaluated each repetition). |
+| `placeToken(t)` | The controller picks a free **front** zone for a token (auto if one). Used by War Drum. |
+| `exileColumn`, `makeColumnUnusable`, `returnToHand` | Infinity Wall. |
+| `removeDamage(n)`, `damageAnother(n)` | Bandages / Avatar. Bandages asks which `damage` status to reduce; a fully removed one is greyed. |
+| `obscure()`, `aura(who, atk, hp)` (passives) | Clouds; aura: cards of `'own'`/`'foe'` in the source's column and adjacent columns hold a `mod` status while in range. |
+| `modes`, `mode` | Controller picks one mode whose `[min,max]` fits the opponent's creature count. |
+| `pickCard(from, then, amount?)` | `from`: `foeHand` (adds `revealed`), `foeBoard`, `anyTarget`, `myCreatures`, `myGYCreatures`. `then`: `toGY`, `toHand`, `damage`, `summon`, `summonAttack` (put into play, then it attacks at once as an extra Attack). |
+| `upTo(who, from, then, n, types?)` | Up to n picks (with Done): `then` `toHand` or `play`. The resolving card is not offered. |
+| `destroyAll`, `drawPerFoeCreature` | Parasite. |
+| `vaultFromDeck(n)` / `revealVault()` | Heaven and Sun: `vault` statuses on the card. |
+| `swapIn()` | Shieldguard (reads the Attack on the stack). |
+| `shieldAll(color)`, `noLifeGain()` | `shield` statuses on your board cards; `nogain` on you. |
+| `skipFoeCombat(pay)`, `secondCombat()` | Shark: pay life, `skipCombat` on the foe; second combat (foe draws 5 as a cost; if you hold a `skipCombat` status it is used up instead). |
 
 ## Costs (paid at activation, never refunded if countered/fizzled)
-| Builder | Behavior |
-|---|---|
-| `payLife(n)` | Life must be > n; removes n and logs it as `paid`. |
-| `exileFromGY(n)` | GY needs >= n cards; exiles the n oldest. |
-| `exileSelf()` | Card must be in GY; exiles it. |
-| `sacrificeSelf()` | Destroys immediately (even if later countered). As effect: only on resolution. |
+`payLife(n)` (`paid` status), `exileFromGY(n)`, `exileSelf()`, `sacrificeSelf()` (destroys immediately). Optional card cost `extraCost:{major:true}` (War Drum): asked on play; adds `extraPaid`.
 
 ## Requirements / targets
-`front`: in front-row slot. `hurt`: controller's life < `maxLife`. `target`: a legal target exists. `stack`: a stack object exists. `attackedCol`: an attack is pending, the attacker belongs to the opponent and the controller has a creature in its column.
-Target finder: `opposingFront` (opposing creature in same column, not red-shielded); chosen at activation, stored as `target: iid`.
-**Fizzle:** if the object has a target and it is off the board at resolution (or a zone target holds a red-shielded card), no effects run, `StackObjectFizzled` emitted; costs stay paid.
+`front`, `hurt`, `target`, `stack`, `foeAttacking`, `attackedCol`, `attackOnStack`. Targets: `opposingFront`, `attacker` (the topmost Attack the opponent controls). Zone targets `anyPermanent`, `anyCreature`; `colTarget` `fullColumn`; `playerTarget`; `optionalTarget`, `stackTarget` (Quick Intuition).
+**Fizzle:** target gone at resolution (or a red-shielded zone target) -> no effects, `StackObjectFizzled`; costs stay paid.
 
 ## Activation (`canActivate` order)
-1. Correct zone (`zone`: `board` default, `gy`, or `hand`). 2. Reqs pass. 3. Controller has priority. 4. Speed: `Slow` needs own turn, empty stack, no attack phase, unused major action; `Fast` unrestricted. 5. Costs payable.
-`Slow` sets `majorUsed` on activation, not resolution. After any activation the opponent gets priority first.
-Activation is from the card's menu on the board or in your hand, or the Inspect panel buttons for GY and hand abilities. `hasAction` also counts hand abilities.
+1. Zone. 2. Reqs. 3. Priority. 4. Speed (`Slow`: own turn, empty stack, no attack phase, major action unused; `Fast`: free). 5. Costs payable. Slow sets `majorUsed` on activation. After any activation the opponent gets priority first.
 
-## Playing cards and priority (`canPlay`, `Pass`)
-- Hand cards need: game started, card in hand, owner holds priority.
-- Non-Flash permanents: own turn, major action unused, stack empty, not in attack phase, free zone in the right row (creature front, other back). They enter immediately, then enter triggers go on the stack.
-- **Flash permanents:** only priority and a free zone are needed (any time, also in the attack phase and with a non-empty stack); no major action. The "entered" response window opens only if the turn player played it.
-- Slow spell: own turn, major unused, stack empty, not in attack phase. Quick spell: priority only.
-- A spell goes on the stack and the **opponent** gets priority first. `Pass` (needs a non-empty stack or an open response window and priority) passes it on; after two consecutive passes the top object resolves, then priority returns to the turn player (or, with an open window, to the non-turn player). Spells go to the top of the GY (newest first) after resolving or being countered.
+## Playing cards and priority
+See `RULES.md`. Flash permanents need only priority and a free zone.
 
 ## Triggers
 | Trigger | Fires for |
 |---|---|
-| `trigger.enter(...fx)` | Only the card that entered. |
-| `trigger.attack(by, ...fx)` | `by` list: `'self'` = attacking card; `'foe'` = any card whose owner differs from attacker's owner; `'any'`. |
-| `trigger.damaged(...fx)` | The card that takes combat damage (before it is destroyed). |
-| `trigger.combat(...fx)` | Beginning of its controller's combat step. |
-| `trigger.turnStart(...fx)` | Start of its controller's turn. |
+| `enter` | Only the card that entered. |
+| `attack(by, ...)` | `'self'`, `'foe'` or `'any'`; fired when the Attack is declared; goes above the Attack. |
+| `damaged` | The card that takes combat damage. |
+| `combat` | Beginning of its controller's combat step. |
+| `combatEnd` | After its controller's combat phase ends (`cond:'firstCombat'` = the first one this turn). Also fires when End turn ends combat. |
+| `turnStart` | Start of its controller's turn. |
 
-Optional trigger fields: `hp` (stack HP, e.g. Heaven and Sun's enter trigger 7), `zone` (where the card must be, default `board`), `cond` (e.g. `ownInAttackCol`). `'foe'` is relative to the trigger's owner. A trigger already on the stack still resolves if its source has since left the board.
+Optional fields: `hp`, `zone`, `cond`. `fire()` collects all matches, turn player's first, then priority to the non-turn player.
 
-**Simultaneous triggers (`fire()`):** collect all matches; push all at once, turn player's first then other's (LIFO: other player's resolve first); priority to the turn player's opponent. Within a player: card creation order (deterministic placeholder).
-
-**Attack timing:** `Attack` (turn player, attack phase, stack empty, no open window, not yet attacked this turn) sets `s.pending`, fires attack triggers and, if the defender has a usable hand reaction, opens an `attack` response window; combat damage (`strike`) runs once stack, choice and window are clear (`settle`). Attacker gone by then: no damage.
+## Attack objects
+`declareAttack(s, c, ev, extra)` pushes `{kind:'attack', iid, controller, hp:null, slotAt, bonus:0}`, fires attack triggers above it, gives the defender priority. `resolveAttack`: damage = `atkOf(attacker)` if on board else 0, plus `bonus`, down the column (`slotAt` if the attacker left). Normal `Attack` command needs an empty stack; extra attacks come from effects.
 
 ## Choices
-`state.choice = {player, iid, kind, options, labels?, prompt, ...}`; while set only `Choose` is accepted. Kinds: shift (no kind; click a green zone), `damage` and `counter` (Avatar / Bandages), `mode` (popup), `pick` (click card / zone / life bar `P:Player` / `P:Opponent`, or popup when `labels` exist), `place` (click a zone), `swap` (click a creature), `vault` and `vaultpick` (popup). A choice **without** `labels` is answered by clicking the board; with `labels` the picker panel is shown.
+`state.choice = {player, iid, kind, options, labels?, prompt, cont?}`; only `Choose` is accepted. Kinds: shift (no kind), `damage`, `counter` (options are `damage` status ids), `mode`, `pick`, `place`, `swap`, `vault`, `vaultpick`, `upto`. Without `labels` it is answered by clicking the board; with `labels` the picker panel shows.
 
 ## Stack HP
-Each stack object has `hp` (spell HP, ability `hp`, or 1 for a trigger without). `hitStack` subtracts; **countered at <= -1, 0 resolves**. Countered spell -> GY; countered ability token removed.
+`hitStack` subtracts; **<= -1 countered, 0 resolves**. An Attack ignores it. Countered spell -> GY; countered ability token removed. (Stack objects have no statuses yet: `nodmg` is a field, Q33.)
 
-## Damage, counters and shields
-Instances `{amount, source, type, turn, seq}` on card; destroyed when total damage > HP (printed HP + life counters); `destroy` (to GY) clears instances, shields and life counters. Types: `'combat'`, `'effect'`, `'retaliate'`. Player damage is also an instance (`state.log[player]`, kind `damage`), as are life counters (`life`) and paid life (`paid`).
-`dealDamage(s, src, tgt, amount, ev, type, targeted)`: blue-shielded targets ignore non-combat damage unless `targeted`; if the target has `retaliate` (and `type !== 'retaliate'`) the source takes damage equal to its power back (a spell's controller takes it as life loss).
-**Combat trample (`strike`):** ATK passes through the cards on the foe's side of the attacker's column (front, then back; a foe-side attacker only hits what lies beyond it); each target takes the full remaining ATK as damage but absorbs only its remaining HP of it; the rest goes on, then to the player. ATK = HP + 1 kills *and* tramples 1 (Q20).
-Shield counters live in `card.counters` (`red`, `blue`); see `RULES.md`.
-
-## Current cards (21; one of each per deck)
+## Current cards (25; one of each per deck)
 | Card | Effect |
 |---|---|
-| Heal | Quick, HP 3: `gainLife(3)` |
-| Zap | Quick, HP 0: `dealDamage('player',1)` |
-| Bolt | Quick, HP 2: `damageStack(3)` |
-| Superbolt | Slow, HP 3: 20 damage to any target (permanent or player) |
-| GrainFall | Slow, HP 2: target player mills 10 |
-| Throwing Bandages | Quick, HP 10: remove 7 damage points (controller picks instances) |
-| Infinity Wall | Quick, HP 6: exile a full column, make it unusable, return to hand |
-| Spirit of the Sand | Quick, HP 0: `modes` red / blue shield on each of your cards, plus `noLifeGain` |
-| Ward (ench., HP 4) | "Restore": Fast, stack HP 2; `req hurt`; `gainLife(3)`, `sacrificeSelf()` |
-| Charm (ench., HP 5) | "Recall", Slow, HP 1; cost `exileFromGY(1)`; `draw(1)` |
-| Heaven and Sun (ench., HP 5) | Enter (stack HP 7): exile 5 chosen deck cards. Turn start: opponent picks one of them for your hand |
-| Archer (3/2) | "Volley", Slow, HP 1; `req front`; cost `payLife(1)`; `dealDamage('player',2)` |
-| Scout (1/1) | "Ambush", Fast, HP 0; `req target`; cost `sacrificeSelf()`; target `opposingFront`; `dealDamage('target',3)` |
-| Red Hummingbird (2/1) | Enter: `draw(1)`. Attack by self or foe creature: `shiftAdjacent()`. GY ability "Feather Balm": Fast, `req hurt`, cost `exileSelf()`: `gainLife(3)` |
-| King Eye (6/10) | Passive `obscure()`: clouds over your other zones |
-| The Vine (1/1) | Enter and turn start: `repeat(4, nearestZone, destroyOnZone, createToken)` |
-| Avatar of Rabies (3/7) | Attack (any): `shiftAdjacent()`; damaged: `damageAnother(1)`; rider `inheritAbilities` |
-| Black Hawk (1/0) | Combat step: `repeat(5, doublePower())` |
-| Bolt Master (2/3) | Enter: `fetch('superbolt')` |
-| Creeping Parasite (0/0, Flash) | Enter: `modes` unlocked by the opponent's creature count: 0 look at hand, send one to GY; 1+ 4 damage to any target; 2+ return a card they control to hand; 3+ put a creature from hand/GY/exile into play; 4+ draw per their creature count; 5 destroy all. **Every unlocked mode is selectable** (with 2 creatures: 0, 1 or 2) |
-| Shieldguard (5/15, Retaliate) | Hand ability "Swap In": Fast, stack HP 1, `req attackedCol`: return the creature in the attacked column to hand, put Shieldguard in its zone |
+| Heal / Zap / Bolt / Superbolt / GrainFall | As before: +3 life / 1 damage / 3 damage to the stack object below / 20 damage to any target / mill 10 |
+| Throwing Bandages | Quick, HP 10: remove 7 damage points from a permanent |
+| Infinity Wall | Quick, HP 6: exile a full column, make it unusable, back to hand |
+| Spirit of the Sand | Quick, HP 0: red or blue `shield` on each of your cards + `nogain` |
+| Quick Intuition | Quick, HP 4: `drawUntil(7)`, optional target creature/spell gets `noDamage`. GY, Fast, when the foe attacks: exile this; `cancelAttack` |
+| Ambush of the Night | Slow, HP 0: you draw 2, return <=2 GY cards, put <=2 creatures/enchantments from hand into play; then the foe returns <=2, puts <=2 from their GY into play, draws 2 |
+| Ward, Charm, Heaven and Sun | Enchantments (see card text) |
+| War Drum (ench., Flash, HP 0) | Passive `aura('foe',-1,-1)`. Enter: `placeToken('drummer')` (3/3 with `aura('own',1,1)`). Optional extra cost (major action): enter also puts a creature from your GY into play and it attacks at once |
+| Archer, Scout, Red Hummingbird, King Eye, The Vine, Avatar of Rabies, Black Hawk, Bolt Master | As before (Black Hawk: five `atkMul` statuses) |
+| Deep Sea Shark (6/4) | Enter: may pay 3 life, foe gets `skipCombat`. After your first combat phase: foe draws 5 (cost), second combat phase |
+| Creeping Parasite (0/0, Flash) | Enter: mode by foe creature count (every unlocked mode selectable) |
+| Shieldguard (5/15, Retaliate) | Hand ability Swap In: Fast, `attackedCol` (reads the Attack on the stack) |
 
-Test-only fixtures (not in decks): Soldier 2/3, Knight 4/5, Giant 6/8, Guard 1/6, Wolf 3/3, Barrier, Aura, Banner, Trap, Mend, Fireball, Rally, Blast. Red Hummingbird, Superbolt, GrainFall, Black Hawk, Bolt Master, Heaven and Sun, Creeping Parasite, Shieldguard and Spirit of the Sand are prototype cards not in `game_design_document.txt`; The Vine, Infinity Wall, King Eye, Avatar of Rabies and Throwing Bandages are Phase 4 cards.
+Test-only fixtures (not in decks): Soldier 2/3, Knight 4/5, Giant 6/8, Guard 1/6, Wolf 3/3, Barrier, Aura, Banner, Trap, Mend, Fireball, Rally, Blast, **Rage** (Quick, HP 2, `req attackOnStack`: `addAttackDamage(4)`).
 
 ## Tests
-`cardGame.selfTest()` (headless, no THREE/DOM). Covers (in addition to the earlier list): Flash, Retaliate, red/blue shields, Spirit of the Sand, Shieldguard's response window and swap, Vine, Infinity Wall, King Eye, Superbolt/GrainFall, Black Hawk/Bolt Master. Not yet covered: Creeping Parasite modes, Heaven and Sun, the player damage / life counter log, foe-side attacker direction. See `ARCHITECTURE.md` for gaps.
+`cardGame.selfTest()` (headless, no THREE/DOM): 264 checks. Added: status order and folds, removal on leaving the board (kept in the list), `keep`, zone-bound statuses, expiry, aura enter/leave/return, linked ability status, player list folds, `nogain`, Heaven and Sun vault, `revealed`, and the Attack bonus (resolves, stays after the attacker leaves, defender can boost). Not yet covered: Creeping Parasite modes other than 0, Shark's second-combat edge cases with statuses.
 
 ## Not implemented
-- Continuous/rule effects: no modifiers, `GetEffectiveStat`, base/current layers, layered abilities beyond the Avatar damage rider.
-- Durations/delayed effects (Maximum Damage impossible).
+- Base/Current stat layers and equipment (only the status fold exists), durations other than `turnEnd`, Maximum Damage.
 - Zone HP (Fracture Ground), column state beyond "unusable".
-- Observation/visibility filtering beyond King Eye clouds and per-viewer revealed cards.
-- Real-time input windows (only `Choose`).
-- Player-chosen trigger ordering within a player; targeting of damage instances/stack objects beyond Bandages/Bolt.
-- Player stats (Power/Defense), Distance/Speed/Acceleration, win/loss.
+- Observation filtering beyond King Eye clouds and `revealed`.
+- Real-time input windows.
+- Player-chosen trigger order; statuses on stack objects; pruning of old removed statuses.
+- Player stats, Distance/Speed/Acceleration, win/loss.
 - Silent no-ops: `draw` on empty deck; `shiftAdjacent` with no free slot.
