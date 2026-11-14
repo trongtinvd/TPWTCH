@@ -2,9 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Card Game Board Prototype</title>
+<title>The Places Where They Call Home</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <link rel="stylesheet" href="css/index.css">
+<link rel="stylesheet" href="css/screens.css">
 </head>
 <body>
 <div id="hud"><b>Hover a zone</b></div>
@@ -23,12 +24,16 @@
 <script src="js/scene.js">			// scene.js - Three.js scene, camera, renderer, lights, table</script>
 <script src="js/cards.js">			// cards.js - Effect API (Fx) and card definitions</script>
 <script src="js/sim.js">			// sim.js - Simulation: rules, stack, combat, effects, API validation (no THREE, no DOM)</script>
+<script src="js/decks.js"></script>
 <script src="js/board.js">			// board.js - Board geometry: zones, side zones, hands, DOM references</script>
 <script src="js/game-host.js">		// game-host.js - Game host and UI state: send(), automation, camera views, function buttons</script>
 <script src="js/card-view.js">		// card-view.js - Card meshes, 3D artwork, card materials, glow</script>
 <script src="js/panels.js">			// panels.js - Deck/graveyard/exile lists, inspect panel, action menu</script>
 <script src="js/view-sync.js">		// view-sync.js - View sync (game state to meshes), hover links and arrows, showcase animations, stack panel</script>
 <script src="js/input.js">			// input.js - Pointer input: drag, click, hover (commands only)</script>
+<script src="js/menu.js"></script>
+<script src="js/deck-editor.js"></script>
+<script src="js/bot.js"></script>
 <script src="js/tests-main.js">		// tests-main.js - Headless self-tests, console hook, bootstrap and render loop</script>
 </body>
 </html>

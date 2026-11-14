@@ -51,17 +51,17 @@ const Sim = (function(){
   const slowish = c => (isPerm(c) && !c.def.flash) || c.def.timing === 'Slow';   // Flash permanents are played like Quick spells
   const slotRow = c => c.def.type === 'creature' ? 'front' : 'back';
   function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
-  function buildDeck(owner, seed, defs){                  // CardInstances, top of deck first
+  function buildDeck(owner, seed, defs, shuffle = true){                  // CardInstances, top of deck first
     const rnd = mulberry32(seed);
     const cards = defs.map((def,i) => ({iid: owner.toLowerCase()+'-'+i, def, owner, loc:'deck', slot:null, statuses:[]}));
-    for (let i = cards.length-1; i > 0; i--){ const j = Math.floor(rnd()*(i+1)); [cards[i],cards[j]] = [cards[j],cards[i]]; }
+    for (let i = cards.length-1; shuffle && i > 0; i--){ const j = Math.floor(rnd()*(i+1)); [cards[i],cards[j]] = [cards[j],cards[i]]; }
     return cards;
   }
-  function create(n, defs){                         // content is injected: the Sim never reads globals
+  function create(n, defs, opts = {}){   // opts: {decks:{Player:[ids], Opponent:[ids]}, shuffle:true, autoStart:false} (see createGame)                         // content is injected: the Sim never reads globals
     byId = Object.fromEntries(defs.map(d => [d.id, d]));
     const s = {n, phase:'deck', ready:{Player:false, Opponent:false}, cards:{}, piles:{}, slots:{}, stack:[], active:'Player', priority:'Player', passes:0, attackPhase:false, life:{Player:20, Opponent:20}, players:{Player:{statuses:[]}, Opponent:{statuses:[]}}, maxLife:20, turn:1, seq:0, majorUsed:false, sid:0, choice:null, pending:null, unusable:{}, respond:null};   // respond: null | {kind:'enter'|'end'} = the non-turn player may respond before play continues
     for (const [p, seed] of [['Player', n*2+1], ['Opponent', n*2]]){
-      const deck = buildDeck(p, seed, defs); deck.forEach((c, i) => { s.cards[c.iid] = c; lg(s, c, {kind:'start', to:'deck', pos:i + 1, of:deck.length}); });
+      const deck = buildDeck(p, seed, opts.decks && opts.decks[p] ? opts.decks[p].map(id => byId[id]).filter(Boolean) : defs, opts.shuffle !== false); deck.forEach((c, i) => { s.cards[c.iid] = c; lg(s, c, {kind:'start', to:'deck', pos:i + 1, of:deck.length}); });
       s.piles[p] = {deck, hand:[], gy:[], exile:[]};   // opening hands are dealt when both players press Start
       for (const row of ['front','back']) for (let c = 0; c < 5; c++) s.slots[p+'|'+row+'|'+c] = null;   // slot -> iid
     }
@@ -401,7 +401,7 @@ const OPS = {                                     // effect handlers: (ctx, effe
     if (s.phase === 'deck' && cmd.type !== 'ReorderDeck' && cmd.type !== 'Start') return fail('Deck building: press Start when your deck is ready');
     switch (cmd.type){
       case 'ReorderDeck': {
-        if (s.phase !== 'deck' || s.ready[cmd.player]) return fail('Your deck is locked');
+        if (s.phase === 'deck' ? s.ready[cmd.player] : !cmd.debug) return fail('Your deck is locked');   // debug:true lets the debug tools reorder a deck mid-game
         const d = s.piles[cmd.player].deck;
         if (!(cmd.from >= 0 && cmd.from < d.length && cmd.to >= 0 && cmd.to < d.length)) return fail('Bad deck position');
         d.splice(cmd.to, 0, d.splice(cmd.from, 1)[0]); ev.push({t:'DeckReordered', player:cmd.player}); break;
@@ -511,6 +511,7 @@ const OPS = {                                     // effect handlers: (ctx, effe
   }
   function makeToken(s, def, owner, zone, ev){ const n = s.tokN = (s.tokN || 0) + 1, t = {iid:'tk-' + n, def, owner, loc:'board', slot:zone, statuses:[], token:true};
     s.cards[t.iid] = t; s.slots[zone] = t.iid; ev.push({t:'PermanentSummoned', iid:t.iid, slot:zone}); recalc(s, ev); fire(s, ev, 'enter', t); }
+  function createGame(n, defs, opts = {}){ const s = create(n, defs, opts); if (opts.autoStart) for (const p of ['Player', 'Opponent']) dispatch(s, {type:'Start', player:p}); return s; }   // the public Sim.create
   function hasAction(s, p){                         // is there anything legal for p right now?
     if (s.phase !== 'play' || p !== s.priority) return false;
     const P = s.piles[p], mine = Object.values(s.cards).filter(c => c.owner === p && (c.loc === 'board' || c.loc === 'gy')), turn = p === s.active && !s.stack.length;
@@ -519,7 +520,7 @@ const OPS = {                                     // effect handlers: (ctx, effe
     if (s.attackPhase ? mine.some(c => !canAttack(s, c)) : turn && !majorUsed(s) && mine.some(c => c.def.type === 'creature')) return true;
     return mine.concat(P.hand).some(c => (abDef(c).abilities || []).some((a, i) => !canActivate(s, c, i)));
   }
-  return {addStatus, removeStatus, statusLines, logLines, describe, lifeOf, live, hasSt, has, isRevealed, attackedIds, API:{effects:Object.keys(OPS), costs:Object.keys(COSTS), requirements:Object.keys(REQS), targets:Object.keys(TARGETS), colTargets:Object.keys(COLTARGETS), zoneTargets:Object.keys(ZONETARGETS), riders:Object.keys(RIDERS), triggers:['enter', 'attack', 'turnStart', 'damaged', 'combat', 'combatEnd'], passives:['Obscure', 'Aura']}, cloudMap, abDef, hpOf, targetZones, create, dispatch, canPlay, canActivate, hasAction, majorUsed, canPayExtra, recalc, atkOf, RULES, canAttack, totalDamage, freeSlots, targetColumns, colKeys, other, isPerm};
+  return {addStatus, removeStatus, statusLines, logLines, describe, lifeOf, live, hasSt, has, isRevealed, attackedIds, API:{effects:Object.keys(OPS), costs:Object.keys(COSTS), requirements:Object.keys(REQS), targets:Object.keys(TARGETS), colTargets:Object.keys(COLTARGETS), zoneTargets:Object.keys(ZONETARGETS), riders:Object.keys(RIDERS), triggers:['enter', 'attack', 'turnStart', 'damaged', 'combat', 'combatEnd'], passives:['Obscure', 'Aura']}, cloudMap, abDef, hpOf, targetZones, create:createGame, dispatch, canPlay, canActivate, hasAction, majorUsed, canPayExtra, recalc, atkOf, RULES, canAttack, totalDamage, freeSlots, targetColumns, colKeys, other, isPerm};
 })();
 
 // Validate that every card only uses published APIs (fails loudly at load, not mid-game)

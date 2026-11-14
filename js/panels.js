@@ -23,11 +23,11 @@ function showList(owner, kind){
   if (game.phase === 'deck' && owner !== ui.view){ ui.note = 'Deck building is private \u2013 switch seat (debug) to edit the other deck'; sync(); return; }
   openList = {owner, kind}; buildList(); deckPanel.scrollTop = 0; }
 function buildList(){
-  const st = deckPanel.scrollTop, {owner, kind} = openList, cards = listCards(openList), gy = kind !== 'deck', canEdit = game.phase === 'deck' && kind === 'deck' && owner === ui.view && !game.ready[owner];
+  const st = deckPanel.scrollTop, {owner, kind} = openList, cards = listCards(openList), gy = kind !== 'deck', canEdit = kind === 'deck' && ((game.phase === 'deck' && owner === ui.view && !game.ready[owner]) || (ui.deckEdit && game.phase === 'play'));
   deckPanel.innerHTML = '<div class="phead"><b>' + NAME[owner] + ({gy:' Graveyard', exile:' Exile'}[kind] || ' Deck') + ' (' + cards.length +
     ')</b><button class="xbtn" data-close="list" aria-label="Close list">\u00d7</button></div>' +
     '<div class="legend" style="--h:' + (gy ? 275 : 42) + '"><span>' + (gy ? 'Newest' : 'Top') + '</span><i></i><span>' + (gy ? 'Oldest' : 'Bottom') + '</span></div>';
-  if (game.phase === 'deck' && !gy) deckPanel.insertAdjacentHTML('beforeend', '<div class="note">' + (canEdit ? 'Drag rows or use \u25b2\u25bc to reorder. Press Start when done \u2013 the deck locks then.' : 'This deck is locked.') + '</div>');
+  if (!gy && (game.phase === 'deck' || ui.deckEdit)) deckPanel.insertAdjacentHTML('beforeend', '<div class="note">' + (canEdit && game.phase === 'play' ? 'Debug: top of the list = next draw. Drag rows or use \u25b2\u25bc to reorder.' : canEdit ? 'Drag rows or use \u25b2\u25bc to reorder. Press Start when done \u2013 the deck locks then.' : 'This deck is locked.') + '</div>');
   if (!cards.length) deckPanel.insertAdjacentHTML('beforeend', '<div class="note">Empty</div>');
   cards.forEach((c, i) => {
     const row = document.createElement('div');
@@ -40,11 +40,11 @@ function buildList(){
       row.draggable = true;
       row.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', String(i)); e.dataTransfer.effectAllowed = 'move'; });
       row.addEventListener('dragover', e => e.preventDefault());
-      row.addEventListener('drop', e => { e.preventDefault(); const f = +e.dataTransfer.getData('text/plain'); if (f !== i) send({type:'ReorderDeck', player:owner, from:f, to:i}); });
+      row.addEventListener('drop', e => { e.preventDefault(); const f = +e.dataTransfer.getData('text/plain'); if (f !== i) send({type:'ReorderDeck', debug:true, player:owner, from:f, to:i}); });
       const mv = document.createElement('span'); mv.className = 'mv';
       [['\u25b2', i-1, 'Move up'], ['\u25bc', i+1, 'Move down']].forEach(([g, to, lab]) => {
         const b = document.createElement('button'); b.className = 'xbtn'; b.textContent = g; b.setAttribute('aria-label', lab); b.disabled = to < 0 || to >= cards.length;
-        b.addEventListener('click', e => { e.stopPropagation(); send({type:'ReorderDeck', player:owner, from:i, to}); }); mv.appendChild(b);
+        b.addEventListener('click', e => { e.stopPropagation(); send({type:'ReorderDeck', debug:true, player:owner, from:i, to}); }); mv.appendChild(b);
       });
       row.appendChild(mv);
     }

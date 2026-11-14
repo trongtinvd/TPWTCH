@@ -602,12 +602,37 @@ function selfTest(){
     check('sword rule: in the combat phase the turn player\u2019s creature can attack, the other player\u2019s cannot', Sim.canAttack(s, wf) === null && Sim.canAttack(s, ow) !== null);
     D(s, {type:'Attack', iid:wf.iid});
     check('sword rule: once it attacked (and while the stack is not empty) the sword is gone', Sim.canAttack(s, wf) !== null); }
+    // ================= decks, card search, Sim.create options, bot =================
+  { const ids = DEFS.map(d => d.id), al = DEFS.slice().sort((a, b) => a.name.localeCompare(b.name));
+    check('default decks: two or more, unique names, every one valid (10-100 singleton known cards)', BUILTIN_DECKS.length >= 2 && new Set(BUILTIN_DECKS.map(d => d.name)).size === BUILTIN_DECKS.length && BUILTIN_DECKS.every(d => !deckProblem(d.cards)), BUILTIN_DECKS.map(d => deckProblem(d.cards)).join('; '));
+    eq('deckProblem: 9 cards are too few, 10 are fine', [!!deckProblem(ids.slice(0, 9)), deckProblem(ids.slice(0, 10))], [true, null]);
+    check('deckProblem: duplicates and unknown ids are rejected', !!deckProblem(ids.slice(0, 9).concat(ids[0])) && !!deckProblem(ids.slice(0, 9).concat('nope')));
+    check('saveProblem: empty name, used name (defaults too) and too few cards block saving', /name/i.test(saveProblem('  ', ids, null)) && saveProblem(BUILTIN_DECKS[0].name, ids, null) === 'Name already used' && /at least/.test(saveProblem('zz unused', ids.slice(0, 9), null)) && saveProblem('zz unused', ids, null) === null);
+    check('saveProblem: a saved deck may be saved again under its own name', saveProblem(BUILTIN_DECKS[0].name, ids, BUILTIN_DECKS[0].name) === null);
+    eq('search: the closest match is first (exact, partial, misspelled)', ['bolt', 'bolt master', 'hummingbrd', 'drum', 'shark'].map(q => rankCards(q, DEFS)[0].id), ['bolt', 'boltmaster', 'hummingbird', 'wardrum', 'shark']);
+    eq('search: everything after the closest match is alphabetical', rankCards('drum', DEFS).slice(1).map(d => d.id), al.filter(d => d.id !== 'wardrum').map(d => d.id));
+    eq('search: an empty query is plain alphabetical order', rankCards('  ', DEFS).map(d => d.id), al.map(d => d.id)); }
+  { const A = ['zap', 'heal', 'bolt', 'archer', 'scout', 'charm', 'ward', 'wolf', 'guard', 'soldier', 'knight', 'giant'], all = DEFS.concat(FIXTURES);
+    let s = Sim.create(500, all, {decks:{Player:A, Opponent:A.slice().reverse()}, shuffle:false, autoStart:true});
+    eq('create with decks + no shuffle + autoStart: play phase, hand = first five of the list, the rest stays in the deck in order', [s.phase, s.piles.Player.hand.map(c => c.def.id), s.piles.Player.deck.map(c => c.def.id)], ['play', A.slice(0, 5), A.slice(5)]);
+    eq('the second player has its own list', s.piles.Opponent.hand.map(c => c.def.id), A.slice().reverse().slice(0, 5));
+    const t = Sim.create(500, all, {decks:{Player:A, Opponent:A}, shuffle:true}), od = t.piles.Player.deck.map(c => c.def.id);
+    check('shuffle on: same cards in another order; without autoStart the deck phase waits', t.phase === 'deck' && [...od].sort().join() === [...A].sort().join() && od.join() !== A.join());
+    eq('unknown card ids in a deck list are skipped', Sim.create(501, DEFS, {decks:{Player:['zap', 'nope', 'heal'], Opponent:['zap']}, shuffle:false}).piles.Player.deck.map(c => c.def.id), ['zap', 'heal']);
+    eq('Sim.create without options is unchanged: deck phase, full pool for both', [Sim.create(503, DEFS).phase, Sim.create(503, DEFS).piles.Player.deck.length, Sim.create(503, DEFS).piles.Opponent.deck.length], ['deck', DEFS.length, DEFS.length]);
+    s = Sim.create(502, all, {decks:{Player:A, Opponent:A}, shuffle:false, autoStart:true}); const top = s.piles.Player.deck.map(c => c.iid);
+    rej('ReorderDeck in a running game needs the debug flag (decks are locked)', s, {type:'ReorderDeck', player:'Player', from:0, to:2}, 'locked');
+    D(s, {type:'ReorderDeck', player:'Player', from:0, to:2, debug:true});
+    eq('debug ReorderDeck works mid-game: the top card moves to position 3, same cards remain', [s.piles.Player.deck.map(c => c.iid).slice(0, 3), s.piles.Player.deck.length], [[top[1], top[2], top[0]], top.length]); }
+  { const s = Sim.create(600, DEFS, {decks:{Player:BUILTIN_DECKS[1].cards, Opponent:BUILTIN_DECKS[0].cards}, shuffle:true, autoStart:true}), rnd = botRng(7), mem = {}; let bad = 0, steps = 0, stuck = false;
+    for (; steps < 600; steps++){ const cmd = botChoose(s, botActor(s), rnd, mem); if (!cmd){ stuck = true; break; } if (!D(s, cmd).ok) bad++; }
+    check('bot vs bot: 600 commands, every one legal, never stuck, turns keep passing', !bad && !stuck && s.turn > 6, 'bad=' + bad + ' stuck=' + stuck + ' steps=' + steps + ' turn=' + s.turn); }
   out.push('---- ' + out.filter(l => l.startsWith('PASS')).length + ' passed, ' + out.filter(l => l.startsWith('FAIL')).length + ' failed, ' + out.filter(l => l.startsWith('XFAIL')).length + ' known bug(s) documented');
   console.log(out.join('\n')); return out;
 }
 window.cardGame = {Sim, send, undo, eventLog, history:undoStack, selfTest, get game(){ return sim; }};   // console/testing hook
 setTopView(true);                                   // default camera: top view
-sync(); openDeckEditor();
+sync(); MenuUI.show();
 (function loop(){                                   // idle = no rendering, no raycasts
   requestAnimationFrame(loop);
   const busy = animate(); controls.update();

@@ -10,7 +10,7 @@ const deckStatus = () => 'Deck building \u00b7 ' + ['Player', 'Opponent'].map(p 
 const newSeed = () => Math.floor(Math.random() * 1e9) + 1;   // fresh random seed per launch / restart (the seed is kept in game.n)
 let sim = Sim.create(newSeed(), DEFS), game = sim;      // sim: authoritative state. game: what is on screen (lags the sim while animations play)
 const undoStack = [], eventLog = [];                  // snapshots for undo; recent rule events
-const ui = {view:'Player', autoView:true, autoTurn:true, actions:'normal', showRemoved:false, inspLog:false};   // showRemoved: show greyed-out removed statuses in the inspectors
+const ui = {view:'Player', autoView:true, autoTurn:true, actions:'normal', showRemoved:false, inspLog:false, mode:'self', deckEdit:false};   // showRemoved: show greyed-out removed statuses in the inspectors
 let preview = null, inspHold = false, fxBusy = false;   // preview: hovered card; inspHold: suppress inspect until the pointer moves on
 let placing = null, openList = null, selected = null, hovered = null, drag = null, dragCand = null;
 let dirty = true, hoverDirty = true, pulse = false, lastPulse = 0;                // render on demand
@@ -86,6 +86,8 @@ function send(cmd){
 }
   let autoTimer = 0, autoDepth = 0;                                  // automation: off = always auto, normal = auto when no legal action, always = never
 function autoStep(){
+  if (MenuUI.away) return;                          // the menu or the deck editor is on screen: the game waits
+  if (ui.mode === 'bot' && botWants()){ botSchedule(); return; }   // the bot decides its own passes and plays
   if (placing || autoDepth > 12 || game.phase !== 'play' || game.choice) return;
   const p = game.priority, mode = ui.actions; let cmd = null;
   if (game.stack.length){ if (mode === 'off' || (mode === 'normal' && !Sim.hasAction(game, p))) cmd = {type:'Pass', player:p}; }
@@ -132,8 +134,12 @@ renderer.domElement.addEventListener('contextmenu', e => e.preventDefault());
 function setView(p){ ui.view = p; camGoal = p === 'Opponent' ? Math.PI : 0; placing = null; closeMenu(); if (game.phase === 'deck'){ deckPanel.hidden = true; openList = null; inspect.hidden = true; selected = null; openDeckEditor(); } }
 function openDeckEditor(){ if (game.phase === 'deck' && !game.ready[ui.view]) showList(ui.view, 'deck'); }   // deck building: your deck list opens by default
 function switchPlayer(){ ui.pin = game.choice ? game.choice.player : game.priority; setView(other(ui.view)); sync(); }          // debug: seat only
+let lastCfg = null, botTimer = 0;                      // lastCfg: {mode:'self'|'bot', p1, p2, shuffle} of the running game
+function newGame(cfg){ lastCfg = cfg; resetGame(); autoStep(); }
 function resetGame(){
-  sim = Sim.create(newSeed(), DEFS); game = sim; fxReset(); undoStack.length = 0; eventLog.length = 0;
+  const c = lastCfg || {mode:'self', p1:BUILTIN_DECKS[0].name, p2:BUILTIN_DECKS[1].name, shuffle:true}; lastCfg = c; ui.mode = c.mode; ui.deckEdit = false; ui.autoView = c.mode === 'self'; ui.pin = null; botMem.turn = -1; clearTimeout(botTimer);
+  const deckOf = n => (DeckStore.find(n) || BUILTIN_DECKS[0]).cards;
+  sim = Sim.create(newSeed(), DEFS, {decks:{Player:deckOf(c.p1), Opponent:deckOf(c.p2)}, shuffle:c.shuffle, autoStart:true}); game = sim; fxReset(); undoStack.length = 0; eventLog.length = 0;
   for (const m of meshes.values()) cardGroup.remove(m); meshes.clear();
   selected = null; openList = null; inspect.hidden = true; deckPanel.hidden = true;
   setView('Player'); sync();
@@ -156,9 +162,11 @@ const DBTN = [
   {id:'autoturn', label:() => 'Auto turn: ' + (ui.autoTurn ? 'on' : 'off'), run:() => { ui.autoTurn = !ui.autoTurn; sync(); autoStep(); }, on:() => true},
   {id:'actions', label:() => 'Actions: ' + ui.actions, run:() => { ui.actions = {off:'normal', normal:'always', always:'off'}[ui.actions]; sync(); autoStep(); }, on:() => true},
   {id:'reset', label:() => 'Reset game', run:resetGame, on:() => true},
-  {id:'player', label:() => 'Switch player', run:switchPlayer, on:() => true},
-  {id:'auto', label:() => 'Auto view: ' + (ui.autoView ? 'on' : 'off'), run:() => { ui.autoView = !ui.autoView; sync(); }, on:() => true},
-  {id:'undo', label:() => 'Undo (' + undoStack.length + ')', run:undo, on:() => undoStack.length > 0}
+  {id:'deckedit', label:() => 'Reorder decks: ' + (ui.deckEdit ? 'on' : 'off'), run:() => { ui.deckEdit = !ui.deckEdit; sync(); }, on:() => true, show:() => ui.mode === 'self'},   // debug deck editing: click a Deck zone, drag rows
+  {id:'menu', label:() => 'Main menu', run:() => MenuUI.leaveGame(), on:() => true},
+  {id:'player', label:() => 'Switch player', run:switchPlayer, on:() => true, show:() => ui.mode === 'self'},
+  {id:'auto', label:() => 'Auto view: ' + (ui.autoView ? 'on' : 'off'), run:() => { ui.autoView = !ui.autoView; sync(); }, on:() => true, show:() => ui.mode === 'self'},
+  {id:'undo', label:() => 'Undo (' + undoStack.length + ')', run:undo, on:() => undoStack.length > 0, show:() => ui.mode === 'self'}
 ];
 const fnEl = document.createElement('div'); fnEl.id = 'fn'; document.body.appendChild(fnEl);
 const dbg = document.createElement('div'); dbg.id = 'dbg'; document.body.appendChild(dbg);
