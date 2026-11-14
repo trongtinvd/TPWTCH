@@ -90,7 +90,13 @@ function autoStep(){
   const p = game.priority, mode = ui.actions; let cmd = null;
   if (game.stack.length){ if (mode === 'off' || (mode === 'normal' && !Sim.hasAction(game, p))) cmd = {type:'Pass', player:p}; }
   else if (game.respond){ if (mode === 'off' || (mode === 'normal' && !Sim.hasAction(game, p))) cmd = {type:'Pass', player:p}; }
-  else if (ui.autoTurn && mode !== 'always' && p === game.active && (mode === 'off' ? Sim.majorUsed(game) : !Sim.hasAction(game, p))) cmd = {type:'EndTurn', player:p};
+  else if (ui.autoTurn && mode !== 'always' && p === game.active) {
+  const canAtk = Object.values(game.cards).some(c => c.owner === p && !Sim.canAttack(game, c));
+  const done = game.attackPhase
+    ? (mode === 'off' ? !canAtk : !Sim.hasAction(game, p))
+    : (mode === 'off' ? Sim.majorUsed(game) : !Sim.hasAction(game, p));
+  if (done) cmd = {type:'EndTurn', player:p};
+}
   if (!cmd) return;
   if (ui.autoView && camAngle !== camGoal){ clearTimeout(autoTimer); autoTimer = setTimeout(autoStep, 250); return; }   // let the camera reach the seat holding priority before an automatic pass / end turn skips past it
   autoDepth++; try { send(cmd); } finally { autoDepth--; }
