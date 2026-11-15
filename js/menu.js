@@ -85,7 +85,7 @@ const MenuUI = {
     [['Vs Self', () => startDialog('self')], ['Vs Bot', () => startDialog('bot')], ['Edit Decks', () => { MenuUI.hide(); DeckEditor.open(); }]].forEach(([t, f]) => { const b = mkBtn(t, f, 'mbtn'); bs.appendChild(b); });
     c.append(h, bs); r.appendChild(c); document.body.appendChild(r);
   },
-  show(){ if (!this.root) this.build(); this.away = true; clearTimeout(botTimer); closeMenu(); this.root.hidden = false; MenuScene.start(this.root); },
+  show(){ if (!this.root) this.build(); this.away = true; clearTimeout(botTimer); closeMenu(); this.root.hidden = false; const bc = document.getElementById('bootCover'); if (bc) bc.remove(); MenuScene.start(this.root); },
   hide(){ this.root.hidden = true; MenuScene.stop(); },
   play(cfg){ this.away = false; this.hide(); newGame(cfg); },
   leaveGame(){ confirmBox('Leave this game and return to the main menu?', 'Leave', 'Stay').then(ok => { if (ok) MenuUI.show(); }); }

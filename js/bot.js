@@ -50,3 +50,4 @@ function botTick(){
   if (!cmd){ console.warn('Bot has no legal command'); ui.note = 'Bot has no legal command'; sync(); return; }
   send(cmd);
 }
+const foeChoice = () => ui.mode === 'bot' && !!game.choice && game.choice.player === 'Opponent';   // a choice the bot must answer: the human sees and clicks nothing for it

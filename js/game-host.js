@@ -156,7 +156,7 @@ const FN = [
   {id:'battle', cls:'c-atk', label:() => 'Attack: ' + (game.attackPhase ? 'on' : 'off'), run:toggleAttack, on:() => myPriority() && !game.stack.length && !game.respond && ui.view === game.active && (game.attackPhase || !Sim.majorUsed(game)), show:inPlay},
   {id:'notarget', cls:'c-go', label:() => 'Cast without target', run:() => send({type:'PlayCard', iid:placing.iid}), on:() => !!(placing && placing.def.optionalTarget), show:() => !!(placing && placing.def.optionalTarget)},
   {id:'cancel', cls:'c-atk', label:() => 'Cancel', run:() => { placing = null; sync(); }, on:() => !!placing, show:() => !!placing},   // a game feature (Esc does the same): back out of picking a zone / target before anything is committed
-  {id:'endturn', label:() => 'End turn', run:() => send({type:'EndTurn', player:game.priority}), on:() => !placing && !game.choice && !game.stack.length && !game.respond && game.priority === game.active, show:inPlay}
+  {id:'endturn', label:() => 'End turn', run:() => send({type:'EndTurn', player:game.priority}), on:() => myPriority() && !game.stack.length && !game.respond && game.priority === game.active, show:inPlay}
 ];
 const DBTN = [
   {id:'autoturn', label:() => 'Auto turn: ' + (ui.autoTurn ? 'on' : 'off'), run:() => { ui.autoTurn = !ui.autoTurn; sync(); autoStep(); }, on:() => true},

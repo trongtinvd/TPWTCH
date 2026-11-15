@@ -124,5 +124,5 @@ function setGlow(m, on){
   if (on && !g){ const p = new THREE.Mesh(glowGeo, glowMat); p.rotation.x = -Math.PI/2; p.position.y = 0.05; p.raycast = () => {}; m.add(p); m.userData.glow = p; }
   else if (!on && g){ m.remove(g); m.userData.glow = null; }
 }
-const canUse = c => (game.choice && game.choice.kind === 'pick' && !game.choice.labels && game.choice.options.includes(c.iid)) || c.owner === ui.view && (c.loc === 'hand' ? (!Sim.canPlay(game, c) || (Sim.abDef(c).abilities || []).some((a, i) => !Sim.canActivate(game, c, i))) : c.loc === 'board' && (Sim.abDef(c).abilities || []).some((a, i) => !Sim.canActivate(game, c, i)));
+const canUse = c => (game.choice && !foeChoice() && game.choice.kind === 'pick' && !game.choice.labels && game.choice.options.includes(c.iid)) || c.owner === ui.view && (c.loc === 'hand' ? (!Sim.canPlay(game, c) || (Sim.abDef(c).abilities || []).some((a, i) => !Sim.canActivate(game, c, i))) : c.loc === 'board' && (Sim.abDef(c).abilities || []).some((a, i) => !Sim.canActivate(game, c, i)));
 let pickCards = [];

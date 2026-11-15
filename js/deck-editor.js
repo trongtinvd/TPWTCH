@@ -3,7 +3,7 @@ const DeckEditor = (function(){
   const S = {name:'', cards:[], loaded:null, saved:'', query:'', sel:null, key:'0', last:null};
   const byId = Object.fromEntries(DEFS.map(d => [d.id, d]));
   const statsOf = d => d.type === 'creature' ? 'ATK ' + d.atk + ' \u00b7 HP ' + d.hp : d.type === 'spell' ? d.timing + ' \u00b7 HP ' + d.hp : 'HP ' + d.hp;
-  let root = null, grid, extra, nameIn, saveBtn, msg, selEl, insp, list, search, drag = null;
+  let root = null, grid, extra, nameIn, saveBtn, msg, selEl, insp, list, search, drag = null, lastPT = 'mouse', noClick = false;
   const snap = () => JSON.stringify([S.name.trim(), S.cards]), dirty = () => snap() !== S.saved;
   const ownName = () => S.loaded && !S.loaded.builtin ? S.loaded.name : null;   // a default deck can never be overwritten: save under a new name
   const problem = () => dirty() ? saveProblem(S.name, S.cards, ownName()) : 'Nothing to save';
@@ -57,11 +57,22 @@ const DeckEditor = (function(){
   const discardOk = msg => dirty() ? confirmBox(msg) : Promise.resolve(true);
 
   const cellUnder = (x, y) => { const e = document.elementFromPoint(x, y); return e && e.closest ? e.closest('.de-grid .de-cell') : null; };
+  function makeGhost(id){ const d = byId[id], g = mkEl('div', 'de-cell de-ghost'), im = new Image(), sp = mkEl('span'); g.style.setProperty('--tc', cardColor(d)); im.src = artURL(d); im.alt = ''; sp.textContent = d.name; g.append(im, sp); document.body.appendChild(g); return g; }
+  function moveGhost(d, x, y){ d.ghost.style.transform = 'translate(' + (x - 32) + 'px,' + (y - 36) + 'px)'; grid.querySelectorAll('.drop').forEach(c => c.classList.remove('drop')); const t = cellUnder(x, y); if (t) t.classList.add('drop'); }
+  function activate(d, x, y){ d.on = true; d.ghost = makeGhost(d.id); if (d.kind === 'grid') d.el.classList.add('dragging'); try { if (navigator.vibrate) navigator.vibrate(15); } catch (e) {} moveGhost(d, x, y); }
+  function begin(kind, el, id, i, e){                 // a drag from the grid (reorder) or from the card list (insert)
+    const d = drag = {kind, el, id, i, x:e.clientX, y:e.clientY, cx:e.clientX, cy:e.clientY, on:false, ghost:null, timer:0};
+    if (kind === 'grid' && e.pointerType !== 'mouse') d.timer = setTimeout(() => { if (drag === d) activate(d, d.cx, d.cy); }, 350);   // touch: a long press picks a deck card up, so a plain swipe still scrolls the page
+  }
   function endDrag(apply, e){
-    if (!drag) return; const d = drag; drag = null; if (d.ghost) d.ghost.remove();
-    grid.querySelectorAll('.dragging, .drop').forEach(x => x.classList.remove('dragging', 'drop'));
-    if (!d.on){ if (apply) select(S.cards[d.i]); return; }                              // never moved: a plain click just inspects
-    if (apply){ const t = cellUnder(e.clientX, e.clientY); if (t){ const j = Math.min(+t.dataset.i, S.cards.length - 1); if (j !== d.i) move(d.i, j); } }
+    const d = drag; if (!d) return; drag = null; clearTimeout(d.timer); if (d.ghost) d.ghost.remove();
+    grid.querySelectorAll('.dragging, .drop').forEach(c => c.classList.remove('dragging', 'drop'));
+    if (!d.on){ if (apply && d.kind === 'grid') select(d.id); return; }                  // never picked up: a plain tap just inspects
+    noClick = true; setTimeout(() => { noClick = false; }, 0);
+    if (!apply) return;
+    const t = cellUnder(e.clientX, e.clientY); if (!t) return; const j = +t.dataset.i;
+    if (d.kind === 'grid'){ const k = Math.min(j, S.cards.length - 1); if (k !== d.i) move(d.i, k); }
+    else if (!S.cards.includes(d.id) && S.cards.length < DECK_MAX){ S.cards.splice(Math.min(j, S.cards.length), 0, d.id); S.sel = d.id; changed(); }
   }
   function build(){
     root = mkEl('div', 'screen'); root.id = 'deckEditor'; root.hidden = true;
@@ -73,23 +84,29 @@ const DeckEditor = (function(){
     saveBtn = mkBtn('Save', save, 'c-go'); msg = mkEl('span', 'de-msg'); selEl = mkEl('select', 'dctl'); top.append(nameIn, saveBtn, selEl, msg);
     root.querySelector('.de-exit').appendChild(mkBtn('Exit', async () => { if (!await discardOk('Leave the deck editor? Unsaved changes will be lost.')) return; DeckEditor.close(); MenuUI.show(); }));
     extra.replaceChildren(...Array.from({length:20}, () => mkEl('div', 'de-cell empty')));
+    root.addEventListener('pointerdown', e => { lastPT = e.pointerType; }, true);        // mouse: click / right click. touch or pen: tap / double tap / long press
     nameIn.addEventListener('input', () => { S.name = nameIn.value; updateTop(); });
     selEl.addEventListener('change', async () => { const v = selEl.value, prev = S.key;
       if (!await discardOk('This deck has unsaved changes. Discard them?')){ selEl.value = prev; return; }
       if (v === 'new') loadNew(); else load(DeckStore.list()[+v], v); });
     search.addEventListener('input', () => { S.query = search.value; renderList(); });
-    // grid: left-drag reorders, click inspects, right click removes
-    grid.addEventListener('pointerdown', e => { if (e.button !== 0) return; const c = e.target.closest('.de-cell[data-id]'); if (c) drag = {i:+c.dataset.i, x:e.clientX, y:e.clientY, on:false, el:c, ghost:null}; });
-    addEventListener('pointermove', e => { if (!drag) return;
-      if (!drag.on && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) > 6){ const r = drag.el.getBoundingClientRect(), g = drag.el.cloneNode(true);
-        g.className = 'de-cell de-ghost'; g.style.width = r.width + 'px'; g.style.height = r.height + 'px'; document.body.appendChild(g); drag.ghost = g; drag.on = true; drag.el.classList.add('dragging'); }
-      if (drag.on){ const r = drag.ghost.getBoundingClientRect(); drag.ghost.style.transform = 'translate(' + (e.clientX - r.width / 2) + 'px,' + (e.clientY - r.height / 2) + 'px)';
-        grid.querySelectorAll('.drop').forEach(x => x.classList.remove('drop')); const t = cellUnder(e.clientX, e.clientY); if (t) t.classList.add('drop'); } });
+    insp.addEventListener('click', () => insp.classList.toggle('open'));                  // phone: the compact inspector expands when tapped
+    // dragging (grid: reorder; list: insert at the cell it is dropped on)
+    grid.addEventListener('pointerdown', e => { if (e.button !== 0) return; const c = e.target.closest('.de-cell[data-id]'); if (c) begin('grid', c, c.dataset.id, +c.dataset.i, e); });
+    list.addEventListener('pointerdown', e => { if (e.button !== 0) return; const r = e.target.closest('.de-row'); if (!r || r.classList.contains('in')) return;
+      if (e.pointerType !== 'mouse' && e.target.tagName !== 'IMG') return;                // touch: only the thumbnail drags, the rest of the row scrolls the list
+      begin('list', r, r.dataset.id, -1, e); });
+    addEventListener('pointermove', e => { const d = drag; if (!d) return; d.cx = e.clientX; d.cy = e.clientY; const moved = Math.hypot(e.clientX - d.x, e.clientY - d.y);
+      if (!d.on){ if (d.timer){ if (moved > 8){ clearTimeout(d.timer); drag = null; } return; } if (moved > 6) activate(d, e.clientX, e.clientY); return; }   // moving before the long press = scrolling
+      moveGhost(d, e.clientX, e.clientY); });
+    addEventListener('touchmove', e => { if (drag && drag.on) e.preventDefault(); }, {passive:false});   // a picked-up card must not scroll the page
     addEventListener('pointerup', e => endDrag(true, e)); addEventListener('pointercancel', e => endDrag(false, e));
-    grid.addEventListener('contextmenu', e => { e.preventDefault(); const c = e.target.closest('.de-cell[data-id]'); if (c) remove(c.dataset.id); });
-    // card list: left click adds to the end of the deck, right click removes
-    list.addEventListener('click', e => { const r = e.target.closest('.de-row'); if (r){ select(r.dataset.id); add(r.dataset.id); } });
-    list.addEventListener('contextmenu', e => { e.preventDefault(); const r = e.target.closest('.de-row'); if (r) remove(r.dataset.id); });
+    // removing / adding without a mouse: double tap
+    grid.addEventListener('contextmenu', e => { e.preventDefault(); if (lastPT !== 'mouse') return; const c = e.target.closest('.de-cell[data-id]'); if (c) remove(c.dataset.id); });
+    grid.addEventListener('dblclick', e => { if (lastPT === 'mouse') return; const c = e.target.closest('.de-cell[data-id]'); if (c) remove(c.dataset.id); });
+    list.addEventListener('click', e => { if (noClick) return; const r = e.target.closest('.de-row'); if (!r) return; select(r.dataset.id); if (lastPT === 'mouse') add(r.dataset.id); });
+    list.addEventListener('contextmenu', e => { e.preventDefault(); if (lastPT !== 'mouse') return; const r = e.target.closest('.de-row'); if (r) remove(r.dataset.id); });
+    list.addEventListener('dblclick', e => { if (lastPT === 'mouse') return; const r = e.target.closest('.de-row'); if (!r) return; const id = r.dataset.id; if (S.cards.includes(id)) remove(id); else add(id); });
     const hov = e => { if (e.pointerType !== 'mouse' || drag) return; const c = e.target.closest('[data-id]'); renderInspect(c ? c.dataset.id : S.sel); };
     for (const h of [grid, list]){ h.addEventListener('pointerover', hov); h.addEventListener('pointerleave', () => renderInspect(S.sel)); }
   }
