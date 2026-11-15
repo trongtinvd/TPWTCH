@@ -1,0 +1,7 @@
+{
+  "private": true,
+  "scripts": {
+    "test": "node tests/run.js",
+    "format": "prettier --write js css tests"
+  }
+}

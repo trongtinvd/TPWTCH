@@ -23,7 +23,7 @@ Many independent systems (position, stack, card HP, zone HP, base stats, D/S/A, 
 ## Tech
 Godot (final presentation); three.js board prototype to validate rules/feel. Principle: **rules are data + simulation, not engine presentation code.**
 
-## Files (`/docs`)
+## Files (`Docs/`)
 - `README.md` overview, goals, risk
 - `RULES.md` current rules
 - `ARCHITECTURE.md` sim/presentation split, systems, AI, risks
@@ -32,3 +32,15 @@ Godot (final presentation); three.js board prototype to validate rules/feel. Pri
 - `ROADMAP.md` phases
 - `CONTRIBUTING.md` ground rules
 - `game_design_document.txt` card texts and detailed rule notes not covered elsewhere
+
+## Code
+Plain scripts loaded in order by `index.html` (no build step):
+- `js/cards.js` Fx effect API + card definitions - `js/sim.js` rules (no THREE/DOM) - `js/decks.js` deck store, validation, search - `js/bot.js` bot
+- `js/scene.js`, `js/board.js`, `js/card-view.js`, `js/view-sync.js` three.js scene, board, card meshes, state -> mesh sync
+- `js/game-host.js`, `js/input.js`, `js/panels.js`, `js/menu.js`, `js/deck-editor.js` host and UI state, pointer input, panels, menu, deck editor
+- `js/main.js` console hook and render loop
+- `tests/selftest.js` headless rules tests, `tests/run.js` runs them in Node
+
+## Running the tests
+`node tests/run.js` (Node 18+, no dependencies). The same tests run in the browser console with `cardGame.selfTest()`.
+`npx prettier --write js css tests` formats the code (see `.prettierrc.json`).

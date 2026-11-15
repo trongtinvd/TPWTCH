@@ -1,56 +1,137 @@
 // decks.js - Deck store (cookies), default decks, deck validation, fuzzy card search (no THREE; the only DOM use is document.cookie)
-const DECK_MIN = 10, DECK_MAX = 100;   // the editor grid is 10 x 10
+const DECK_MIN = 10,
+  DECK_MAX = 100; // the editor grid is 10 x 10
 const BUILTIN_DECKS = [
-  {name:'Full Pool', builtin:true, cards:DEFS.map(d => d.id)},
-  {name:'Starter Aggro', builtin:true, cards:['hummingbird', 'archer', 'scout', 'avatar', 'blackhawk', 'shark', 'boltmaster', 'shieldguard', 'kingeye', 'wardrum', 'superbolt', 'zap', 'bolt', 'heal', 'intuition']}
+  { name: 'Full Pool', builtin: true, cards: DEFS.map(d => d.id) },
+  {
+    name: 'Starter Aggro',
+    builtin: true,
+    cards: [
+      'hummingbird',
+      'archer',
+      'scout',
+      'avatar',
+      'blackhawk',
+      'shark',
+      'boltmaster',
+      'shieldguard',
+      'kingeye',
+      'wardrum',
+      'superbolt',
+      'zap',
+      'bolt',
+      'heal',
+      'intuition',
+    ],
+  },
 ];
-const DeckStore = (function(){
-  const PRE = 'tpw_deck_', known = new Set(DEFS.map(d => d.id)), mem = new Map();   // mem: fallback when cookies are unavailable (e.g. file://)
-  const ckey = n => PRE + encodeURIComponent(n).replace(/[!'()*]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase());
-  const clean = ids => ids.filter(id => known.has(id)).filter((id, i, a) => a.indexOf(id) === i).slice(0, DECK_MAX);
-  function fromCookies(){
-    const out = []; let raw = ''; try { raw = document.cookie || ''; } catch (e) {}
-    for (const part of raw.split(';')){
-      const t = part.trim(), eq = t.indexOf('='); if (eq < 0 || !t.startsWith(PRE)) continue;
-      try { out.push({name:decodeURIComponent(t.slice(PRE.length, eq)), cards:clean(decodeURIComponent(t.slice(eq + 1)).split(',').filter(Boolean))}); } catch (e) {}
+const DeckStore = (function () {
+  const PRE = 'tpw_deck_',
+    known = new Set(DEFS.map(d => d.id)),
+    mem = new Map(); // mem: fallback when cookies are unavailable (e.g. file://)
+  const ckey = n =>
+    PRE + encodeURIComponent(n).replace(/[!'()*]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase());
+  const clean = ids =>
+    ids
+      .filter(id => known.has(id))
+      .filter((id, i, a) => a.indexOf(id) === i)
+      .slice(0, DECK_MAX);
+  function fromCookies() {
+    const out = [];
+    let raw = '';
+    try {
+      raw = document.cookie || '';
+    } catch (e) {}
+    for (const part of raw.split(';')) {
+      const t = part.trim(),
+        eq = t.indexOf('=');
+      if (eq < 0 || !t.startsWith(PRE)) continue;
+      try {
+        out.push({
+          name: decodeURIComponent(t.slice(PRE.length, eq)),
+          cards: clean(
+            decodeURIComponent(t.slice(eq + 1))
+              .split(',')
+              .filter(Boolean)
+          ),
+        });
+      } catch (e) {}
     }
     return out;
   }
-  const userDecks = () => { const L = fromCookies(); for (const d of mem.values()) if (!L.some(x => x.name === d.name)) L.push(d); return L; };
+  const userDecks = () => {
+    const L = fromCookies();
+    for (const d of mem.values()) if (!L.some(x => x.name === d.name)) L.push(d);
+    return L;
+  };
   const list = () => BUILTIN_DECKS.concat(userDecks());
   return {
     list,
     find: name => list().find(d => d.name === name) || null,
     nameUsed: name => list().some(d => d.name === name),
-    save(name, cards){ cards = clean(cards); mem.set(name, {name, cards});
-      try { document.cookie = ckey(name) + '=' + encodeURIComponent(cards.join(',')) + '; max-age=31536000; path=/; SameSite=Lax'; } catch (e) {} }
+    save(name, cards) {
+      cards = clean(cards);
+      mem.set(name, { name, cards });
+      try {
+        document.cookie =
+          ckey(name) + '=' + encodeURIComponent(cards.join(',')) + '; max-age=31536000; path=/; SameSite=Lax';
+      } catch (e) {}
+    },
   };
 })();
-function deckProblem(cards){                        // reason string, or null if the deck is valid
+function deckProblem(cards) {
+  // reason string, or null if the deck is valid
   if (cards.length < DECK_MIN) return 'A deck needs at least ' + DECK_MIN + ' cards (' + cards.length + ')';
   if (cards.length > DECK_MAX) return 'A deck holds at most ' + DECK_MAX + ' cards';
   if (new Set(cards).size !== cards.length) return 'Decks are singleton: no duplicate cards';
   if (cards.some(id => !DEFS.some(d => d.id === id))) return 'Unknown card in the deck';
   return null;
 }
-function saveProblem(name, cards, ownName){         // ownName: the saved (non-default) deck being edited, so it may keep its own name
+function saveProblem(name, cards, ownName) {
+  // ownName: the saved (non-default) deck being edited, so it may keep its own name
   const n = name.trim();
   if (!n) return 'Give the deck a name';
   if (DeckStore.nameUsed(n) && n !== ownName) return 'Name already used';
   return deckProblem(cards);
 }
-function levenshtein(a, b){ let p = Array.from({length:b.length + 1}, (_, j) => j);
-  for (let i = 1; i <= a.length; i++){ const c = [i]; for (let j = 1; j <= b.length; j++) c[j] = Math.min(p[j] + 1, c[j - 1] + 1, p[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); p = c; }
-  return p[b.length]; }
-function substringDist(q, t){                       // smallest edit distance between q and any substring of t (Sellers)
-  const m = q.length; let col = Array.from({length:m + 1}, (_, i) => i), best = col[m];
-  for (let j = 1; j <= t.length; j++){ const nc = [0]; for (let i = 1; i <= m; i++) nc[i] = Math.min(col[i] + 1, nc[i - 1] + 1, col[i - 1] + (q[i - 1] === t[j - 1] ? 0 : 1)); col = nc; best = Math.min(best, col[m]); }
-  return best; }
-function rankCards(query, defs){                    // the single closest match first, everything else alphabetical
-  const q = query.trim().toLowerCase(), alpha = defs.slice().sort((a, b) => a.name.localeCompare(b.name));
+function levenshtein(a, b) {
+  let p = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const c = [i];
+    for (let j = 1; j <= b.length; j++)
+      c[j] = Math.min(p[j] + 1, c[j - 1] + 1, p[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    p = c;
+  }
+  return p[b.length];
+}
+function substringDist(q, t) {
+  // smallest edit distance between q and any substring of t (Sellers)
+  const m = q.length;
+  let col = Array.from({ length: m + 1 }, (_, i) => i),
+    best = col[m];
+  for (let j = 1; j <= t.length; j++) {
+    const nc = [0];
+    for (let i = 1; i <= m; i++)
+      nc[i] = Math.min(col[i] + 1, nc[i - 1] + 1, col[i - 1] + (q[i - 1] === t[j - 1] ? 0 : 1));
+    col = nc;
+    best = Math.min(best, col[m]);
+  }
+  return best;
+}
+function rankCards(query, defs) {
+  // the single closest match first, everything else alphabetical
+  const q = query.trim().toLowerCase(),
+    alpha = defs.slice().sort((a, b) => a.name.localeCompare(b.name));
   if (!q) return alpha;
-  let best = null, bs = null;
-  for (const d of alpha){ const n = d.name.toLowerCase(), s = [substringDist(q, n), levenshtein(q, n)];
-    if (!bs || s[0] < bs[0] || (s[0] === bs[0] && s[1] < bs[1])){ best = d; bs = s; } }
+  let best = null,
+    bs = null;
+  for (const d of alpha) {
+    const n = d.name.toLowerCase(),
+      s = [substringDist(q, n), levenshtein(q, n)];
+    if (!bs || s[0] < bs[0] || (s[0] === bs[0] && s[1] < bs[1])) {
+      best = d;
+      bs = s;
+    }
+  }
   return [best].concat(alpha.filter(d => d !== best));
 }

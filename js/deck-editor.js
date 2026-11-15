@@ -1,118 +1,417 @@
 // deck-editor.js - Deck editing scene (HTML): 10x10 deck grid, greyed extra deck, inspector, card list with fuzzy search
-const DeckEditor = (function(){
-  const S = {name:'', cards:[], loaded:null, saved:'', query:'', sel:null, key:'0', last:null};
+const DeckEditor = (function () {
+  const S = { name: '', cards: [], loaded: null, saved: '', query: '', sel: null, key: '0', last: null };
   const byId = Object.fromEntries(DEFS.map(d => [d.id, d]));
-  const statsOf = d => d.type === 'creature' ? 'ATK ' + d.atk + ' \u00b7 HP ' + d.hp : d.type === 'spell' ? d.timing + ' \u00b7 HP ' + d.hp : 'HP ' + d.hp;
-  let root = null, grid, extra, nameIn, saveBtn, msg, selEl, insp, list, search, drag = null, lastPT = 'mouse', noClick = false;
-  const snap = () => JSON.stringify([S.name.trim(), S.cards]), dirty = () => snap() !== S.saved;
-  const ownName = () => S.loaded && !S.loaded.builtin ? S.loaded.name : null;   // a default deck can never be overwritten: save under a new name
-  const problem = () => dirty() ? saveProblem(S.name, S.cards, ownName()) : 'Nothing to save';
+  const statsOf = d =>
+    d.type === 'creature'
+      ? 'ATK ' + d.atk + ' \u00b7 HP ' + d.hp
+      : d.type === 'spell'
+        ? d.timing + ' \u00b7 HP ' + d.hp
+        : 'HP ' + d.hp;
+  let root = null,
+    grid,
+    extra,
+    nameIn,
+    saveBtn,
+    msg,
+    selEl,
+    insp,
+    list,
+    search,
+    drag = null,
+    lastPT = 'mouse',
+    noClick = false;
+  const snap = () => JSON.stringify([S.name.trim(), S.cards]),
+    dirty = () => snap() !== S.saved;
+  const ownName = () => (S.loaded && !S.loaded.builtin ? S.loaded.name : null); // a default deck can never be overwritten: save under a new name
+  const problem = () => (dirty() ? saveProblem(S.name, S.cards, ownName()) : 'Nothing to save');
 
-  function cell(i){
-    const id = S.cards[i], c = mkEl('div', 'de-cell' + (id ? '' : ' empty')); c.dataset.i = i;
-    if (id){ const d = byId[id], im = new Image(), sp = mkEl('span'); c.dataset.id = id; c.style.setProperty('--tc', cardColor(d)); im.src = artURL(d); im.alt = ''; im.draggable = false; sp.textContent = d.name; c.append(mkEl('b', '', String(i + 1)), im, sp); }
+  function cell(i) {
+    const id = S.cards[i],
+      c = mkEl('div', 'de-cell' + (id ? '' : ' empty'));
+    c.dataset.i = i;
+    if (id) {
+      const d = byId[id],
+        im = new Image(),
+        sp = mkEl('span');
+      c.dataset.id = id;
+      c.style.setProperty('--tc', cardColor(d));
+      im.src = artURL(d);
+      im.alt = '';
+      im.draggable = false;
+      sp.textContent = d.name;
+      c.append(mkEl('b', '', String(i + 1)), im, sp);
+    }
     return c;
   }
-  const renderGrid = () => grid.replaceChildren(...Array.from({length:DECK_MAX}, (_, i) => cell(i)));
-  function renderList(){
+  const renderGrid = () => grid.replaceChildren(...Array.from({ length: DECK_MAX }, (_, i) => cell(i)));
+  function renderList() {
     const st = list.scrollTop;
-    list.replaceChildren(...rankCards(S.query, DEFS).map(d => {
-      const inDeck = S.cards.includes(d.id), r = mkEl('div', 'de-row' + (inDeck ? ' in' : '')), im = new Image(), nm = mkEl('div', 'nm'), b = mkEl('b'), sp = mkEl('span');
-      r.dataset.id = d.id; r.style.setProperty('--tc', cardColor(d)); im.src = artURL(d); im.alt = ''; im.draggable = false;
-      b.textContent = d.name; sp.textContent = TYPES[d.type].label + ' \u00b7 ' + statsOf(d); nm.append(b, sp); r.append(im, nm); if (inDeck) r.appendChild(mkEl('i', '', '\u2713')); return r; }));
+    list.replaceChildren(
+      ...rankCards(S.query, DEFS).map(d => {
+        const inDeck = S.cards.includes(d.id),
+          r = mkEl('div', 'de-row' + (inDeck ? ' in' : '')),
+          im = new Image(),
+          nm = mkEl('div', 'nm'),
+          b = mkEl('b'),
+          sp = mkEl('span');
+        r.dataset.id = d.id;
+        r.style.setProperty('--tc', cardColor(d));
+        im.src = artURL(d);
+        im.alt = '';
+        im.draggable = false;
+        b.textContent = d.name;
+        sp.textContent = TYPES[d.type].label + ' \u00b7 ' + statsOf(d);
+        nm.append(b, sp);
+        r.append(im, nm);
+        if (inDeck) r.appendChild(mkEl('i', '', '\u2713'));
+        return r;
+      })
+    );
     list.scrollTop = st;
   }
-  function renderInspect(id){
-    const d = id && byId[id]; if (!d){ insp.innerHTML = '<div class="pbody"><p>Hover or click a card to inspect it.</p></div>'; return; }
+  function renderInspect(id) {
+    const d = id && byId[id];
+    if (!d) {
+      insp.innerHTML = '<div class="pbody"><p>Hover or click a card to inspect it.</p></div>';
+      return;
+    }
     const k = S.cards.indexOf(id);
     insp.style.setProperty('--tc', cardColor(d));
-    insp.innerHTML = '<div class="art"></div><div class="pbody"><h3></h3><div class="meta"></div><div class="stats"></div><p></p><div class="where"></div></div>';
-    const im = new Image(); im.src = artURL(d); im.alt = d.name; insp.querySelector('.art').appendChild(im);
-    insp.querySelector('h3').textContent = d.name; insp.querySelector('.meta').textContent = TYPES[d.type].label + (d.type === 'spell' ? ' \u00b7 ' + d.timing : '');
-    insp.querySelector('.stats').innerHTML = statsOf(d).split(' \u00b7 ').map(x => '<span class="stat">' + x + '</span>').join('');
-    insp.querySelector('p').textContent = d.text; insp.querySelector('.where').textContent = k >= 0 ? 'In the deck: position ' + (k + 1) + ' of ' + S.cards.length + (k === 0 ? ' (top)' : '') : 'Not in the deck';
+    insp.innerHTML =
+      '<div class="art"></div><div class="pbody"><h3></h3><div class="meta"></div><div class="stats"></div><p></p><div class="where"></div></div>';
+    const im = new Image();
+    im.src = artURL(d);
+    im.alt = d.name;
+    insp.querySelector('.art').appendChild(im);
+    insp.querySelector('h3').textContent = d.name;
+    insp.querySelector('.meta').textContent = TYPES[d.type].label + (d.type === 'spell' ? ' \u00b7 ' + d.timing : '');
+    insp.querySelector('.stats').innerHTML = statsOf(d)
+      .split(' \u00b7 ')
+      .map(x => '<span class="stat">' + x + '</span>')
+      .join('');
+    insp.querySelector('p').textContent = d.text;
+    insp.querySelector('.where').textContent =
+      k >= 0
+        ? 'In the deck: position ' + (k + 1) + ' of ' + S.cards.length + (k === 0 ? ' (top)' : '')
+        : 'Not in the deck';
   }
-  function updateTop(){ const p = problem(); saveBtn.disabled = !!p; msg.textContent = dirty() ? (p || '') : ''; }
-  function changed(){ renderGrid(); renderList(); renderInspect(S.sel); updateTop(); }
-  const select = id => { S.sel = id; renderInspect(id); };
-  const add = id => { if (!id || S.cards.includes(id) || S.cards.length >= DECK_MAX) return; S.cards.push(id); changed(); };
-  const remove = id => { const i = S.cards.indexOf(id); if (i < 0) return; S.cards.splice(i, 1); changed(); };
-  const move = (i, j) => { S.cards.splice(j, 0, S.cards.splice(i, 1)[0]); changed(); };
+  function updateTop() {
+    const p = problem();
+    saveBtn.disabled = !!p;
+    msg.textContent = dirty() ? p || '' : '';
+  }
+  function changed() {
+    renderGrid();
+    renderList();
+    renderInspect(S.sel);
+    updateTop();
+  }
+  const select = id => {
+    S.sel = id;
+    renderInspect(id);
+  };
+  const add = id => {
+    if (!id || S.cards.includes(id) || S.cards.length >= DECK_MAX) return;
+    S.cards.push(id);
+    changed();
+  };
+  const remove = id => {
+    const i = S.cards.indexOf(id);
+    if (i < 0) return;
+    S.cards.splice(i, 1);
+    changed();
+  };
+  const move = (i, j) => {
+    S.cards.splice(j, 0, S.cards.splice(i, 1)[0]);
+    changed();
+  };
 
-  function refreshSelect(key){
-    const L = DeckStore.list(); selEl.replaceChildren(...L.map((d, i) => { const o = mkEl('option'); o.value = String(i); o.textContent = d.name + (d.builtin ? ' (default)' : '') + ' \u00b7 ' + d.cards.length; return o; }), Object.assign(mkEl('option'), {value:'new', textContent:'+ New deck'}));
+  function refreshSelect(key) {
+    const L = DeckStore.list();
+    selEl.replaceChildren(
+      ...L.map((d, i) => {
+        const o = mkEl('option');
+        o.value = String(i);
+        o.textContent = d.name + (d.builtin ? ' (default)' : '') + ' \u00b7 ' + d.cards.length;
+        return o;
+      }),
+      Object.assign(mkEl('option'), { value: 'new', textContent: '+ New deck' })
+    );
     selEl.value = S.key = key;
   }
-  function load(deck, key){
-    S.name = deck.name; S.cards = deck.cards.slice(); S.loaded = deck; S.last = deck.name; S.saved = snap(); S.sel = S.cards[0] || null; nameIn.value = S.name; refreshSelect(key); changed();
+  function load(deck, key) {
+    S.name = deck.name;
+    S.cards = deck.cards.slice();
+    S.loaded = deck;
+    S.last = deck.name;
+    S.saved = snap();
+    S.sel = S.cards[0] || null;
+    nameIn.value = S.name;
+    refreshSelect(key);
+    changed();
   }
-  function loadNew(){
-    let n = 'New deck', i = 2; while (DeckStore.nameUsed(n)) n = 'New deck ' + i++;
-    S.name = n; S.cards = []; S.loaded = null; S.saved = snap(); S.sel = null; nameIn.value = n; refreshSelect('new'); changed();
+  function loadNew() {
+    let n = 'New deck',
+      i = 2;
+    while (DeckStore.nameUsed(n)) n = 'New deck ' + i++;
+    S.name = n;
+    S.cards = [];
+    S.loaded = null;
+    S.saved = snap();
+    S.sel = null;
+    nameIn.value = n;
+    refreshSelect('new');
+    changed();
   }
-  function save(){
-    if (problem()) return; const n = S.name.trim(); DeckStore.save(n, S.cards); S.name = n; nameIn.value = n; S.loaded = DeckStore.find(n); S.last = n; S.saved = snap();
-    refreshSelect(String(DeckStore.list().findIndex(d => d.name === n))); updateTop();
+  function save() {
+    if (problem()) return;
+    const n = S.name.trim();
+    DeckStore.save(n, S.cards);
+    S.name = n;
+    nameIn.value = n;
+    S.loaded = DeckStore.find(n);
+    S.last = n;
+    S.saved = snap();
+    refreshSelect(String(DeckStore.list().findIndex(d => d.name === n)));
+    updateTop();
   }
-  const discardOk = msg => dirty() ? confirmBox(msg) : Promise.resolve(true);
+  const discardOk = msg => (dirty() ? confirmBox(msg) : Promise.resolve(true));
 
-  const cellUnder = (x, y) => { const e = document.elementFromPoint(x, y); return e && e.closest ? e.closest('.de-grid .de-cell') : null; };
-  function makeGhost(id){ const d = byId[id], g = mkEl('div', 'de-cell de-ghost'), im = new Image(), sp = mkEl('span'); g.style.setProperty('--tc', cardColor(d)); im.src = artURL(d); im.alt = ''; sp.textContent = d.name; g.append(im, sp); document.body.appendChild(g); return g; }
-  function moveGhost(d, x, y){ d.ghost.style.transform = 'translate(' + (x - 32) + 'px,' + (y - 36) + 'px)'; grid.querySelectorAll('.drop').forEach(c => c.classList.remove('drop')); const t = cellUnder(x, y); if (t) t.classList.add('drop'); }
-  function activate(d, x, y){ d.on = true; d.ghost = makeGhost(d.id); if (d.kind === 'grid') d.el.classList.add('dragging'); try { if (navigator.vibrate) navigator.vibrate(15); } catch (e) {} moveGhost(d, x, y); }
-  function begin(kind, el, id, i, e){                 // a drag from the grid (reorder) or from the card list (insert)
-    const d = drag = {kind, el, id, i, x:e.clientX, y:e.clientY, cx:e.clientX, cy:e.clientY, on:false, ghost:null, timer:0};
-    if (kind === 'grid' && e.pointerType !== 'mouse') d.timer = setTimeout(() => { if (drag === d) activate(d, d.cx, d.cy); }, 350);   // touch: a long press picks a deck card up, so a plain swipe still scrolls the page
+  const cellUnder = (x, y) => {
+    const e = document.elementFromPoint(x, y);
+    return e && e.closest ? e.closest('.de-grid .de-cell') : null;
+  };
+  function makeGhost(id) {
+    const d = byId[id],
+      g = mkEl('div', 'de-cell de-ghost'),
+      im = new Image(),
+      sp = mkEl('span');
+    g.style.setProperty('--tc', cardColor(d));
+    im.src = artURL(d);
+    im.alt = '';
+    sp.textContent = d.name;
+    g.append(im, sp);
+    document.body.appendChild(g);
+    return g;
   }
-  function endDrag(apply, e){
-    const d = drag; if (!d) return; drag = null; clearTimeout(d.timer); if (d.ghost) d.ghost.remove();
+  function moveGhost(d, x, y) {
+    d.ghost.style.transform = 'translate(' + (x - 32) + 'px,' + (y - 36) + 'px)';
+    grid.querySelectorAll('.drop').forEach(c => c.classList.remove('drop'));
+    const t = cellUnder(x, y);
+    if (t) t.classList.add('drop');
+  }
+  function activate(d, x, y) {
+    d.on = true;
+    d.ghost = makeGhost(d.id);
+    if (d.kind === 'grid') d.el.classList.add('dragging');
+    try {
+      if (navigator.vibrate) navigator.vibrate(15);
+    } catch (e) {}
+    moveGhost(d, x, y);
+  }
+  function begin(kind, el, id, i, e) {
+    // a drag from the grid (reorder) or from the card list (insert)
+    const d = (drag = {
+      kind,
+      el,
+      id,
+      i,
+      x: e.clientX,
+      y: e.clientY,
+      cx: e.clientX,
+      cy: e.clientY,
+      on: false,
+      ghost: null,
+      timer: 0,
+    });
+    if (kind === 'grid' && e.pointerType !== 'mouse')
+      d.timer = setTimeout(() => {
+        if (drag === d) activate(d, d.cx, d.cy);
+      }, 350); // touch: a long press picks a deck card up, so a plain swipe still scrolls the page
+  }
+  function endDrag(apply, e) {
+    const d = drag;
+    if (!d) return;
+    drag = null;
+    clearTimeout(d.timer);
+    if (d.ghost) d.ghost.remove();
     grid.querySelectorAll('.dragging, .drop').forEach(c => c.classList.remove('dragging', 'drop'));
-    if (!d.on){ if (apply && d.kind === 'grid') select(d.id); return; }                  // never picked up: a plain tap just inspects
-    noClick = true; setTimeout(() => { noClick = false; }, 0);
+    if (!d.on) {
+      if (apply && d.kind === 'grid') select(d.id);
+      return;
+    } // never picked up: a plain tap just inspects
+    noClick = true;
+    setTimeout(() => {
+      noClick = false;
+    }, 0);
     if (!apply) return;
-    const t = cellUnder(e.clientX, e.clientY); if (!t) return; const j = +t.dataset.i;
-    if (d.kind === 'grid'){ const k = Math.min(j, S.cards.length - 1); if (k !== d.i) move(d.i, k); }
-    else if (!S.cards.includes(d.id) && S.cards.length < DECK_MAX){ S.cards.splice(Math.min(j, S.cards.length), 0, d.id); S.sel = d.id; changed(); }
+    const t = cellUnder(e.clientX, e.clientY);
+    if (!t) return;
+    const j = +t.dataset.i;
+    if (d.kind === 'grid') {
+      const k = Math.min(j, S.cards.length - 1);
+      if (k !== d.i) move(d.i, k);
+    } else if (!S.cards.includes(d.id) && S.cards.length < DECK_MAX) {
+      S.cards.splice(Math.min(j, S.cards.length), 0, d.id);
+      S.sel = d.id;
+      changed();
+    }
   }
-  function build(){
-    root = mkEl('div', 'screen'); root.id = 'deckEditor'; root.hidden = true;
-    root.innerHTML = '<div class="de-left de-panel"></div><div class="de-center"><div class="de-top"></div><div class="de-grid"></div><div class="de-xl">Extra Deck \u00b7 not implemented yet</div><div class="de-extra"></div></div>' +
+  function build() {
+    root = mkEl('div', 'screen');
+    root.id = 'deckEditor';
+    root.hidden = true;
+    root.innerHTML =
+      '<div class="de-left de-panel"></div><div class="de-center"><div class="de-top"></div><div class="de-grid"></div><div class="de-xl">Extra Deck \u00b7 not implemented yet</div><div class="de-extra"></div></div>' +
       '<div class="de-right"><input class="dctl de-search" placeholder="Search cards\u2026" spellcheck="false" autocomplete="off"><div class="de-list"></div><div class="de-exit"></div></div>';
     document.body.appendChild(root);
-    insp = root.querySelector('.de-left'); grid = root.querySelector('.de-grid'); extra = root.querySelector('.de-extra'); list = root.querySelector('.de-list'); search = root.querySelector('.de-search');
-    const top = root.querySelector('.de-top'); nameIn = mkEl('input', 'dctl de-name'); nameIn.maxLength = 40; nameIn.placeholder = 'Deck name'; nameIn.spellcheck = false;
-    saveBtn = mkBtn('Save', save, 'c-go'); msg = mkEl('span', 'de-msg'); selEl = mkEl('select', 'dctl'); top.append(nameIn, saveBtn, selEl, msg);
-    root.querySelector('.de-exit').appendChild(mkBtn('Exit', async () => { if (!await discardOk('Leave the deck editor? Unsaved changes will be lost.')) return; DeckEditor.close(); MenuUI.show(); }));
-    extra.replaceChildren(...Array.from({length:20}, () => mkEl('div', 'de-cell empty')));
-    root.addEventListener('pointerdown', e => { lastPT = e.pointerType; }, true);        // mouse: click / right click. touch or pen: tap / double tap / long press
-    nameIn.addEventListener('input', () => { S.name = nameIn.value; updateTop(); });
-    selEl.addEventListener('change', async () => { const v = selEl.value, prev = S.key;
-      if (!await discardOk('This deck has unsaved changes. Discard them?')){ selEl.value = prev; return; }
-      if (v === 'new') loadNew(); else load(DeckStore.list()[+v], v); });
-    search.addEventListener('input', () => { S.query = search.value; renderList(); });
-    insp.addEventListener('click', () => insp.classList.toggle('open'));                  // phone: the compact inspector expands when tapped
+    insp = root.querySelector('.de-left');
+    grid = root.querySelector('.de-grid');
+    extra = root.querySelector('.de-extra');
+    list = root.querySelector('.de-list');
+    search = root.querySelector('.de-search');
+    const top = root.querySelector('.de-top');
+    nameIn = mkEl('input', 'dctl de-name');
+    nameIn.maxLength = 40;
+    nameIn.placeholder = 'Deck name';
+    nameIn.spellcheck = false;
+    saveBtn = mkBtn('Save', save, 'c-go');
+    msg = mkEl('span', 'de-msg');
+    selEl = mkEl('select', 'dctl');
+    top.append(nameIn, saveBtn, selEl, msg);
+    root.querySelector('.de-exit').appendChild(
+      mkBtn('Exit', async () => {
+        if (!(await discardOk('Leave the deck editor? Unsaved changes will be lost.'))) return;
+        DeckEditor.close();
+        MenuUI.show();
+      })
+    );
+    extra.replaceChildren(...Array.from({ length: 20 }, () => mkEl('div', 'de-cell empty')));
+    root.addEventListener(
+      'pointerdown',
+      e => {
+        lastPT = e.pointerType;
+      },
+      true
+    ); // mouse: click / right click. touch or pen: tap / double tap / long press
+    nameIn.addEventListener('input', () => {
+      S.name = nameIn.value;
+      updateTop();
+    });
+    selEl.addEventListener('change', async () => {
+      const v = selEl.value,
+        prev = S.key;
+      if (!(await discardOk('This deck has unsaved changes. Discard them?'))) {
+        selEl.value = prev;
+        return;
+      }
+      if (v === 'new') loadNew();
+      else load(DeckStore.list()[+v], v);
+    });
+    search.addEventListener('input', () => {
+      S.query = search.value;
+      renderList();
+    });
+    insp.addEventListener('click', () => insp.classList.toggle('open')); // phone: the compact inspector expands when tapped
     // dragging (grid: reorder; list: insert at the cell it is dropped on)
-    grid.addEventListener('pointerdown', e => { if (e.button !== 0) return; const c = e.target.closest('.de-cell[data-id]'); if (c) begin('grid', c, c.dataset.id, +c.dataset.i, e); });
-    list.addEventListener('pointerdown', e => { if (e.button !== 0) return; const r = e.target.closest('.de-row'); if (!r || r.classList.contains('in')) return;
-      if (e.pointerType !== 'mouse' && e.target.tagName !== 'IMG') return;                // touch: only the thumbnail drags, the rest of the row scrolls the list
-      begin('list', r, r.dataset.id, -1, e); });
-    addEventListener('pointermove', e => { const d = drag; if (!d) return; d.cx = e.clientX; d.cy = e.clientY; const moved = Math.hypot(e.clientX - d.x, e.clientY - d.y);
-      if (!d.on){ if (d.timer){ if (moved > 8){ clearTimeout(d.timer); drag = null; } return; } if (moved > 6) activate(d, e.clientX, e.clientY); return; }   // moving before the long press = scrolling
-      moveGhost(d, e.clientX, e.clientY); });
-    addEventListener('touchmove', e => { if (drag && drag.on) e.preventDefault(); }, {passive:false});   // a picked-up card must not scroll the page
-    addEventListener('pointerup', e => endDrag(true, e)); addEventListener('pointercancel', e => endDrag(false, e));
+    grid.addEventListener('pointerdown', e => {
+      if (e.button !== 0) return;
+      const c = e.target.closest('.de-cell[data-id]');
+      if (c) begin('grid', c, c.dataset.id, +c.dataset.i, e);
+    });
+    list.addEventListener('pointerdown', e => {
+      if (e.button !== 0) return;
+      const r = e.target.closest('.de-row');
+      if (!r || r.classList.contains('in')) return;
+      if (e.pointerType !== 'mouse' && e.target.tagName !== 'IMG') return; // touch: only the thumbnail drags, the rest of the row scrolls the list
+      begin('list', r, r.dataset.id, -1, e);
+    });
+    addEventListener('pointermove', e => {
+      const d = drag;
+      if (!d) return;
+      d.cx = e.clientX;
+      d.cy = e.clientY;
+      const moved = Math.hypot(e.clientX - d.x, e.clientY - d.y);
+      if (!d.on) {
+        if (d.timer) {
+          if (moved > 8) {
+            clearTimeout(d.timer);
+            drag = null;
+          }
+          return;
+        }
+        if (moved > 6) activate(d, e.clientX, e.clientY);
+        return;
+      } // moving before the long press = scrolling
+      moveGhost(d, e.clientX, e.clientY);
+    });
+    addEventListener(
+      'touchmove',
+      e => {
+        if (drag && drag.on) e.preventDefault();
+      },
+      { passive: false }
+    ); // a picked-up card must not scroll the page
+    addEventListener('pointerup', e => endDrag(true, e));
+    addEventListener('pointercancel', e => endDrag(false, e));
     // removing / adding without a mouse: double tap
-    grid.addEventListener('contextmenu', e => { e.preventDefault(); if (lastPT !== 'mouse') return; const c = e.target.closest('.de-cell[data-id]'); if (c) remove(c.dataset.id); });
-    grid.addEventListener('dblclick', e => { if (lastPT === 'mouse') return; const c = e.target.closest('.de-cell[data-id]'); if (c) remove(c.dataset.id); });
-    list.addEventListener('click', e => { if (noClick) return; const r = e.target.closest('.de-row'); if (!r) return; select(r.dataset.id); if (lastPT === 'mouse') add(r.dataset.id); });
-    list.addEventListener('contextmenu', e => { e.preventDefault(); if (lastPT !== 'mouse') return; const r = e.target.closest('.de-row'); if (r) remove(r.dataset.id); });
-    list.addEventListener('dblclick', e => { if (lastPT === 'mouse') return; const r = e.target.closest('.de-row'); if (!r) return; const id = r.dataset.id; if (S.cards.includes(id)) remove(id); else add(id); });
-    const hov = e => { if (e.pointerType !== 'mouse' || drag) return; const c = e.target.closest('[data-id]'); renderInspect(c ? c.dataset.id : S.sel); };
-    for (const h of [grid, list]){ h.addEventListener('pointerover', hov); h.addEventListener('pointerleave', () => renderInspect(S.sel)); }
+    grid.addEventListener('contextmenu', e => {
+      e.preventDefault();
+      if (lastPT !== 'mouse') return;
+      const c = e.target.closest('.de-cell[data-id]');
+      if (c) remove(c.dataset.id);
+    });
+    grid.addEventListener('dblclick', e => {
+      if (lastPT === 'mouse') return;
+      const c = e.target.closest('.de-cell[data-id]');
+      if (c) remove(c.dataset.id);
+    });
+    list.addEventListener('click', e => {
+      if (noClick) return;
+      const r = e.target.closest('.de-row');
+      if (!r) return;
+      select(r.dataset.id);
+      if (lastPT === 'mouse') add(r.dataset.id);
+    });
+    list.addEventListener('contextmenu', e => {
+      e.preventDefault();
+      if (lastPT !== 'mouse') return;
+      const r = e.target.closest('.de-row');
+      if (r) remove(r.dataset.id);
+    });
+    list.addEventListener('dblclick', e => {
+      if (lastPT === 'mouse') return;
+      const r = e.target.closest('.de-row');
+      if (!r) return;
+      const id = r.dataset.id;
+      if (S.cards.includes(id)) remove(id);
+      else add(id);
+    });
+    const hov = e => {
+      if (e.pointerType !== 'mouse' || drag) return;
+      const c = e.target.closest('[data-id]');
+      renderInspect(c ? c.dataset.id : S.sel);
+    };
+    for (const h of [grid, list]) {
+      h.addEventListener('pointerover', hov);
+      h.addEventListener('pointerleave', () => renderInspect(S.sel));
+    }
   }
   return {
-    open(){ if (!root) build(); root.hidden = false; search.value = S.query = '';
-      const L = DeckStore.list(), i = Math.max(0, L.findIndex(d => d.name === S.last)); load(L[i], String(i)); },
-    close(){ if (root) root.hidden = true; }
+    open() {
+      if (!root) build();
+      root.hidden = false;
+      search.value = S.query = '';
+      const L = DeckStore.list(),
+        i = Math.max(
+          0,
+          L.findIndex(d => d.name === S.last)
+        );
+      load(L[i], String(i));
+    },
+    close() {
+      if (root) root.hidden = true;
+    },
   };
 })();
