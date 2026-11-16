@@ -35,7 +35,7 @@ Godot (final presentation); three.js board prototype to validate rules/feel. Pri
 
 ## Code
 Plain scripts loaded in order by `index.html` (no build step):
-- `js/cards.js` Fx effect API + card definitions - `js/sim.js` rules (no THREE/DOM) - `js/decks.js` deck store, validation, search - `js/bot.js` bot
+- `js/cards.js` Fx effect API + card definitions - `js/sim/*.js` rules (no THREE/DOM; `kernel.js` scaffold, one file per concern and per registry: `ops.js` effects, `costs.js`, `reqs.js`, `targeting.js`, `cond.js` conditions / triggers / passives, `ch.js`, `then.js`; `index.js` is the public `Sim` facade, `validate.js` checks cards against `Sim.API`) - `js/decks.js` deck store, validation, search - `js/bot.js` bot
 - `js/scene.js`, `js/board.js`, `js/card-view.js`, `js/view-sync.js` three.js scene, board, card meshes, state -> mesh sync
 - `js/game-host.js`, `js/input.js`, `js/panels.js`, `js/menu.js`, `js/deck-editor.js` host and UI state, pointer input, panels, menu, deck editor
 - `js/main.js` console hook and render loop

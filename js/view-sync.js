@@ -7,7 +7,7 @@ function targets() {
   // iid -> where the card should be drawn
   const T = new Map();
   const put = (c, x, z, y, rot, down, owner) =>
-    T.set(c.iid, { c, x, z, y: y + (c === selected || c === placing ? 0.25 : 0), rot, down, owner });
+    T.set(c.iid, { c, x, z, y: y + (c === ui.selected || c === ui.placing ? 0.25 : 0), rot, down, owner });
   for (const p of ['Player', 'Opponent']) {
     // hands: only the viewer sees their own
     const hand = game.piles[p].hand,
@@ -46,7 +46,7 @@ function targets() {
 const lift = { Player: 0, Opponent: 0 };
 function applyEm(m) {
   m.material.emissive.setHex(
-    m === hovered ? m.userData.hoverEm || (m.userData.baseEm ? 0x44aa55 : 0x333333) : m.userData.baseEm || 0
+    m === ui.hovered ? m.userData.hoverEm || (m.userData.baseEm ? 0x44aa55 : 0x333333) : m.userData.baseEm || 0
   );
 }
 const tableAt = (px, py) => {
@@ -80,11 +80,6 @@ srcRing.rotation.x = -Math.PI / 2;
 srcRing.raycast = () => {};
 srcRing.visible = false;
 scene.add(srcRing);
-let linkSrc = null,
-  linkKey = '',
-  links = [],
-  reds = [],
-  linkPin = false;
 const lines = [],
   redLines = []; // linkPin: a touch-selected stack/HP link stays until the next tap elsewhere
 function lineAt(i) {
@@ -123,11 +118,11 @@ function screenOf(c) {
 }
 function setLink(src) {
   const k = src ? src.t + (src.sid ?? src.iid ?? src.p) : '';
-  if (k === linkKey) return;
-  linkKey = k;
-  linkSrc = src;
+  if (k === ui.linkKey) return;
+  ui.linkKey = k;
+  ui.linkSrc = src;
   applyLink();
-  dirty = true;
+  ui.dirty = true;
 }
 function applyLink() {
   document.querySelectorAll('.hl, .hpr.pulseG').forEach(e => e.classList.remove('hl', 'pulseG'));
@@ -135,9 +130,9 @@ function applyLink() {
   srcRing.visible = false;
   lines.forEach(l => l.setAttribute('visibility', 'hidden'));
   redLines.forEach(l => l.setAttribute('visibility', 'hidden'));
-  links = [];
-  reds = [];
-  const H = linkSrc;
+  ui.links = [];
+  ui.reds = [];
+  const H = ui.linkSrc;
   if (!H) return;
   const owner = o => game.cards[o.src || o.iid].owner;
   const list =
@@ -169,8 +164,8 @@ function applyLink() {
       revealEl.hidden = false;
       k = { el, box: revealEl };
     }
-    links.push(k);
-    redEnds(o).forEach(t => reds.push({ el, ...t }));
+    ui.links.push(k);
+    redEnds(o).forEach(t => ui.reds.push({ el, ...t }));
   }
 }
 function redEnds(o) {
@@ -203,7 +198,7 @@ function redEnds(o) {
   return out;
 }
 function updateReds() {
-  reds.forEach((k, i) => {
+  ui.reds.forEach((k, i) => {
     const a = k.el.getBoundingClientRect(),
       ay = (a.top + a.bottom) / 2;
     let tx, ty;
@@ -226,12 +221,12 @@ function updateReds() {
     l.setAttribute('y2', ty);
     l.setAttribute('visibility', 'visible');
   });
-  for (let i = reds.length; i < redLines.length; i++) redLines[i].setAttribute('visibility', 'hidden');
+  for (let i = ui.reds.length; i < redLines.length; i++) redLines[i].setAttribute('visibility', 'hidden');
 }
 function updateLink() {
   // every frame while linked (camera and cards may move)
   let ringed = false;
-  links.forEach((k, i) => {
+  ui.links.forEach((k, i) => {
     const a = k.el.getBoundingClientRect(),
       ay = (a.top + a.bottom) / 2;
     let tx, ty;
@@ -271,16 +266,16 @@ stackEl.addEventListener('pointerdown', e => {
   if (e.pointerType === 'mouse') return;
   const el = e.target.closest && e.target.closest('.sc');
   if (el) {
-    linkPin = true;
+    ui.linkPin = true;
     setLink({ t: 'entry', sid: +el.dataset.sid });
   }
 }); // touch/pen: tap pins the arrow (lifting the finger no longer clears it)
 document.addEventListener(
   'pointerdown',
   e => {
-    if (!linkPin || (e.target.closest && e.target.closest('#stack .sc, #hp .hpr'))) return;
-    linkPin = false;
-    if (linkSrc && (linkSrc.t === 'entry' || linkSrc.t === 'player')) setLink(null);
+    if (!ui.linkPin || (e.target.closest && e.target.closest('#stack .sc, #hp .hpr'))) return;
+    ui.linkPin = false;
+    if (ui.linkSrc && (ui.linkSrc.t === 'entry' || ui.linkSrc.t === 'player')) setLink(null);
   },
   true
 );
@@ -288,27 +283,28 @@ document.querySelectorAll('#hp .hpr').forEach(r => {
   r.addEventListener('pointerenter', e => {
     if (e.pointerType === 'mouse') {
       setLink({ t: 'player', p: r.dataset.p });
-      hoverP = r.dataset.p;
-      inspHold = false;
+      ui.hoverP = r.dataset.p;
+      ui.inspHold = false;
       refreshInspect();
     }
   });
   r.addEventListener('pointerdown', e => {
     if (e.pointerType !== 'mouse') {
-      linkPin = true;
+      ui.linkPin = true;
       setLink({ t: 'player', p: r.dataset.p });
     }
   });
   r.addEventListener('click', () => {
-    if (placing && placing.def.playerTarget) send({ type: 'PlayCard', iid: placing.iid, tplayer: r.dataset.p });
+    if (ui.placing && ui.placing.def.playerTarget)
+      send({ type: 'PlayCard', iid: ui.placing.iid, tplayer: r.dataset.p });
     else if (game.choice && !foeChoice() && game.choice.options.includes('P:' + r.dataset.p))
       send({ type: 'Choose', player: game.choice.player, option: 'P:' + r.dataset.p });
-    else if (!placing) showPlayer(r.dataset.p, true);
+    else if (!ui.placing) showPlayer(r.dataset.p, true);
   });
   r.addEventListener('pointerleave', e => {
     if (e.pointerType === 'mouse') {
       setLink(null);
-      hoverP = null;
+      ui.hoverP = null;
       refreshInspect();
     }
   });
@@ -367,7 +363,7 @@ async function enterJob(pre, o, i) {
   const from = screenOf(src);
   if (m) {
     m.visible = false;
-    dirty = true;
+    ui.dirty = true;
   } // the hand card is carried by the ghost
   await fly(src.def, subOf(src, o), from, () => stackSlot(src.owner, i), 0.45, 0.32);
 }
@@ -433,7 +429,7 @@ function fxJobs(pre, post) {
   return jobs;
 }
 async function fxRun(jobs, done) {
-  fxBusy = true;
+  ui.fxBusy = true;
   for (const j of jobs) {
     await new Promise(r => setTimeout(r, 30));
     try {
@@ -443,8 +439,8 @@ async function fxRun(jobs, done) {
     }
   }
   hiddenSids.clear();
-  fxBusy = false;
-  viewHold = false;
+  ui.fxBusy = false;
+  ui.viewHold = false;
   bannerEl.hidden = true;
   done();
 }
@@ -475,8 +471,8 @@ function buildStack() {
     el.firstChild.textContent = stackName(o);
     el.querySelector('.sm span:last-child').textContent = NAME[own];
     el.onclick = () =>
-      placing && placing.def.stackTarget && o.kind === 'spell'
-        ? send({ type: 'PlayCard', iid: placing.iid, tsid: o.sid })
+      ui.placing && ui.placing.def.stackTarget && o.kind === 'spell'
+        ? send({ type: 'PlayCard', iid: ui.placing.iid, tsid: o.sid })
         : showCard(c);
     stackEl.appendChild(el);
   }
@@ -484,19 +480,19 @@ function buildStack() {
 function sync() {
   const seat = game.choice ? game.choice.player : game.priority;
   if (ui.pin && ui.pin !== seat) ui.pin = null; // a manual seat switch holds until priority moves on
-  if (ui.autoView && !viewHold && !ui.pin && game.phase === 'play' && ui.view !== seat) setView(seat);
+  if (ui.autoView && !ui.viewHold && !ui.pin && game.phase === 'play' && ui.view !== seat) setView(seat);
   updateDbg();
   buildStack();
   applyLink();
-  selected = selected && game.cards[selected.iid];
-  placing = placing && game.cards[placing.iid];
-  if (selected && selected.loc === 'gone') {
-    selected = null;
+  ui.selected = ui.selected && game.cards[ui.selected.iid];
+  ui.placing = ui.placing && game.cards[ui.placing.iid];
+  if (ui.selected && ui.selected.loc === 'gone') {
+    ui.selected = null;
     inspect.hidden = true;
   }
   const T = targets();
-  pickCards = [];
-  pickList = null;
+  ui.pickCards = [];
+  ui.pickList = null;
   for (const [id, t] of T) {
     let m = meshes.get(id);
     const mat = cardMat(t.c.def, t.down, t.rot, effHp(t.c), Sim.atkOf(t.c));
@@ -536,7 +532,7 @@ function sync() {
       !!t.rot
     );
     m.visible = !seenHidden(t.c);
-    if (!t.down && m.visible) pickCards.push(m);
+    if (!t.down && m.visible) ui.pickCards.push(m);
   }
   for (const [id, m] of meshes)
     if (!T.has(id)) {
@@ -563,7 +559,7 @@ function sync() {
     clouds[k].visible = on;
     if (on) clouds[k].material = k.split('|')[0] === ui.view ? cloudOwn : cloudHide;
   } // owner sees through; revealed columns are clean
-  const held = placing || (drag && drag.card),
+  const held = ui.placing || (ui.drag && ui.drag.card),
     free = held && isPerm(held) ? new Set(Sim.freeSlots(game, held)) : null,
     tz =
       held && !isPerm(held) && (held.def.zoneTarget || held.def.playerTarget)
@@ -605,15 +601,15 @@ function sync() {
   }); // an unusable zone vanishes from the board
   stackEl.classList.toggle(
     'drop',
-    !!(drag && !isPerm(drag.card) && !drag.card.def.colTarget && !drag.card.def.zoneTarget)
+    !!(ui.drag && !isPerm(ui.drag.card) && !ui.drag.card.def.colTarget && !ui.drag.card.def.zoneTarget)
   );
   statusEl.textContent =
     game.phase === 'deck'
       ? deckStatus()
-      : drag
+      : ui.drag
         ? 'Drop ' +
-          drag.card.def.name +
-          (isPerm(drag.card) || drag.card.def.colTarget || drag.card.def.zoneTarget
+          ui.drag.card.def.name +
+          (isPerm(ui.drag.card) || ui.drag.card.def.colTarget || ui.drag.card.def.zoneTarget
             ? ' on a highlighted zone'
             : ' on the board or the stack')
         : foeChoice()
@@ -627,18 +623,18 @@ function sync() {
                 : game.choice.kind
                   ? ' Pick an option in the list.'
                   : ' Click a green zone to shift there, or the amber zone to stay.')
-            : placing
-              ? placing.def.zoneTarget || placing.def.playerTarget
+            : ui.placing
+              ? ui.placing.def.zoneTarget || ui.placing.def.playerTarget
                 ? 'Targeting for ' +
-                  placing.def.name +
+                  ui.placing.def.name +
                   ': click ' +
-                  (placing.def.zoneTarget ? 'a highlighted zone' : '') +
-                  (placing.def.zoneTarget && placing.def.playerTarget ? ' or ' : '') +
-                  (placing.def.playerTarget ? 'a life bar' : '') +
+                  (ui.placing.def.zoneTarget ? 'a highlighted zone' : '') +
+                  (ui.placing.def.zoneTarget && ui.placing.def.playerTarget ? ' or ' : '') +
+                  (ui.placing.def.playerTarget ? 'a life bar' : '') +
                   ' (Esc to cancel)'
-                : placing.def.colTarget
-                  ? 'Targeting for ' + placing.def.name + ': click a zone in a highlighted column (Esc to cancel)'
-                  : 'Placing ' + placing.def.name + ': click a highlighted zone (Esc to cancel)'
+                : ui.placing.def.colTarget
+                  ? 'Targeting for ' + ui.placing.def.name + ': click a zone in a highlighted column (Esc to cancel)'
+                  : 'Placing ' + ui.placing.def.name + ': click a highlighted zone (Esc to cancel)'
               : NAME[game.active] +
                 '\u2019s turn' +
                 (game.attackPhase ? ' (attack phase)' : '') +
@@ -662,18 +658,18 @@ function sync() {
     row.querySelector('i').style.width = Math.max(0, Math.min(100, (L / game.maxLife) * 100)) + '%';
     row.classList.toggle(
       'tgt',
-      !!(placing && placing.def.playerTarget) ||
+      !!(ui.placing && ui.placing.def.playerTarget) ||
         !!(game.choice && !foeChoice() && !game.choice.labels && game.choice.options.includes('P:' + p))
     );
     row.querySelector('b').textContent = L;
   }
   const pk = document.getElementById('pick'),
     pkc = game.choice && game.choice.labels && !foeChoice() ? game.choice : null;
-  if (extraAsk && !placing) extraAsk = null;
-  pk.hidden = !pkc && !extraAsk;
-  if (extraAsk && !pkc) {
+  if (ui.extraAsk && !ui.placing) ui.extraAsk = null;
+  pk.hidden = !pkc && !ui.extraAsk;
+  if (ui.extraAsk && !pkc) {
     pk.innerHTML = '<div class="mt"></div>';
-    pk.firstChild.textContent = extraAsk.c.def.name + ': also spend your major action (additional cost)?';
+    pk.firstChild.textContent = ui.extraAsk.c.def.name + ': also spend your major action (additional cost)?';
     [
       ['Pay the additional cost', true],
       ['Do not pay', false],
@@ -682,8 +678,8 @@ function sync() {
       b.className = 'abtn';
       b.textContent = t;
       b.onclick = () => {
-        const a = extraAsk;
-        extraAsk = null;
+        const a = ui.extraAsk;
+        ui.extraAsk = null;
         send(Object.assign({}, a.cmd, { extra: v }));
       };
       pk.appendChild(b);
@@ -700,31 +696,31 @@ function sync() {
       pk.appendChild(b);
     });
   }
-  if (openList) buildList();
-  if (selected && selected.loc === 'hand' && selected.owner !== ui.view) selected = null;
+  if (ui.openList) buildList();
+  if (ui.selected && ui.selected.loc === 'hand' && ui.selected.owner !== ui.view) ui.selected = null;
   refreshInspect();
-  dirty = true;
-  hoverDirty = true;
+  ui.dirty = true;
+  ui.hoverDirty = true;
 }
 function animate() {
   // returns true while anything is still moving
   let busy = false,
     gl = 0;
-  pulse = false;
-  if (links.length) {
+  ui.pulse = false;
+  if (ui.links.length) {
     busy = true;
     updateLink();
   }
   for (const m of meshes.values()) if (m.userData.glow) gl++;
   if (gl) {
-    pulse = true;
+    ui.pulse = true;
     glowMat.opacity = 0.3 + 0.7 * Math.pow(0.5 + 0.5 * Math.sin((performance.now() / 1000) * 2.6), 2);
   } // pulse only: rendered at ~30 fps below   // periodic pulse
-  if (camAngle !== camGoal) {
-    camAngle += (camGoal - camAngle) * 0.12;
-    if (Math.abs(camGoal - camAngle) < 0.002) camAngle = camGoal;
-    const c = Math.cos(camAngle),
-      s = Math.sin(camAngle);
+  if (ui.camAngle !== ui.camGoal) {
+    ui.camAngle += (ui.camGoal - ui.camAngle) * 0.12;
+    if (Math.abs(ui.camGoal - ui.camAngle) < 0.002) ui.camAngle = ui.camGoal;
+    const c = Math.cos(ui.camAngle),
+      s = Math.sin(ui.camAngle);
     camera.position.set(3 * c + 22 * s, 29, -3 * s + 22 * c);
     controls.target.set(0, 0, 0);
     busy = true;
@@ -746,7 +742,7 @@ function animate() {
   });
   for (const k in clouds) clouds[k].position.y = 0.2 + lift[k.split('|')[0]];
   for (const [id, m] of meshes) {
-    if (drag && drag.card.iid === id) {
+    if (ui.drag && ui.drag.card.iid === id) {
       busy = true;
       continue;
     } // follows the pointer

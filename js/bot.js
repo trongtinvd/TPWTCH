@@ -107,12 +107,12 @@ const botMem = { turn: -1, n: 0 },
   botR = botRng(Date.now());
 const botWants = () => !MenuUI.away && botActor(sim) === 'Opponent';
 function botSchedule() {
-  clearTimeout(botTimer);
-  botTimer = setTimeout(botTick, 650);
+  clearTimeout(ui.botTimer);
+  ui.botTimer = setTimeout(botTick, 650);
 }
 function botTick() {
   if (ui.mode !== 'bot' || !botWants()) return;
-  if (fxBusy) {
+  if (ui.fxBusy) {
     botSchedule();
     return;
   } // wait for the animation

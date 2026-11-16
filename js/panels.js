@@ -73,14 +73,14 @@ function showList(owner, kind) {
     sync();
     return;
   }
-  openList = { owner, kind };
+  ui.openList = { owner, kind };
   buildList();
   deckPanel.scrollTop = 0;
 }
 function buildList() {
   const st = deckPanel.scrollTop,
-    { owner, kind } = openList,
-    cards = listCards(openList),
+    { owner, kind } = ui.openList,
+    cards = listCards(ui.openList),
     gy = kind !== 'deck',
     canEdit =
       kind === 'deck' &&
@@ -113,7 +113,7 @@ function buildList() {
   if (!cards.length) deckPanel.insertAdjacentHTML('beforeend', '<div class="note">Empty</div>');
   cards.forEach((c, i) => {
     const row = document.createElement('div');
-    row.className = 'row' + (c === selected ? ' sel' : '');
+    row.className = 'row' + (c === ui.selected ? ' sel' : '');
     row.tabIndex = 0;
     row.style.setProperty('--tc', cardColor(c.def));
     row.style.background = posColor(i, cards.length, gy ? 275 : 42);
@@ -168,20 +168,19 @@ function buildList() {
   deckPanel.hidden = false;
   deckPanel.scrollTop = st;
 }
-let inspLast = null; // what the inspector shows right now (the status toggle re-renders it)
 function showCard(c, pin = true) {
-  inspLast = { c };
+  ui.inspLast = { c };
   const d = c.def,
     T = TYPES[d.type],
     pile = game.piles[c.owner][c.loc],
     idx = pile ? pile.indexOf(c) : -1;
   if (pin) {
-    selected = c;
-    selP = null;
+    ui.selected = c;
+    ui.selP = null;
   }
   deckPanel
     .querySelectorAll('.row')
-    .forEach((r, i) => r.classList.toggle('sel', !!openList && listCards(openList)[i] === selected));
+    .forEach((r, i) => r.classList.toggle('sel', !!ui.openList && listCards(ui.openList)[i] === ui.selected));
   const stats = (
     d.type === 'creature'
       ? ['ATK ' + Sim.atkOf(c), 'HP ' + Sim.hpOf(c)]
@@ -255,13 +254,11 @@ function showCard(c, pin = true) {
   }
   inspect.hidden = false;
 }
-let hoverP = null,
-  selP = null; // player inspection: hovered / pinned (click a life bar)
 function showPlayer(p, pin) {
-  inspLast = { p };
+  ui.inspLast = { p };
   if (pin) {
-    selP = p;
-    selected = null;
+    ui.selP = p;
+    ui.selected = null;
   }
   const s = game,
     P = s.piles[p],
@@ -360,8 +357,8 @@ function openMenu(c, x, y) {
 }
 function refreshInspect() {
   // hovered card wins; otherwise the pinned (clicked) one; otherwise hidden
-  const c = inspHold ? null : preview || (hoverP ? null : selected),
-    p = inspHold || c ? null : hoverP || selP;
+  const c = ui.inspHold ? null : ui.preview || (ui.hoverP ? null : ui.selected),
+    p = ui.inspHold || c ? null : ui.hoverP || ui.selP;
   if (c && !(c.loc === 'hand' && c.owner !== ui.view && !Sim.isRevealed(c, ui.view)) && !seenHidden(c))
     showCard(c, false);
   else if (p) showPlayer(p);
@@ -369,14 +366,14 @@ function refreshInspect() {
 }
 function hideInspect() {
   inspect.hidden = true;
-  selected = null;
-  selP = null;
+  ui.selected = null;
+  ui.selP = null;
   deckPanel.querySelectorAll('.row.sel').forEach(r => r.classList.remove('sel'));
   sync();
 }
 function hideList() {
   deckPanel.hidden = true;
-  openList = null;
+  ui.openList = null;
   hideInspect();
 }
 function closeAll() {
@@ -390,8 +387,8 @@ document.addEventListener('click', e => {
     if (tg.dataset.toggle === 'mode') ui.inspLog = !ui.inspLog;
     else ui.showRemoved = !ui.showRemoved;
     inspect.dataset.key = '';
-    if (inspLast && inspLast.c) showCard(inspLast.c, false);
-    else if (inspLast && inspLast.p) showPlayer(inspLast.p, false);
+    if (ui.inspLast && ui.inspLast.c) showCard(ui.inspLast.c, false);
+    else if (ui.inspLast && ui.inspLast.p) showPlayer(ui.inspLast.p, false);
     return;
   }
   const b = e.target.closest && e.target.closest('[data-close]');
@@ -400,8 +397,8 @@ document.addEventListener('click', e => {
 addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
   if (!menu.hidden) closeMenu();
-  else if (placing) {
-    placing = null;
+  else if (ui.placing) {
+    ui.placing = null;
     sync();
   } else if (!inspect.hidden) hideInspect();
   else if (!deckPanel.hidden) hideList();

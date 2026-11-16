@@ -268,7 +268,7 @@ const MenuUI = {
   show() {
     if (!this.root) this.build();
     this.away = true;
-    clearTimeout(botTimer);
+    clearTimeout(ui.botTimer);
     closeMenu();
     this.root.hidden = false;
     const bc = document.getElementById('bootCover');

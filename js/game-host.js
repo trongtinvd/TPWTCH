@@ -19,29 +19,60 @@ let sim = Sim.create(newSeed(), DEFS),
   game = sim; // sim: authoritative state. game: what is on screen (lags the sim while animations play)
 const undoStack = [],
   eventLog = []; // snapshots for undo; recent rule events
+// ---- THE UI STATE. Every mutable piece of interaction state lives here (the view never edits `game`; it only calls send()).
+// Rule: only sync() turns state into pixels: handlers change ui.* and call sync() / send(); sync() rebuilds the meshes and the panels and
+// sets ui.dirty, and the render loop in main.js draws only while ui.dirty (or an animation) asks for it.
 const ui = {
-  view: 'Player',
+  // settings
+  view: 'Player', // the seat the camera looks from (debug-switchable, separate from priority)
   autoView: true,
   autoTurn: true,
-  actions: 'normal',
-  showRemoved: false,
-  inspLog: false,
+  actions: 'normal', // automation: off = always auto, normal = auto when no legal action, always = never
+  showRemoved: false, // show greyed-out removed statuses in the inspectors
+  inspLog: false, // the inspector shows the log instead of the statuses
   mode: 'self',
   deckEdit: false,
-}; // showRemoved: show greyed-out removed statuses in the inspectors
-let preview = null,
-  inspHold = false,
-  fxBusy = false; // preview: hovered card; inspHold: suppress inspect until the pointer moves on
-let placing = null,
-  openList = null,
-  selected = null,
-  hovered = null,
-  drag = null,
-  dragCand = null;
-let dirty = true,
-  hoverDirty = true,
-  pulse = false,
-  lastPulse = 0; // render on demand
+  pin: null,
+  note: '',
+  // selection and input
+  placing: null, // card being placed / targeted
+  selected: null,
+  hovered: null,
+  preview: null, // hovered card (inspector)
+  inspHold: false, // suppress inspect until the pointer moves on
+  openList: null, // {owner, kind}: the open deck / graveyard / exile list
+  drag: null,
+  dragCand: null,
+  extraAsk: null, // pending 'pay the additional cost?' popup: {c, cmd}
+  downAt: null,
+  lastEmptyTap: 0,
+  pinchD: 0, // two-finger pinch zooms the top view
+  hoverP: null, // player inspection: hovered / pinned (click a life bar)
+  selP: null,
+  inspLast: null, // what the inspector shows right now (the status toggle re-renders it)
+  pickCards: [],
+  pickList: null, // cached; rebuilt only after sync()
+  // hover links (stack entry <-> card arrows)
+  linkSrc: null,
+  linkKey: '',
+  links: [],
+  reds: [],
+  linkPin: false, // a touch-selected stack/HP link stays until the next tap elsewhere
+  // animation, camera, automation and bot timers
+  fxBusy: false, // showcase animations running: input waits
+  viewHold: false, // true while a turn change is being announced: the camera waits
+  camAngle: 0,
+  camGoal: 0,
+  autoTimer: 0,
+  autoDepth: 0,
+  lastCfg: null, // {mode:'self'|'bot', p1, p2, shuffle} of the running game
+  botTimer: 0,
+  // render on demand
+  dirty: true,
+  hoverDirty: true,
+  pulse: false,
+  lastPulse: 0,
+};
 const seenHidden = c => !!(c && c.loc === 'board' && c.slot && Sim.cloudMap(game)[c.slot] && c.owner !== ui.view); // under an enemy cloud
 // A card under an enemy cloud never shows itself: its abilities appear to come from the King Eye that makes the cloud.
 function maskOf(o, ...sts) {
@@ -59,13 +90,12 @@ const stackName = o => {
   const m = maskOf(o);
   return m ? m.def.name + ': Ability' : o.name;
 };
-const uiCanPlay = c => (placing ? 'Finish placing the current card first' : Sim.canPlay(game, c));
+const uiCanPlay = c => (ui.placing ? 'Finish placing the current card first' : Sim.canPlay(game, c));
 const sleep = ms => new Promise(r => setTimeout(r, ms)),
   bannerEl = document.createElement('div');
 bannerEl.id = 'banner';
 bannerEl.hidden = true;
 document.body.appendChild(bannerEl);
-let viewHold = false; // true while a turn change is being announced: the camera waits
 function tween(ms, fn) {
   return Promise.race([
     new Promise(res => {
@@ -73,7 +103,7 @@ function tween(ms, fn) {
       (function step() {
         const t = Math.min(1, (performance.now() - t0) / ms);
         fn(t);
-        dirty = true;
+        ui.dirty = true;
         t < 1 ? requestAnimationFrame(step) : res();
       })();
     }),
@@ -164,15 +194,15 @@ async function attackJob(pre, ev) {
     await tween(280, t => sword.position.set(from.x + (to.x - from.x) * t, 0.9, from.z + (to.z - from.z) * t));
     cur = to;
     undo.push(m ? splat3D(m) : splatBar(e.player));
-    dirty = true;
+    ui.dirty = true;
   }
   await sleep(700);
   scene.remove(sword);
   undo.forEach(f => f());
-  dirty = true;
+  ui.dirty = true;
 }
 function send(cmd) {
-  if (fxBusy) {
+  if (ui.fxBusy) {
     sync();
     return { ok: false, why: 'Animation in progress', events: [] };
   } // input waits for the animation
@@ -196,9 +226,9 @@ function send(cmd) {
     if (undoStack.length > 200) undoStack.shift();
     eventLog.push(...r.events);
     if (eventLog.length > 200) eventLog.splice(0, eventLog.length - 200);
-    placing = null;
-    selected = null;
-    inspHold = true; // any action closes the inspection panel
+    ui.placing = null;
+    ui.selected = null;
+    ui.inspHold = true; // any action closes the inspection panel
     jobs = fxJobs(pre, sim);
     if (r.events.some(e => (e.t === 'DamageDealt' && e.type === 'combat') || (e.t === 'PlayerDamaged' && e.combat))) {
       // order: attack animation -> damage numbers -> triggered abilities appear on the stack
@@ -219,7 +249,7 @@ function send(cmd) {
     }
     if (r.events.some(e => e.t === 'TurnChanged')) {
       const hold = ui.autoView;
-      if (hold) viewHold = true;
+      if (hold) ui.viewHold = true;
       jobs.unshift(async () => {
         // turn ends: the banner plays for BOTH players, first for the one whose turn ended, then for the new turn player
         if (hold) {
@@ -245,7 +275,7 @@ function send(cmd) {
         await sleep(900);
         bannerEl.hidden = true;
         if (hold) {
-          viewHold = false;
+          ui.viewHold = false;
           setView(sim.choice ? sim.choice.player : sim.priority);
           sync();
           await camArrive();
@@ -254,7 +284,7 @@ function send(cmd) {
       });
     } // then the seat holding priority (e.g. the Vine trigger responder) watches the stack animation
     else if (ui.autoView && pre.stack.length > sim.stack.length) {
-      viewHold = true;
+      ui.viewHold = true;
       setView(sim.choice ? sim.choice.player : sim.priority);
     } // something resolved: the animation plays from the seat that gets priority next
   }
@@ -274,15 +304,13 @@ function send(cmd) {
   }
   return r;
 }
-let autoTimer = 0,
-  autoDepth = 0; // automation: off = always auto, normal = auto when no legal action, always = never
 function autoStep() {
   if (MenuUI.away) return; // the menu or the deck editor is on screen: the game waits
   if (ui.mode === 'bot' && botWants()) {
     botSchedule();
     return;
   } // the bot decides its own passes and plays
-  if (placing || autoDepth > 12 || game.phase !== 'play' || game.choice) return;
+  if (ui.placing || ui.autoDepth > 12 || game.phase !== 'play' || game.choice) return;
   const p = game.priority,
     mode = ui.actions;
   let cmd = null;
@@ -302,35 +330,34 @@ function autoStep() {
     if (done) cmd = { type: 'EndTurn', player: p };
   }
   if (!cmd) return;
-  if (ui.autoView && camAngle !== camGoal) {
-    clearTimeout(autoTimer);
-    autoTimer = setTimeout(autoStep, 250);
+  if (ui.autoView && ui.camAngle !== ui.camGoal) {
+    clearTimeout(ui.autoTimer);
+    ui.autoTimer = setTimeout(autoStep, 250);
     return;
   } // let the camera reach the seat holding priority before an automatic pass / end turn skips past it
-  autoDepth++;
+  ui.autoDepth++;
   try {
     send(cmd);
   } finally {
-    autoDepth--;
+    ui.autoDepth--;
   }
 }
 const draw = () => {
-  if (!placing) send({ type: 'Draw', player: ui.view });
+  if (!ui.placing) send({ type: 'Draw', player: ui.view });
 };
 const pass = () => {
-  if (!placing) send({ type: 'Pass', player: ui.view });
+  if (!ui.placing) send({ type: 'Pass', player: ui.view });
 };
 const toggleAttack = () => {
-  if (!placing) send({ type: 'SetAttackPhase', player: ui.view, on: !game.attackPhase });
+  if (!ui.placing) send({ type: 'SetAttackPhase', player: ui.view, on: !game.attackPhase });
 };
 function play(c) {
   if (uiCanPlay(c)) return;
   if (isPerm(c) || c.def.colTarget || c.def.zoneTarget || c.def.playerTarget) {
-    placing = c;
+    ui.placing = c;
     sync();
   } else send({ type: 'PlayCard', iid: c.iid });
 }
-let extraAsk = null; // pending 'pay the additional cost?' popup: {c, cmd}
 const place = (c, zone) => {
   const cmd = {
     type: 'PlayCard',
@@ -340,27 +367,25 @@ const place = (c, zone) => {
     col: zone.userData.slot.col,
   };
   if (c.def.extraCost && Sim.canPayExtra(game, c)) {
-    extraAsk = { c, cmd };
-    placing = c;
+    ui.extraAsk = { c, cmd };
+    ui.placing = c;
     sync();
   } else send(cmd);
 };
 function undo() {
-  if (!undoStack.length || fxBusy) return;
+  if (!undoStack.length || ui.fxBusy) return;
   sim = undoStack.pop();
   game = sim;
-  placing = null;
+  ui.placing = null;
   fxReset();
   closeMenu();
   sync();
 }
-let camAngle = 0,
-  camGoal = 0;
 const camArrive = () =>
   new Promise(r => {
     const t0 = performance.now();
     (function w() {
-      if (camAngle === camGoal || performance.now() - t0 > 1800) r();
+      if (ui.camAngle === ui.camGoal || performance.now() - t0 > 1800) r();
       else setTimeout(w, 30);
     })();
   }); // resolves once the seat camera has finished turning
@@ -382,8 +407,8 @@ function fitOrtho() {
 }
 function placeTop() {
   // screen-up points away from the seat being viewed
-  const s = Math.sin(camAngle),
-    c = Math.cos(camAngle);
+  const s = Math.sin(ui.camAngle),
+    c = Math.cos(ui.camAngle);
   ortho.up.set(-s, 0, -c);
   ortho.position.set(tv.cx, 60, tv.cz);
   ortho.lookAt(tv.cx, 0, tv.cz);
@@ -402,8 +427,8 @@ function setTopView(on) {
   viewBtn.textContent = on ? 'Side view' : 'Top view';
   helpEl.textContent = on ? HELP_TOP : HELP_SIDE;
   closeMenu();
-  dirty = true;
-  hoverDirty = true;
+  ui.dirty = true;
+  ui.hoverDirty = true;
 }
 viewBtn.onclick = () => setTopView(!tv.on);
 helpEl.textContent = HELP_SIDE;
@@ -415,22 +440,22 @@ renderer.domElement.addEventListener(
     e.preventDefault();
     tv.zoom = Math.min(4, Math.max(0.6, tv.zoom * Math.exp(-e.deltaY * 0.001)));
     fitOrtho();
-    dirty = true;
-    hoverDirty = true;
+    ui.dirty = true;
+    ui.hoverDirty = true;
   },
   { passive: false }
 );
 renderer.domElement.addEventListener('contextmenu', e => e.preventDefault());
 function setView(p) {
   ui.view = p;
-  camGoal = p === 'Opponent' ? Math.PI : 0;
-  placing = null;
+  ui.camGoal = p === 'Opponent' ? Math.PI : 0;
+  ui.placing = null;
   closeMenu();
   if (game.phase === 'deck') {
     deckPanel.hidden = true;
-    openList = null;
+    ui.openList = null;
     inspect.hidden = true;
-    selected = null;
+    ui.selected = null;
     openDeckEditor();
   }
 }
@@ -442,22 +467,20 @@ function switchPlayer() {
   setView(other(ui.view));
   sync();
 } // debug: seat only
-let lastCfg = null,
-  botTimer = 0; // lastCfg: {mode:'self'|'bot', p1, p2, shuffle} of the running game
 function newGame(cfg) {
-  lastCfg = cfg;
+  ui.lastCfg = cfg;
   resetGame();
   autoStep();
 }
 function resetGame() {
-  const c = lastCfg || { mode: 'self', p1: BUILTIN_DECKS[0].name, p2: BUILTIN_DECKS[1].name, shuffle: true };
-  lastCfg = c;
+  const c = ui.lastCfg || { mode: 'self', p1: BUILTIN_DECKS[0].name, p2: BUILTIN_DECKS[1].name, shuffle: true };
+  ui.lastCfg = c;
   ui.mode = c.mode;
   ui.deckEdit = false;
   ui.autoView = c.mode === 'self';
   ui.pin = null;
   botMem.turn = -1;
-  clearTimeout(botTimer);
+  clearTimeout(ui.botTimer);
   const deckOf = n => (DeckStore.find(n) || BUILTIN_DECKS[0]).cards;
   sim = Sim.create(newSeed(), DEFS, {
     decks: { Player: deckOf(c.p1), Opponent: deckOf(c.p2) },
@@ -470,8 +493,8 @@ function resetGame() {
   eventLog.length = 0;
   for (const m of meshes.values()) cardGroup.remove(m);
   meshes.clear();
-  selected = null;
-  openList = null;
+  ui.selected = null;
+  ui.openList = null;
   inspect.hidden = true;
   deckPanel.hidden = true;
   setView('Player');
@@ -479,7 +502,7 @@ function resetGame() {
 }
 
 // ---- Game function buttons (HTML, top right) and debug buttons (HTML, bottom right) ----
-const myPriority = () => ui.view === game.priority && !placing && !game.choice; // nobody holds a usable priority while a player is making a choice
+const myPriority = () => ui.view === game.priority && !ui.placing && !game.choice; // nobody holds a usable priority while a player is making a choice
 const inPlay = () => game.phase === 'play';
 const FN = [
   {
@@ -493,7 +516,7 @@ const FN = [
         sync();
       }
     }, // after Start, hand the seat to the player who is still arranging
-    on: () => !placing && !game.ready[ui.view],
+    on: () => !ui.placing && !game.ready[ui.view],
     show: () => game.phase === 'deck',
   },
   {
@@ -539,20 +562,20 @@ const FN = [
     id: 'notarget',
     cls: 'c-go',
     label: () => 'Cast without target',
-    run: () => send({ type: 'PlayCard', iid: placing.iid }),
-    on: () => !!(placing && placing.def.optionalTarget),
-    show: () => !!(placing && placing.def.optionalTarget),
+    run: () => send({ type: 'PlayCard', iid: ui.placing.iid }),
+    on: () => !!(ui.placing && ui.placing.def.optionalTarget),
+    show: () => !!(ui.placing && ui.placing.def.optionalTarget),
   },
   {
     id: 'cancel',
     cls: 'c-atk',
     label: () => 'Cancel',
     run: () => {
-      placing = null;
+      ui.placing = null;
       sync();
     },
-    on: () => !!placing,
-    show: () => !!placing,
+    on: () => !!ui.placing,
+    show: () => !!ui.placing,
   }, // a game feature (Esc does the same): back out of picking a zone / target before anything is committed
   {
     id: 'endturn',

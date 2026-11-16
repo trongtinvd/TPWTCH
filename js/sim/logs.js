@@ -1,0 +1,68 @@
+// logs.js - logs[]: one append-only history per card and per player
+Sim.def('logs', function (K) {
+  // ---- LOGS: one append-only history per card and per player (o.logs), next to statuses[]. statuses = the current state; logs = the whole story: deck position, every zone change and how, every status applied / removed. Own counter (s.lseq): status ids (s.seq) are untouched.
+  const lg = (s, o, e) => {
+    if (o) (o.logs || (o.logs = [])).push(Object.assign({ n: (s.lseq = (s.lseq || 0) + 1), turn: s.turn }, e));
+  };
+  const ownKey = (s, o) => o.iid || (o === s.players.Player ? 'Player' : o === s.players.Opponent ? 'Opponent' : null);
+  const ownerOf = (s, st) => s.cards[st.own] || s.players[st.own];
+  const whereOf = c => (c.loc === 'board' ? 'board ' + c.slot : c.loc);
+  const HOW = {
+    CardDrawn: ['drawn', 'hand'],
+    CardAdded: ['added to hand', 'hand'],
+    CardMilled: ['milled', 'gy'],
+    CardDiscarded: ['discarded', 'gy'],
+    CardExiled: ['exiled', 'exile', 'gone'],
+    PermanentSummoned: ['entered the board', 'board'],
+    PermanentMoved: ['shifted', 'board'],
+    PermanentDestroyed: ['destroyed', 'gy', 'gone'],
+    PermanentReturned: ['returned to hand', 'hand', 'gone'],
+    StackObjectCreated: ['put on the stack', 'stack'],
+    StackObjectResolved: ['resolved', 'gy', 'hand'],
+    StackObjectCountered: ['countered', 'gy'],
+  };
+  function howOf(ev, c) {
+    for (let i = ev.length - 1; i >= 0; i--) {
+      const e = ev[i],
+        h = HOW[e.t];
+      if (h && e.iid === c.iid && h.slice(1).includes(c.loc))
+        return e.t === 'PermanentDestroyed' && e.by === 'rule' ? 'destroyed by the rules: its zone is gone' : h[0];
+    }
+    return 'moved';
+  } // the label comes from the rule events of this command
+  function syncLogs(s, ev) {
+    for (const c of Object.values(s.cards)) {
+      if (c.def.type === 'ability') continue; // ability tokens are transient: no history
+      const w = whereOf(c),
+        L = c.logs || (c.logs = []);
+      let last = null;
+      for (let i = L.length - 1; i >= 0; i--)
+        if (L[i].to !== undefined) {
+          last = L[i].to;
+          break;
+        }
+      if (last !== w) lg(s, c, { kind: 'zone', from: last, to: w, how: howOf(ev, c) });
+    }
+  }
+  const logText = e =>
+    'T' +
+    e.turn +
+    ' #' +
+    e.n +
+    ' \u00b7 ' +
+    (
+      {
+        start: () => 'shuffled into the deck at position ' + e.pos + ' of ' + e.of,
+        locked: () => 'deck locked at position ' + e.pos + ' of ' + e.of,
+        zone: () => (e.from || 'nowhere') + ' \u2192 ' + e.to + ' (' + e.how + ')',
+        'status+': () => 'applied: ' + e.text,
+        'status-': () => 'removed #' + e.id + ' (' + e.sk + '): ' + e.why,
+      }[e.kind] || (() => e.kind)
+    )();
+  const logLines = o => (o.logs || []).map(e => ({ text: logText(e), n: e.n, e })); // oldest first; the UI shows newest on top
+  return {
+    exports: { HOW, howOf, lg, logLines, logText, ownKey, ownerOf, syncLogs, whereOf },
+    needs: [],
+    link: () => {},
+  };
+});

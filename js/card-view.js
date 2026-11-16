@@ -476,4 +476,3 @@ const canUse = c =>
     (c.loc === 'hand'
       ? !Sim.canPlay(game, c) || (Sim.abDef(c).abilities || []).some((a, i) => !Sim.canActivate(game, c, i))
       : c.loc === 'board' && (Sim.abDef(c).abilities || []).some((a, i) => !Sim.canActivate(game, c, i))));
-let pickCards = [];

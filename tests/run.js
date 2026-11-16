@@ -13,7 +13,12 @@ const sandbox = {
   structuredClone,
 };
 vm.createContext(sandbox);
-const scripts = ['js/cards.js', 'js/sim.js', 'js/decks.js', 'js/bot.js'].map(f => path.join(root, f)).concat(testFile);
+// The Sim modules load in the order index.html lists them (single source of truth).
+const simFiles = [
+  ...fs.readFileSync(path.join(root, 'index.html'), 'utf8').matchAll(/<script src="(js\/sim\/[^"]+)">/g),
+].map(m => m[1]);
+if (!simFiles.length) throw new Error('no js/sim/*.js scripts found in index.html');
+const scripts = ['js/cards.js', ...simFiles, 'js/decks.js', 'js/bot.js'].map(f => path.join(root, f)).concat(testFile);
 for (const f of scripts) vm.runInContext(fs.readFileSync(f, 'utf8'), sandbox, { filename: f });
 
 const out = JSON.parse(vm.runInContext('JSON.stringify(selfTest())', sandbox));

@@ -18,14 +18,14 @@ MenuUI.show();
   requestAnimationFrame(loop);
   const busy = animate();
   controls.update();
-  if (hoverDirty && !drag) {
-    hoverDirty = false;
+  if (ui.hoverDirty && !ui.drag) {
+    ui.hoverDirty = false;
     updateHover();
   }
   const now = performance.now();
-  if (busy || dirty || (pulse && now - lastPulse > 33)) {
-    dirty = false;
-    lastPulse = now;
+  if (busy || ui.dirty || (ui.pulse && now - ui.lastPulse > 33)) {
+    ui.dirty = false;
+    ui.lastPulse = now;
     renderer.render(scene, cam);
   }
 })();
