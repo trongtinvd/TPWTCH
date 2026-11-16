@@ -148,6 +148,7 @@ makeZone('Opponent Hand', 'Hand', HAND_W, HAND_D, 0x4a2a30, 0, -HZ, null, Math.P
 const cloudGeo = new THREE.BoxGeometry(TILE_W, 0.34, TILE_D),
   cloudHide = new THREE.MeshBasicMaterial({ color: 0x07070c }),
   cloudOwn = new THREE.MeshBasicMaterial({ color: 0x07070c, transparent: true, opacity: 0.4, depthWrite: false }),
+  cloudHot = new THREE.MeshBasicMaterial({ color: 0x16402a }), // an enemy cloud over a legal target / pick glows green
   clouds = {};
 for (const k in slotZones) {
   const m = new THREE.Mesh(cloudGeo, cloudHide);

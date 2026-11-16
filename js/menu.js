@@ -257,6 +257,7 @@ const MenuUI = {
           DeckEditor.open();
         },
       ],
+      ['Replays', () => Replays.open()],
     ].forEach(([t, f]) => {
       const b = mkBtn(t, f, 'mbtn');
       bs.appendChild(b);
@@ -268,6 +269,8 @@ const MenuUI = {
   show() {
     if (!this.root) this.build();
     this.away = true;
+    rp.playing = false;
+    Replays.bar(false);
     clearTimeout(ui.botTimer);
     closeMenu();
     this.root.hidden = false;
@@ -286,7 +289,10 @@ const MenuUI = {
   },
   leaveGame() {
     confirmBox('Leave this game and return to the main menu?', 'Leave', 'Stay').then(ok => {
-      if (ok) MenuUI.show();
+      if (!ok) return;
+      Replays.saveCurrent()
+        .catch(() => false)
+        .then(() => MenuUI.show());
     });
   },
 };

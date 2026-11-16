@@ -721,3 +721,75 @@ canvas {
     right: 8px;
   }
 }
+/* ---- phone: drag handles for the inspector (top) and the stack / lists (bottom); replay controls ---- */
+#hTop,
+#hBot {
+  display: none;
+}
+#rpbar {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  z-index: 3;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  background: var(--panel);
+  padding: 6px 8px;
+  border-radius: 10px;
+  backdrop-filter: blur(6px);
+  font-size: 12px;
+}
+#rpbar[hidden] {
+  display: none;
+}
+#rpbar .abtn {
+  padding: 5px 10px;
+  font-size: 12px;
+}
+#rpbar .dctl {
+  padding: 4px 6px;
+  font-size: 12px;
+}
+@media (orientation: portrait) {
+  #hTop,
+  #hBot {
+    display: block;
+    position: fixed;
+    left: 0;
+    right: 0;
+    height: 18px;
+    z-index: 6;
+    touch-action: none;
+    cursor: ns-resize;
+  }
+  #hTop::after,
+  #hBot::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 7px;
+    width: 44px;
+    height: 4px;
+    margin-left: -22px;
+    border-radius: 2px;
+    background: var(--fg);
+    opacity: 0.45;
+  }
+  #hTop {
+    top: calc(var(--topH) - 14px);
+  }
+  #hBot {
+    top: calc(100dvh - var(--botH) - 14px);
+  }
+  #rpbar {
+    left: 8px;
+    right: 8px;
+    transform: none;
+    bottom: auto;
+    top: calc(var(--topH) + 84px);
+  }
+}

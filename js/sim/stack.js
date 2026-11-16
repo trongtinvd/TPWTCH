@@ -113,7 +113,7 @@ Sim.def('stack', function (K) {
       if (c.loc === 'stack' || c.loc === 'gone') continue;
       (abDef(c).triggers || []).forEach((t, i) => {
         if (t.on !== on || (t.zone || 'board') !== c.loc) return;
-        if (t.cond && !COND[t.cond](s, c, subject)) return;
+        if (t.cond && !(COND[t.cond] && COND[t.cond](s, c, subject))) return; // an unknown condition fails closed (validate.js reports it at load)
         if (TRIGGERS[on] && !TRIGGERS[on](s, c, t, subject)) return;
         hits.push({ c, i });
       });

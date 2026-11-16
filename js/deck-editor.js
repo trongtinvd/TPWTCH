@@ -1,6 +1,18 @@
 // deck-editor.js - Deck editing scene (HTML): 10x10 deck grid, greyed extra deck, inspector, card list with fuzzy search
 const DeckEditor = (function () {
-  const S = { name: '', cards: [], loaded: null, saved: '', query: '', sel: null, key: '0', last: null };
+  const S = {
+    name: '',
+    cards: [],
+    loaded: null,
+    saved: '',
+    query: '',
+    sel: null,
+    key: '0',
+    last: null,
+    fType: 'all',
+    fIn: 'all',
+    fOnly: false,
+  };
   const byId = Object.fromEntries(DEFS.map(d => [d.id, d]));
   const statsOf = d =>
     d.type === 'creature'
@@ -13,6 +25,7 @@ const DeckEditor = (function () {
     extra,
     nameIn,
     saveBtn,
+    delBtn,
     msg,
     selEl,
     insp,
@@ -45,10 +58,22 @@ const DeckEditor = (function () {
     return c;
   }
   const renderGrid = () => grid.replaceChildren(...Array.from({ length: DECK_MAX }, (_, i) => cell(i)));
+  const typeOk = d =>
+    S.fType === 'all' ||
+    (S.fType === 'quick' || S.fType === 'slow'
+      ? d.type === 'spell' && String(d.timing).toLowerCase() === S.fType
+      : d.type === S.fType);
+  const cardList = () =>
+    rankCards(S.query, DEFS).filter(
+      d =>
+        (!S.fOnly || cardMatches(S.query, d)) &&
+        typeOk(d) &&
+        (S.fIn === 'all' || S.cards.includes(d.id) === (S.fIn === 'in'))
+    );
   function renderList() {
     const st = list.scrollTop;
     list.replaceChildren(
-      ...rankCards(S.query, DEFS).map(d => {
+      ...cardList().map(d => {
         const inDeck = S.cards.includes(d.id),
           r = mkEl('div', 'de-row' + (inDeck ? ' in' : '')),
           im = new Image(),
@@ -99,6 +124,7 @@ const DeckEditor = (function () {
   function updateTop() {
     const p = problem();
     saveBtn.disabled = !!p;
+    delBtn.disabled = !(S.loaded && !S.loaded.builtin); // only a saved deck can be deleted
     msg.textContent = dirty() ? p || '' : '';
   }
   function changed() {
@@ -175,6 +201,14 @@ const DeckEditor = (function () {
     S.saved = snap();
     refreshSelect(String(DeckStore.list().findIndex(d => d.name === n)));
     updateTop();
+  }
+  async function del() {
+    const d = S.loaded;
+    if (!d || d.builtin) return;
+    if (!(await confirmBox('Delete the deck \u201c' + d.name + '\u201d? This cannot be undone.', 'Delete', 'Cancel'))) return;
+    DeckStore.remove(d.name);
+    S.last = null;
+    load(DeckStore.list()[0], '0');
   }
   const discardOk = msg => (dirty() ? confirmBox(msg) : Promise.resolve(true));
 
@@ -277,9 +311,10 @@ const DeckEditor = (function () {
     nameIn.placeholder = 'Deck name';
     nameIn.spellcheck = false;
     saveBtn = mkBtn('Save', save, 'c-go');
+    delBtn = mkBtn('Delete', del, 'c-atk');
     msg = mkEl('span', 'de-msg');
     selEl = mkEl('select', 'dctl');
-    top.append(nameIn, saveBtn, selEl, msg);
+    top.append(nameIn, saveBtn, delBtn, selEl, msg);
     root.querySelector('.de-exit').appendChild(
       mkBtn('Exit', async () => {
         if (!(await discardOk('Leave the deck editor? Unsaved changes will be lost.'))) return;
@@ -287,6 +322,53 @@ const DeckEditor = (function () {
         MenuUI.show();
       })
     );
+    const fl = mkEl('div', 'de-filters'),
+      mkSel = (opts, key) => {
+        const s = mkEl('select', 'dctl');
+        for (const [v, t] of opts) {
+          const o = mkEl('option');
+          o.value = v;
+          o.textContent = t;
+          s.appendChild(o);
+        }
+        s.value = S[key];
+        s.addEventListener('change', () => {
+          S[key] = s.value;
+          renderList();
+        });
+        return s;
+      },
+      only = mkEl('label', 'mcheck'),
+      onlyCb = mkEl('input');
+    onlyCb.type = 'checkbox';
+    onlyCb.checked = S.fOnly;
+    onlyCb.addEventListener('change', () => {
+      S.fOnly = onlyCb.checked;
+      renderList();
+    });
+    only.append(onlyCb, document.createTextNode(' Only matches'));
+    fl.append(
+      mkSel(
+        [
+          ['all', 'All types'],
+          ['creature', 'Creatures'],
+          ['enchantment', 'Enchantments'],
+          ['quick', 'Quick spells'],
+          ['slow', 'Slow spells'],
+        ],
+        'fType'
+      ),
+      mkSel(
+        [
+          ['all', 'In deck or not'],
+          ['out', 'Not in deck'],
+          ['in', 'In deck'],
+        ],
+        'fIn'
+      ),
+      only
+    );
+    search.after(fl);
     extra.replaceChildren(...Array.from({ length: 20 }, () => mkEl('div', 'de-cell empty')));
     root.addEventListener(
       'pointerdown',

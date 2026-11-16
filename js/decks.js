@@ -69,6 +69,12 @@ const DeckStore = (function () {
     list,
     find: name => list().find(d => d.name === name) || null,
     nameUsed: name => list().some(d => d.name === name),
+    remove(name) {
+      mem.delete(name);
+      try {
+        document.cookie = ckey(name) + '=; max-age=0; path=/; SameSite=Lax';
+      } catch (e) {}
+    },
     save(name, cards) {
       cards = clean(cards);
       mem.set(name, { name, cards });
@@ -117,6 +123,11 @@ function substringDist(q, t) {
     best = Math.min(best, col[m]);
   }
   return best;
+}
+function cardMatches(query, d) {
+  // the 'Only matches' filter: the name contains the query, give or take a typo (one edit per four letters)
+  const q = query.trim().toLowerCase();
+  return !q || substringDist(q, d.name.toLowerCase()) <= Math.floor(q.length / 4);
 }
 function rankCards(query, defs) {
   // the single closest match first, everything else alphabetical

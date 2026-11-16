@@ -2,7 +2,7 @@
 Sim.def('ch', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
   let other; // util
-  let addStatus, hurt, live, removeStatus; // statuses
+  let addStatus, has, hurt, live, removeStatus; // statuses
   let bounce, enterBoard, freeSlots, makeToken; // state
   let ask, askDeck, runFx, upToAsk; // fx
   let THEN; // then
@@ -16,6 +16,11 @@ Sim.def('ch', function (K) {
         const p = cmd.option.slice(2);
         hurt(s, p, k.amount, c.def.name, 'effect');
         ev.push({ t: 'PlayerDamaged', player: p, amount: k.amount });
+      } else if (cmd.option.startsWith('Z:')) {
+        // a zone under a cloud was picked: only what is REALLY there is affected; an empty (or red-shielded) zone fizzles and reveals nothing
+        const id = s.slots[cmd.option.slice(2)],
+          t = id && s.cards[id];
+        if (t && t.loc === 'board' && !has(t, 'red')) THEN[k.then](s, k.player, c, t, k, ev);
       } else THEN[k.then](s, k.player, c, s.cards[cmd.option], k, ev);
     },
     place: (s, k, c, cmd, ev) => {
@@ -99,6 +104,7 @@ Sim.def('ch', function (K) {
       'enterBoard',
       'extraAttack',
       'freeSlots',
+      'has',
       'hurt',
       'live',
       'makeToken',
@@ -117,6 +123,7 @@ Sim.def('ch', function (K) {
         enterBoard,
         extraAttack,
         freeSlots,
+        has,
         hurt,
         live,
         makeToken,

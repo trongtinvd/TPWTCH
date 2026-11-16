@@ -98,8 +98,8 @@ Sim.def('dispatch', function (K) {
           c.loc = 'board';
           if (paid) addStatus(s, c, { kind: 'extraPaid', srcName: 'additional cost' });
           ev.push({ t: 'PermanentSummoned', iid: c.iid, slot: cmd.slot });
+          fire(s, ev, 'enter', c); // before recalc: War Drum answered by War Drum kills both, both triggers still happen
           recalc(s, ev);
-          fire(s, ev, 'enter', c);
           if (c.owner === s.active && !s.respond) openRespond(s, ev, 'enter');
         } else {
           c.loc = 'stack';

@@ -19,6 +19,8 @@ let sim = Sim.create(newSeed(), DEFS),
   game = sim; // sim: authoritative state. game: what is on screen (lags the sim while animations play)
 const undoStack = [],
   eventLog = []; // snapshots for undo; recent rule events
+const cmdLog = []; // every ACCEPTED command of the running duel: with the seed and the decks it IS the replay (the Sim is deterministic)
+const rp = { on: false, feed: false, rec: null, i: 0, playing: false, speed: 1, timer: 0 }; // replay playback (replay.js)
 // ---- THE UI STATE. Every mutable piece of interaction state lives here (the view never edits `game`; it only calls send()).
 // Rule: only sync() turns state into pixels: handlers change ui.* and call sync() / send(); sync() rebuilds the meshes and the panels and
 // sets ui.dirty, and the render loop in main.js draws only while ui.dirty (or an animation) asks for it.
@@ -66,6 +68,7 @@ const ui = {
   autoTimer: 0,
   autoDepth: 0,
   lastCfg: null, // {mode:'self'|'bot', p1, p2, shuffle} of the running game
+  rpInit: null, // what a replay needs besides the commands: seed, both decks, mode, deck names
   botTimer: 0,
   // render on demand
   dirty: true,
@@ -202,6 +205,11 @@ async function attackJob(pre, ev) {
   ui.dirty = true;
 }
 function send(cmd) {
+  if (rp.on && !rp.feed) {
+    ui.note = 'Replay: watching only';
+    sync();
+    return { ok: false, why: 'Replay: watching only', events: [] };
+  } // while a replay plays only the replay itself sends commands
   if (ui.fxBusy) {
     sync();
     return { ok: false, why: 'Animation in progress', events: [] };
@@ -224,6 +232,7 @@ function send(cmd) {
       : '';
     undoStack.push(pre);
     if (undoStack.length > 200) undoStack.shift();
+    if (!rp.on) cmdLog.push(JSON.parse(JSON.stringify(cmd)));
     eventLog.push(...r.events);
     if (eventLog.length > 200) eventLog.splice(0, eventLog.length - 200);
     ui.placing = null;
@@ -305,7 +314,7 @@ function send(cmd) {
   return r;
 }
 function autoStep() {
-  if (MenuUI.away) return; // the menu or the deck editor is on screen: the game waits
+  if (MenuUI.away || rp.on) return; // the menu or the deck editor is on screen (or a replay plays): nothing happens by itself
   if (ui.mode === 'bot' && botWants()) {
     botSchedule();
     return;
@@ -374,6 +383,7 @@ const place = (c, zone) => {
 };
 function undo() {
   if (!undoStack.length || ui.fxBusy) return;
+  if (!rp.on) cmdLog.pop(); // an undone command is not part of the duel any more
   sim = undoStack.pop();
   game = sim;
   ui.placing = null;
@@ -491,6 +501,12 @@ function resetGame() {
   fxReset();
   undoStack.length = 0;
   eventLog.length = 0;
+  rp.on = false;
+  rp.playing = false;
+  clearTimeout(rp.timer);
+  Replays.bar(false);
+  cmdLog.length = 0;
+  ui.rpInit = { n: sim.n, d1: deckOf(c.p1).slice(), d2: deckOf(c.p2).slice(), sh: !!c.shuffle, mode: c.mode, a: c.p1, b: c.p2 };
   for (const m of meshes.values()) cardGroup.remove(m);
   meshes.clear();
   ui.selected = null;
@@ -606,7 +622,16 @@ const DBTN = [
     },
     on: () => true,
   },
-  { id: 'reset', label: () => 'Reset game', run: resetGame, on: () => true },
+  {
+    id: 'reset',
+    label: () => 'Reset game',
+    run: () => {
+      Replays.saveCurrent()
+        .catch(() => false)
+        .then(resetGame);
+    },
+    on: () => true,
+  },
   {
     id: 'deckedit',
     label: () => 'Reorder decks: ' + (ui.deckEdit ? 'on' : 'off'),

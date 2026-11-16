@@ -22,8 +22,21 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # The headless rules tests run first: a failing check blocks the deploy
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Rules tests
+        run: node tests/run.js
   # Single deploy job since we're just deploying
   deploy:
+    needs: test
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

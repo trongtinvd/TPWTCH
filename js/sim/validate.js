@@ -17,6 +17,7 @@ const apiErrors = () => {
     if (d.colTarget && !A.colTargets.includes(d.colTarget)) bad.push(d.id + ': unknown column target ' + d.colTarget);
     (d.triggers || []).forEach(g => {
       A.triggers.includes(g.on) || bad.push(d.id + ': unknown trigger ' + g.on);
+      if (g.cond && !A.conds.includes(g.cond)) bad.push(d.id + ': unknown condition ' + g.cond);
       walk(d.id, g.effects, 'effects');
     });
     (d.abilities || []).forEach(a => {

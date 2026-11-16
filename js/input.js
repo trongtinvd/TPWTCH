@@ -140,9 +140,11 @@ addEventListener('pointerup', e => {
             : null
           : k.kind
             ? ['damage', 'pick', 'swap'].includes(k.kind)
-              ? u.card
-                ? u.card.iid
-                : occ
+              ? u.slotKey && k.options.includes('Z:' + u.slotKey)
+                ? 'Z:' + u.slotKey
+                : u.card
+                  ? u.card.iid
+                  : occ
               : null
             : u.slotKey && u.baseEm
               ? u.slotKey === game.cards[k.iid].slot

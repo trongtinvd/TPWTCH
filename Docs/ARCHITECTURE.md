@@ -87,7 +87,7 @@ Headless runs, replay, stats, AI tournaments, personality evolution. Benchmark f
 8. State growth from kept-but-removed statuses.
 
 ## Rules tests
-Status in `tests/selftest.js` (`node tests/run.js`, or `cardGame.selfTest()` in the console; headless, 294 checks):
+Status in `tests/selftest.js` (`node tests/run.js`, or `cardGame.selfTest()` in the console; headless, 307 checks):
 - [x] Effect APIs valid; determinism; deck phase; draw / major action; placement.
 - [x] Combat trample and edge cases; Attack objects (no HP, bonus, cancel, attacker leaving, defender priority).
 - [x] Stack HP, LIFO, costs, fizzle; triggers and simultaneous order.

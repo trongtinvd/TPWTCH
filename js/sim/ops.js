@@ -3,12 +3,31 @@ Sim.def('ops', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
   let cname, colKeys, zoneDist; // util
   let PL, addStatus, clearAttacked, clearStatuses, has, hasSt, hurt, isRevealed, live, removeStatus, syncLife; // statuses
-  let destroy, freeSlots, makeToken, recalc; // state
+  let cloudMap, destroy, freeSlots, makeToken, recalc; // state
   let pendingAtk; // targeting
-  let ask, askCounters, askDeck, foeCreatures, runFx, upToAsk; // fx
+  let ask, askCounters, askDeck, foeCreatures, runFx, suspend, upToAsk; // fx
   let CH; // ch
   let dealDamage; // combat
   let fire, hitStack; // stack
+  // Board picks for the player x.who. A card under an enemy cloud is never offered by itself: its ZONE is ('Z:slot'), empty or not,
+  // so the picker learns nothing about what is underneath. Elsewhere a card is offered unless it has a red shield.
+  const boardPicks = (x, foeOnly) => {
+    const s = x.s,
+      m = cloudMap(s),
+      out = [];
+    for (const k of Object.keys(s.slots)) {
+      if (s.unusable[k]) continue;
+      const own = k.split('|')[0] === x.who;
+      if (foeOnly && own) continue;
+      if (m[k] && !own) {
+        out.push('Z:' + k);
+        continue;
+      }
+      const c = s.slots[k] && s.cards[s.slots[k]];
+      if (c && !has(c, 'red')) out.push(c.iid);
+    }
+    return out;
+  };
   const OPS = {
     // effect handlers: (ctx, effect). ctx = {s, ev, src, t, who, foe}
     DealDamage: (x, e) => {
@@ -121,8 +140,8 @@ Sim.def('ops', function (K) {
       x.s.cards[t.iid] = t;
       x.s.slots[x.zone] = t.iid;
       x.ev.push({ t: 'PermanentSummoned', iid: t.iid, slot: x.zone });
-      recalc(x.s, x.ev);
       fire(x.s, x.ev, 'enter', t);
+      recalc(x.s, x.ev);
     },
     ExileColumn: x => {
       if (x.col == null) return;
@@ -174,7 +193,14 @@ Sim.def('ops', function (K) {
       if (x.t && x.t.loc === 'board') askCounters(x.s, x.who, x.src, x.t, e.n, x.ev);
     },
     Repeat: (x, e) => {
-      for (let i = 0; i < e.n; i++) runFx(x, e.effects);
+      for (let i = 0; i < e.n; i++) {
+        runFx(x, e.effects);
+        if (x.s.choice) {
+          // an inner effect opened a choice: do NOT go on to the next repetition, resume with the remaining ones after the answer
+          if (i < e.n - 1) suspend(x, [{ op: 'Repeat', n: e.n - i - 1, effects: e.effects }]);
+          return;
+        }
+      }
     },
     ChooseMode: (x, e) => {
       // only one fitting mode: run it; several: the controller picks
@@ -205,12 +231,9 @@ Sim.def('ops', function (K) {
               return c.iid;
             })
           : e.from === 'foeBoard'
-            ? cs.filter(c => c.loc === 'board' && !mine(c) && !has(c, 'red')).map(c => c.iid)
+            ? boardPicks(x, true)
             : e.from === 'anyTarget'
-              ? cs
-                  .filter(c => c.loc === 'board' && !has(c, 'red'))
-                  .map(c => c.iid)
-                  .concat(['P:Player', 'P:Opponent'])
+              ? boardPicks(x, false).concat(['P:Player', 'P:Opponent'])
               : e.from === 'myGYCreatures'
                 ? cs
                     .filter(
@@ -374,6 +397,7 @@ Sim.def('ops', function (K) {
       'askDeck',
       'clearAttacked',
       'clearStatuses',
+      'cloudMap',
       'cname',
       'colKeys',
       'dealDamage',
@@ -392,6 +416,7 @@ Sim.def('ops', function (K) {
       'recalc',
       'removeStatus',
       'runFx',
+      'suspend',
       'syncLife',
       'upToAsk',
       'zoneDist',
@@ -406,6 +431,7 @@ Sim.def('ops', function (K) {
         askDeck,
         clearAttacked,
         clearStatuses,
+        cloudMap,
         cname,
         colKeys,
         dealDamage,
@@ -424,6 +450,7 @@ Sim.def('ops', function (K) {
         recalc,
         removeStatus,
         runFx,
+        suspend,
         syncLife,
         upToAsk,
         zoneDist,

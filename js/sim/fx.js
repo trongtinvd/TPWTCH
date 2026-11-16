@@ -3,30 +3,40 @@ Sim.def('fx', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
   let cname; // util
   let dmgs, removeStatus; // statuses
-  let freeSlots; // state
+  let cloudMap, freeSlots; // state
   let OPS; // ops
+  // a continuation frame = the rest of an effect list plus the context it needs; EVERY field an op may have set on x belongs here (zone: NearestZone)
+  const frameOf = (x, rest) => ({
+    rest,
+    src: x.src.iid,
+    who: x.who,
+    foe: x.foe,
+    col: x.col,
+    tp: x.tp,
+    zone: x.zone,
+    t: x.t && x.t.iid,
+    o: x.o && { tsid: x.o.tsid },
+  });
+  const suspend = (x, rest) => {
+    (x.s.choice.cont = x.s.choice.cont || []).push(frameOf(x, rest));
+  }; // call right after an op opened a choice: the answer resumes `rest`
   const runFx = (x, list) => {
     list = list || []; // an op that opens a choice suspends the rest of the list as a continuation frame; Choose resumes it
     for (let i = 0; i < list.length; i++) {
       const e = list[i];
       if (OPS[e.op]) OPS[e.op](x, e);
       if (x.s.choice && i < list.length - 1) {
-        (x.s.choice.cont = x.s.choice.cont || []).push({
-          rest: list.slice(i + 1),
-          src: x.src.iid,
-          who: x.who,
-          foe: x.foe,
-          col: x.col,
-          tp: x.tp,
-          t: x.t && x.t.iid,
-          o: x.o && { tsid: x.o.tsid },
-        });
+        suspend(x, list.slice(i + 1));
         return;
       }
     }
   };
-  const foeCreatures = x =>
-    Object.values(x.s.cards).filter(c => c.loc === 'board' && c.def.type === 'creature' && c.owner !== x.who).length;
+  const foeCreatures = x => {
+    const m = cloudMap(x.s); // a creature under a cloud is not seen: next to a King Eye the foe sees ONE creature (King Eye itself)
+    return Object.values(x.s.cards).filter(
+      c => c.loc === 'board' && c.def.type === 'creature' && c.owner !== x.who && !m[c.slot]
+    ).length;
+  };
   function ask(s, who, src, kind, ids, label, prompt, extra, ev) {
     s.choice = Object.assign(
       {
@@ -113,6 +123,7 @@ Sim.def('fx', function (K) {
           foe: f.foe,
           col: f.col,
           tp: f.tp,
+          zone: f.zone,
           t: f.t ? s.cards[f.t] : null,
           o: f.o,
         };
@@ -124,10 +135,10 @@ Sim.def('fx', function (K) {
     }
   }
   return {
-    exports: { ask, askCounters, askDeck, foeCreatures, resume, runFx, upToAsk },
-    needs: ['OPS', 'cname', 'dmgs', 'freeSlots', 'removeStatus'],
+    exports: { ask, askCounters, askDeck, foeCreatures, resume, runFx, suspend, upToAsk },
+    needs: ['OPS', 'cloudMap', 'cname', 'dmgs', 'freeSlots', 'removeStatus'],
     link: () => {
-      ({ OPS, cname, dmgs, freeSlots, removeStatus } = K);
+      ({ OPS, cloudMap, cname, dmgs, freeSlots, removeStatus } = K);
     },
   };
 });

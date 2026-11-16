@@ -125,7 +125,7 @@ Optional fields: `hp`, `zone`, `cond`. `fire()` collects all matches, turn playe
 Test-only fixtures (not in decks): Soldier 2/3, Knight 4/5, Giant 6/8, Guard 1/6, Wolf 3/3, Barrier, Aura, Banner, Trap, Mend, Fireball, Rally, Blast, **Rage** (Quick, HP 2, `req attackOnStack`: `addAttackDamage(4)`).
 
 ## Tests
-`tests/selftest.js` (`node tests/run.js`, or `cardGame.selfTest()` in the console; headless, no THREE/DOM): 294 checks. Added: status order and folds, removal on leaving the board (kept in the list), `keep`, zone-bound statuses, expiry, aura enter/leave/return, linked ability status, player list folds, `nogain`, Heaven and Sun vault, `revealed`, and the Attack bonus (resolves, stays after the attacker leaves, defender can boost). Not yet covered: Creeping Parasite modes other than 0, Shark's second-combat edge cases with statuses.
+`tests/selftest.js` (`node tests/run.js`, or `cardGame.selfTest()` in the console; headless, no THREE/DOM): 307 checks. Added: status order and folds, removal on leaving the board (kept in the list), `keep`, zone-bound statuses, expiry, aura enter/leave/return, linked ability status, player list folds, `nogain`, Heaven and Sun vault, `revealed`, and the Attack bonus (resolves, stays after the attacker leaves, defender can boost). Not yet covered: Creeping Parasite modes other than 0, Shark's second-combat edge cases with statuses.
 
 ## Not implemented
 - Base/Current stat layers and equipment (only the status fold exists), durations other than `turnEnd`, Maximum Damage.

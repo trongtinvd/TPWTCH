@@ -26,8 +26,8 @@ function selfTest() {
         : 'why="' + r.why + '", events=' + r.events.length + ', stateUnchanged=' + (JSON.stringify(s) === before)
     );
   };
-  const start = seed => {
-    const s = Sim.create(seed, DEFS.concat(FIXTURES));
+  const start = (seed, extra) => {
+    const s = Sim.create(seed, DEFS.concat(FIXTURES, extra || []));
     for (const p of ['Player', 'Opponent']) D(s, { type: 'Start', player: p });
     for (const p of ['Player', 'Opponent']) {
       const P = s.piles[p],
@@ -2379,6 +2379,153 @@ function selfTest() {
       'bot vs bot: 600 commands, every one legal, never stuck, turns keep passing',
       !bad && !stuck && s.turn > 6,
       'bad=' + bad + ' stuck=' + stuck + ' steps=' + steps + ' turn=' + s.turn
+    );
+  }
+  // ================= Patch 3: enter triggers on death, King Eye counts and picks, Repeat / continuations, conditions, decks, replay =================
+  {
+    const s = start(700),
+      w1 = take(s, 'Player', 'wardrum', 'hand'),
+      w2 = take(s, 'Opponent', 'wardrum', 'hand');
+    D(s, { type: 'PlayCard', iid: w1.iid, slot: 'Player|back|1' });
+    D(s, { type: 'PlayCard', iid: w2.iid, slot: 'Opponent|back|1' });
+    eq(
+      'War Drum answered by War Drum: both die on entering (-1/-1 each) but BOTH enter triggers are on the stack',
+      [w1.loc, w2.loc, s.stack.length, owners(s)],
+      ['gy', 'gy', 2, ['Player', 'Opponent']]
+    );
+    pass2(s);
+    D(s, { type: 'Choose', player: 'Opponent', option: 'Opponent|front|0' });
+    pass2(s);
+    D(s, { type: 'Choose', player: 'Player', option: 'Player|front|0' });
+    eq(
+      '...and both resolve: each dead Drum still creates its Drummer',
+      Object.values(s.cards)
+        .filter(x => x.def.id === 'drummer-token' && x.loc === 'board')
+        .map(x => x.owner),
+      ['Opponent', 'Player']
+    );
+  }
+  {
+    const setup = () => {
+      const s = start(701),
+        ke = take(s, 'Player', 'kingeye', 'board', 'Player|front|1'),
+        so = take(s, 'Player', 'soldier', 'board', 'Player|front|0');
+      take(s, 'Player', 'wolf', 'board', 'Player|front|2');
+      const pa = take(s, 'Opponent', 'parasite', 'hand');
+      s.priority = 'Opponent';
+      D(s, { type: 'PlayCard', iid: pa.iid, slot: 'Opponent|front|0' });
+      drain(s);
+      return { s, ke, so };
+    };
+    let { s, ke, so } = setup();
+    eq(
+      'King Eye: Creeping Parasite sees ONE creature (King Eye), so only modes 0 and 1 are unlocked',
+      [s.choice.kind, s.choice.options],
+      ['mode', ['0', '1']]
+    );
+    D(s, { type: 'Choose', player: 'Opponent', option: '1' });
+    const o = s.choice.options;
+    check(
+      'a cloud zone is a legal pick (empty or not); the cards under clouds are never offered themselves; King Eye and players are',
+      o.includes('Z:Player|front|0') &&
+        o.includes('Z:Player|front|2') &&
+        o.includes('Z:Player|back|4') &&
+        !o.includes(so.iid) &&
+        o.includes(ke.iid) &&
+        o.includes('P:Player'),
+      o.join()
+    );
+    D(s, { type: 'Choose', player: 'Opponent', option: 'Z:Player|back|4' });
+    eq(
+      'picking a cloud with nothing underneath is accepted and fizzles: nothing happens, nothing is revealed',
+      [s.choice, so.loc, ndmg(so)],
+      [null, 'board', 0]
+    );
+    ({ s, ke, so } = setup());
+    D(s, { type: 'Choose', player: 'Opponent', option: '1' });
+    D(s, { type: 'Choose', player: 'Opponent', option: 'Z:Player|front|0' });
+    eq('picking a cloud with a card underneath hits that card (4 damage kills the Soldier)', [s.choice, so.loc], [null, 'gy']);
+  }
+  {
+    const rep1 = Fx.creature('t-repeat', 'Repeater', 1, 1, {
+        triggers: [Fx.trigger.enter(Fx.repeat(2, Fx.shiftAdjacent()))],
+      }),
+      s = start(702, [rep1]),
+      r = take(s, 'Player', 't-repeat', 'hand');
+    D(s, { type: 'PlayCard', iid: r.iid, slot: 'Player|front|2' });
+    drain(s);
+    const first = !!s.choice;
+    D(s, { type: 'Choose', player: 'Player', option: 'stay' });
+    const second = !!s.choice;
+    D(s, { type: 'Choose', player: 'Player', option: 'stay' });
+    eq('Repeat: a choice inside it is answered before the next repetition (two choices, none overwritten)', [first, second, s.choice], [true, true, null]);
+    const zc = Fx.creature('t-zone', 'Zoner', 1, 1, {
+        tokens: { t: Fx.creature('t-tok', 'Tok', 1, 1, {}) },
+        triggers: [Fx.trigger.enter(Fx.nearestZone(['self']), Fx.shiftAdjacent(), Fx.createToken('t'))],
+      }),
+      q = start(703, [zc]),
+      z = take(q, 'Player', 't-zone', 'hand');
+    D(q, { type: 'PlayCard', iid: z.iid, slot: 'Player|front|2' });
+    drain(q);
+    D(q, { type: 'Choose', player: 'Player', option: 'stay' });
+    drain(q);
+    eq(
+      'continuation frames keep the picked zone: NearestZone, a choice, then CreateToken still has its zone',
+      Object.values(q.cards).filter(x => x.def.id === 't-tok' && x.loc === 'board').length,
+      1
+    );
+  }
+  {
+    const bc = Fx.creature('t-badcond', 'BadCond', 1, 1, {
+        triggers: [Object.assign(Fx.trigger.enter(Fx.draw(1)), { cond: 'nope' })],
+      }),
+      s = start(704, [bc]),
+      c = take(s, 'Player', 't-badcond', 'hand');
+    let ok = false,
+      thrown = null;
+    try {
+      ok = D(s, { type: 'PlayCard', iid: c.iid, slot: 'Player|front|0' }).ok;
+    } catch (e) {
+      thrown = String(e);
+    }
+    eq('an unknown trigger condition never crashes the Sim (fails closed: the trigger does not fire)', [thrown, ok, s.stack.length], [null, true, 0]);
+    check(
+      'Sim.API lists the trigger conditions (the validator checks them)',
+      ['extraPaid', 'firstCombat', 'ownInAttackCol'].every(n => Sim.API.conds.includes(n))
+    );
+  }
+  {
+    const ids = DEFS.map(d => d.id).slice(0, 10);
+    DeckStore.save('zz tmp deck', ids);
+    const had = DeckStore.nameUsed('zz tmp deck');
+    DeckStore.remove('zz tmp deck');
+    eq('DeckStore.remove deletes a saved deck', [had, DeckStore.nameUsed('zz tmp deck')], [true, false]);
+    const bolts = DEFS.filter(d => cardMatches('bolt', d)).map(d => d.id);
+    check(
+      'deck editor "Only matches": names containing the query (or a typo of it) match, others do not',
+      bolts.includes('bolt') && bolts.includes('boltmaster') && bolts.includes('superbolt') && !bolts.includes('zap') && cardMatches('', DEFS[0]),
+      bolts.join()
+    );
+  }
+  {
+    // replay: seed + decks + the accepted commands rebuild the identical game
+    const opts = { decks: { Player: BUILTIN_DECKS[1].cards, Opponent: BUILTIN_DECKS[0].cards }, shuffle: true, autoStart: true },
+      a = Sim.create(800, DEFS, opts),
+      rnd = botRng(3),
+      mem = {},
+      cmds = [];
+    for (let i = 0; i < 300; i++) {
+      const cmd = botChoose(a, botActor(a), rnd, mem);
+      if (!cmd) break;
+      if (D(a, cmd).ok) cmds.push(JSON.parse(JSON.stringify(cmd)));
+    }
+    const b = Sim.create(800, DEFS, opts);
+    let bad = 0;
+    for (const cmd of cmds) if (!D(b, cmd).ok) bad++;
+    check(
+      'replay: seed + decks + the recorded commands rebuild the identical game state',
+      cmds.length > 50 && !bad && JSON.stringify(a) === JSON.stringify(b),
+      'commands=' + cmds.length + ' rejected=' + bad
     );
   }
   out.push(

@@ -44,6 +44,7 @@ Sim.boot(K => {
     riders: K.RIDERS,
     triggers: K.TRIGGERS,
     passives: K.PASSIVES,
+    conds: K.COND,
   };
   return {
     addStatus,

@@ -7,6 +7,8 @@ Settle **before the card pool grows**; record decisions in `RULES.md`.
 - [x] **Where do creatures / enchantments go?** Creatures front, enchantments back, unless a card says otherwise.
 - [x] **Normal attacks and the stack.** Need an empty stack unless a card says otherwise.
 - [x] **Statuses.** One ordered list per card and per player; state = fold, newest applied last; removed on leaving the board, on failing a requirement, on clearing themselves, on expiry; removed ones stay greyed (toggle). See `RULES.md`.
+- [x] **Enter triggers when a permanent dies on entering.** They are queued before the state-based check and still resolve (War Drum vs War Drum).
+- [x] **Hidden information and counts (King Eye).** Creatures under a cloud count as none for effects that count the foe's creatures; a cloud zone is a legal pick; an empty or red-shielded pick fizzles and reveals nothing.
 
 ## Rules definitions
 - [ ] 1. "Destroy" vs other ways of leaving play? (Proto: `destroy` = board -> GY; sacrifice the same; exile and bounce separate. All remove the card's statuses.)

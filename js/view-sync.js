@@ -573,7 +573,7 @@ function sync() {
       : ch.kind === 'place'
         ? ch.options
         : ['damage', 'pick', 'swap'].includes(ch.kind)
-          ? ch.options.map(i => game.cards[i] && game.cards[i].slot).filter(Boolean)
+          ? ch.options.map(i => (i.startsWith('Z:') ? i.slice(2) : game.cards[i] && game.cards[i].slot)).filter(Boolean)
           : ch.kind
             ? []
             : ch.options; // shift choice: highlight left / right / current zone
@@ -594,6 +594,8 @@ function sync() {
     z.userData.hoverEm = cur ? 0xc99a2a : 0;
     applyEm(z);
   });
+  for (const k in clouds)
+    if (clouds[k].visible && k.split('|')[0] !== ui.view && valid.includes(slotZones[k])) clouds[k].material = cloudHot; // the clouds are legal targets: they light up too
   zones.forEach(z => {
     const dead = !!(z.userData.slotKey && game.unusable[z.userData.slotKey]);
     z.visible = !dead;

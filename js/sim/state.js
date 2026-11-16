@@ -183,8 +183,8 @@ Sim.def('state', function (K) {
     t.slot = slot;
     t.loc = 'board';
     ev.push({ t: 'PermanentSummoned', iid: t.iid, slot });
+    fire(s, ev, 'enter', t); // queued BEFORE the state-based check: a permanent that dies on entering still has its enter triggers
     recalc(s, ev);
-    fire(s, ev, 'enter', t);
   }
   function makeToken(s, def, owner, zone, ev) {
     const n = (s.tokN = (s.tokN || 0) + 1),
@@ -192,8 +192,8 @@ Sim.def('state', function (K) {
     s.cards[t.iid] = t;
     s.slots[zone] = t.iid;
     ev.push({ t: 'PermanentSummoned', iid: t.iid, slot: zone });
-    recalc(s, ev);
     fire(s, ev, 'enter', t);
+    recalc(s, ev);
   }
   return {
     exports: {

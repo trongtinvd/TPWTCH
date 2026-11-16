@@ -452,3 +452,35 @@
   z-index: 39;
   background: var(--bg);
 }
+.de-filters {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.de-filters .dctl {
+  flex: 1 1 100px;
+  padding: 5px 6px;
+  font-size: 12px;
+}
+.rp-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 50vh;
+  overflow: auto;
+}
+.rp-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 12px;
+}
+.rp-row span {
+  flex: 1;
+  min-width: 0;
+}
+.rp-row .abtn {
+  padding: 5px 9px;
+  font-size: 12px;
+}
