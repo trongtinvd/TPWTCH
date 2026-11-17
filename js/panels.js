@@ -168,7 +168,59 @@ function buildList() {
   deckPanel.hidden = false;
   deckPanel.scrollTop = st;
 }
-function showCard(c, pin = true) {
+// ---- The card text as parts (one per trigger / ability / passive / rider, see textParts in cards.js).
+// cls: ''    normal
+//      'dim' GREYED OUT = not usable from where the card is right now (or, with a stack ability selected: not that ability)
+//      'off' CROSSED OUT = disabled (Avatar of Rabies took the card's abilities away; the new ones are added after them)
+//      'hl'  the ability selected on the stack
+const partOn = (c, p, def) => {
+  // usable from the card's current location? (location only: priority, timing and costs are not considered)
+  if (p.list === 'passives' || p.list === 'rider') return c.loc === 'board';
+  if (p.list === 'triggers') {
+    const t = def.triggers[p.i];
+    return t.on === 'enter' ? c.loc !== 'board' : c.loc === (t.zone || 'board'); // a permanent cannot enter the board from the board
+  }
+  if (p.list === 'abilities') return c.loc === (def.abilities[p.i].zone || 'board');
+  return true; // keywords and the text of a spell
+};
+function cardParts(c, H) {
+  const sc = (H && game.cards[H.src]) || c,
+    base = sc.def,
+    eff = sc.loc === 'board' ? Sim.abDef(sc) : base,
+    swapped = eff.id !== base.id;
+  const add = (out, def, off, onlyAb) => {
+    for (const p of textParts(def)) {
+      const ab = p.list !== 'kw' && p.list !== 'body';
+      if (onlyAb && !ab) continue;
+      const hit = !!H && def.id === H.from && p.list === H.list && p.i === H.i;
+      out.push({
+        text: p.text,
+        cls: hit ? 'hl' : H ? 'dim' : off && ab ? 'off' : partOn(sc, p, def) ? '' : 'dim',
+      });
+    }
+    return out;
+  };
+  let out = add([], base, swapped, false); // the printed abilities: crossed out when replaced
+  if (swapped) add(out, eff, false, true); // ...and the ones that replaced them
+  if (H && !out.some(x => x.cls === 'hl')) {
+    // the selected object came from abilities the card has lost since (its Avatar damage was removed): show the text it came from
+    const fd = DEFS.find(x => x.id === H.from);
+    if (fd) out = add([], fd, false, false);
+  }
+  return out;
+}
+function partsInto(p, parts) {
+  p.textContent = '';
+  parts.forEach((x, i) => {
+    const s = document.createElement('span');
+    s.className = 'seg' + (x.cls ? ' ' + x.cls : '');
+    s.textContent = x.text;
+    s.title = { off: 'Disabled (crossed out)', dim: 'Not usable right now (greyed out)' }[x.cls] || '';
+    p.appendChild(s);
+    if (i < parts.length - 1) p.appendChild(document.createTextNode(' '));
+  });
+}
+function showCard(c, pin = true, hl = null) {
   ui.inspLast = { c };
   const d = c.def,
     T = TYPES[d.type],
@@ -177,7 +229,10 @@ function showCard(c, pin = true) {
   if (pin) {
     ui.selected = c;
     ui.selP = null;
+    ui.selHl = hl;
   }
+  const H = c === ui.selected ? ui.selHl : null, // a selected stack ability: its text is highlighted, the rest greyed out
+    parts = cardParts(c, H);
   deckPanel
     .querySelectorAll('.row')
     .forEach((r, i) => r.classList.toggle('sel', !!ui.openList && listCards(ui.openList)[i] === ui.selected));
@@ -219,7 +274,10 @@ function showCard(c, pin = true) {
       .map(x => x.text)
       .join('|') +
     '|' +
-    (cloudMap_(c) ? 'cloud' : '');
+    (cloudMap_(c) ? 'cloud' : '') +
+    '|' +
+    JSON.stringify(H) +
+    JSON.stringify(parts);
   if (inspect.hidden || inspect.dataset.key !== key) {
     inspect.dataset.key = key;
     inspect.innerHTML =
@@ -233,7 +291,7 @@ function showCard(c, pin = true) {
     inspect.querySelector('h3').textContent = d.name;
     inspect.querySelector('.meta').textContent = T.label + (d.type === 'spell' ? ' \u00b7 ' + d.timing : '');
     inspect.querySelector('.stats').innerHTML = stats.map(x => '<span class="stat">' + x + '</span>').join('');
-    inspect.querySelector('p').textContent = d.text;
+    partsInto(inspect.querySelector('p'), parts);
     inspect.querySelector('.where').textContent = where;
     if (gyActs.length) {
       const bar = document.createElement('div');
@@ -290,7 +348,7 @@ function showPlayer(p, pin) {
     inspect.innerHTML =
       phead() +
       '<div class="art"></div><div class="pbody"><h3></h3><div class="meta">Player</div><div class="stats"></div><p></p><div class="where"></div><div class="dmg"></div></div>';
-    inspect.style.setProperty('--tc', p === 'Player' ? '#3f7fd8' : '#d4524f');
+    inspect.style.setProperty('--tc', p === 'Player' ? 'var(--p1-color)' : 'var(--p2-color)');
     inspect.querySelector('.art').textContent = NAME[p];
     inspect.querySelector('h3').textContent = NAME[p];
     inspect.querySelector('.stats').innerHTML = stats.map(x => '<span class="stat">' + x + '</span>').join('');
@@ -347,8 +405,8 @@ function openMenu(c, x, y) {
   });
   const why = acts.find(a => a.why);
   if (why)
-    menu.insertAdjacentHTML('beforeend', '<div class="note" style="margin:0"></div>'),
-      (menu.lastChild.textContent = why.why);
+    (menu.insertAdjacentHTML('beforeend', '<div class="note" style="margin:0"></div>'),
+      (menu.lastChild.textContent = why.why));
   menu.hidden = false;
   const w = 160,
     h = 56 + acts.length * 36 + (why ? 36 : 0); // placed right at the pointer, kept on screen

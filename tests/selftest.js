@@ -2444,7 +2444,11 @@ function selfTest() {
     ({ s, ke, so } = setup());
     D(s, { type: 'Choose', player: 'Opponent', option: '1' });
     D(s, { type: 'Choose', player: 'Opponent', option: 'Z:Player|front|0' });
-    eq('picking a cloud with a card underneath hits that card (4 damage kills the Soldier)', [s.choice, so.loc], [null, 'gy']);
+    eq(
+      'picking a cloud with a card underneath hits that card (4 damage kills the Soldier)',
+      [s.choice, so.loc],
+      [null, 'gy']
+    );
   }
   {
     const rep1 = Fx.creature('t-repeat', 'Repeater', 1, 1, {
@@ -2458,7 +2462,11 @@ function selfTest() {
     D(s, { type: 'Choose', player: 'Player', option: 'stay' });
     const second = !!s.choice;
     D(s, { type: 'Choose', player: 'Player', option: 'stay' });
-    eq('Repeat: a choice inside it is answered before the next repetition (two choices, none overwritten)', [first, second, s.choice], [true, true, null]);
+    eq(
+      'Repeat: a choice inside it is answered before the next repetition (two choices, none overwritten)',
+      [first, second, s.choice],
+      [true, true, null]
+    );
     const zc = Fx.creature('t-zone', 'Zoner', 1, 1, {
         tokens: { t: Fx.creature('t-tok', 'Tok', 1, 1, {}) },
         triggers: [Fx.trigger.enter(Fx.nearestZone(['self']), Fx.shiftAdjacent(), Fx.createToken('t'))],
@@ -2488,7 +2496,11 @@ function selfTest() {
     } catch (e) {
       thrown = String(e);
     }
-    eq('an unknown trigger condition never crashes the Sim (fails closed: the trigger does not fire)', [thrown, ok, s.stack.length], [null, true, 0]);
+    eq(
+      'an unknown trigger condition never crashes the Sim (fails closed: the trigger does not fire)',
+      [thrown, ok, s.stack.length],
+      [null, true, 0]
+    );
     check(
       'Sim.API lists the trigger conditions (the validator checks them)',
       ['extraPaid', 'firstCombat', 'ownInAttackCol'].every(n => Sim.API.conds.includes(n))
@@ -2503,13 +2515,21 @@ function selfTest() {
     const bolts = DEFS.filter(d => cardMatches('bolt', d)).map(d => d.id);
     check(
       'deck editor "Only matches": names containing the query (or a typo of it) match, others do not',
-      bolts.includes('bolt') && bolts.includes('boltmaster') && bolts.includes('superbolt') && !bolts.includes('zap') && cardMatches('', DEFS[0]),
+      bolts.includes('bolt') &&
+        bolts.includes('boltmaster') &&
+        bolts.includes('superbolt') &&
+        !bolts.includes('zap') &&
+        cardMatches('', DEFS[0]),
       bolts.join()
     );
   }
   {
     // replay: seed + decks + the accepted commands rebuild the identical game
-    const opts = { decks: { Player: BUILTIN_DECKS[1].cards, Opponent: BUILTIN_DECKS[0].cards }, shuffle: true, autoStart: true },
+    const opts = {
+        decks: { Player: BUILTIN_DECKS[1].cards, Opponent: BUILTIN_DECKS[0].cards },
+        shuffle: true,
+        autoStart: true,
+      },
       a = Sim.create(800, DEFS, opts),
       rnd = botRng(3),
       mem = {},
@@ -2527,6 +2547,35 @@ function selfTest() {
       cmds.length > 50 && !bad && JSON.stringify(a) === JSON.stringify(b),
       'commands=' + cmds.length + ' rejected=' + bad
     );
+  }
+  // ================= Patch 4: card text derived from abilities, Store =================
+  {
+    const hb = DEFS.find(d => d.id === 'hummingbird'),
+      parts = textParts(hb);
+    eq(
+      'card text is derived from the abilities: Red Hummingbird = 2 triggers, then 1 ability',
+      parts.map(x => x.key),
+      ['triggers:0', 'triggers:1', 'abilities:0']
+    );
+    check('...and def.text is exactly those parts joined', hb.text === parts.map(x => x.text).join(' '));
+    const wd = textParts(DEFS.find(d => d.id === 'wardrum'));
+    check(
+      'War Drum: its two enter triggers have different texts (the stack inspector highlights one of them)',
+      wd.filter(x => x.list === 'triggers').length === 2 && new Set(wd.map(x => x.text)).size === wd.length
+    );
+    const miss = DEFS.filter(d =>
+      [...(d.triggers || []), ...(d.abilities || []), ...(d.passives || [])].some(o => !o.text)
+    ).map(d => d.id);
+    check('every trigger, ability and passive of every pool card has its own text', !miss.length, miss.join());
+    check(
+      'every pool card has a derived text; Avatar\u2019s rider is a part of its own',
+      DEFS.every(d => d.text && d.text.length > 10) &&
+        textParts(DEFS.find(d => d.id === 'avatar')).some(x => x.list === 'rider')
+    );
+    Store.set('tpw_zz_probe', 'a|b');
+    const got = [Store.get('tpw_zz_probe'), Store.keys('tpw_zz_').length];
+    Store.del('tpw_zz_probe');
+    eq('Store: set / get / keys / del', [...got, Store.get('tpw_zz_probe')], ['a|b', 1, null]);
   }
   out.push(
     '---- ' +

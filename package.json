@@ -1,7 +1,31 @@
 {
+  "name": "tpwtch",
+  "version": "1.0.0",
   "private": true,
+  "description": "Yugioh, Magic inspired card game",
+  "homepage": "https://github.com/trongtinvd/TPWTCH#readme",
+  "bugs": {
+    "url": "https://github.com/trongtinvd/TPWTCH/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/trongtinvd/TPWTCH.git"
+  },
+  "license": "ISC",
+  "author": "trongtinvd",
+  "type": "commonjs",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
   "scripts": {
     "test": "node tests/run.js",
     "format": "prettier --write js css tests"
+  },
+  "dependencies": {
+    "three": "^0.187.0"
+  },
+  "devDependencies": {
+    "vite": "^8.3.8"
   }
 }

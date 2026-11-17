@@ -225,7 +225,7 @@
   opacity: 0.3;
 }
 .de-cell.drop {
-  box-shadow: 0 0 0 2px #3fe07a inset;
+  box-shadow: 0 0 0 2px var(--accent) inset;
 }
 .de-ghost {
   position: fixed;
@@ -303,7 +303,7 @@
 .de-row i {
   font-style: normal;
   font-weight: 700;
-  color: #3fe07a;
+  color: var(--accent);
 }
 .de-exit {
   display: flex;

@@ -1,5 +1,5 @@
 // layout.js - phone (portrait) layout: drag the bottom border of the inspector (top) and the top border of the stack / list panels (bottom)
-// to resize them. The sizes (% of the screen height) are kept in a cookie.
+// to resize them. The sizes (% of the screen height) are kept in localStorage.
 (function () {
   const KEY = 'tpw_layout',
     LIM = [12, 50], // each panel: 12% to 50% of the screen height
@@ -15,16 +15,9 @@
     raf = requestAnimationFrame(() => dispatchEvent(new Event('resize'))); // the canvas and the cameras follow the new board rectangle
   }
   function load() {
-    let raw = '';
-    try {
-      raw = document.cookie || '';
-    } catch (e) {}
-    const part = raw
-      .split(';')
-      .map(x => x.trim())
-      .find(x => x.startsWith(KEY + '='));
-    if (!part) return;
-    const [t, b] = decodeURIComponent(part.slice(KEY.length + 1)).split('|').map(Number);
+    const raw = Store.get(KEY);
+    if (!raw) return;
+    const [t, b] = decodeURIComponent(raw).split('|').map(Number);
     if (!isFinite(t) || !isFinite(b)) return;
     size.top = clamp(t);
     size.bot = clamp(b);
@@ -35,13 +28,7 @@
     apply();
   }
   function save() {
-    try {
-      document.cookie =
-        KEY +
-        '=' +
-        encodeURIComponent(size.top.toFixed(1) + '|' + size.bot.toFixed(1)) +
-        '; max-age=31536000; path=/; SameSite=Lax';
-    } catch (e) {}
+    Store.set(KEY, size.top.toFixed(1) + '|' + size.bot.toFixed(1));
   }
   function handle(id, which, label) {
     const h = document.createElement('div');

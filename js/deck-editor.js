@@ -205,7 +205,8 @@ const DeckEditor = (function () {
   async function del() {
     const d = S.loaded;
     if (!d || d.builtin) return;
-    if (!(await confirmBox('Delete the deck \u201c' + d.name + '\u201d? This cannot be undone.', 'Delete', 'Cancel'))) return;
+    if (!(await confirmBox('Delete the deck \u201c' + d.name + '\u201d? This cannot be undone.', 'Delete', 'Cancel')))
+      return;
     DeckStore.remove(d.name);
     S.last = null;
     load(DeckStore.list()[0], '0');

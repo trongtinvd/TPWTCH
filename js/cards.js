@@ -1,12 +1,14 @@
 // cards.js - Effect API (Fx) and card definitions
 // ---- Placeholder cards -------------------------------------------------
+const themed = typeof cssStr === 'function' ? cssStr : (n, d) => d; // colours come from css/theme.css in the browser; the headless tests use the defaults
 const TYPES = {
-  creature: { label: 'Creature', color: '#3f7fd8' },
-  enchantment: { label: 'Enchantment', color: '#3fa66a' },
-  spell: { label: 'Spell', color: '#d4524f' },
+  creature: { label: 'Creature', color: themed('--type-creature', '#3f7fd8') },
+  enchantment: { label: 'Enchantment', color: themed('--type-enchantment', '#3fa66a') },
+  spell: { label: 'Spell', color: themed('--type-spell', '#d4524f') },
 };
-TYPES.ability = { label: 'Ability', color: '#b8892b' };
-const cardColor = def => (def.type === 'spell' && def.timing === 'Slow' ? '#8e5bd0' : TYPES[def.type].color); // Slow spells are purple
+TYPES.ability = { label: 'Ability', color: themed('--type-ability', '#b8892b') };
+const SLOW_COLOR = themed('--type-slow', '#8e5bd0'); // Slow spells are purple
+const cardColor = def => (def.type === 'spell' && def.timing === 'Slow' ? SLOW_COLOR : TYPES[def.type].color);
 // ---- Card shapes: defaults for type / timing / speed, so a card states only what is special about it.
 // A spell may give `say` instead of `text`: the text becomes "<Timing>. <say> (Stack HP n)" (the "(Stack HP n)" part is left out at 0 HP).
 const spellDef = (timing, id, name, hp, rest = {}) => {
@@ -17,6 +19,22 @@ const spellDef = (timing, id, name, hp, rest = {}) => {
     def
   );
 };
+// ---- Card text is DERIVED from the card's abilities. Every trigger, activated ability, passive and rider carries its own `text`
+// (withText); `kw` is the keyword line (Flash, Retaliate...); `body` is the text of a spell / placeholder (its own `text` as authored).
+// textParts(def) lists the parts in display order; def.text is those parts joined. The inspector greys / crosses out / highlights single parts.
+const withText = (text, o) => Object.assign(o, { text });
+function textParts(def) {
+  const P = [],
+    add = (list, i, o) => o && o.text && P.push({ key: list + ':' + i, list, i, text: o.text });
+  if (def.kw) P.push({ key: 'kw', list: 'kw', i: 0, text: def.kw });
+  if (def.body) P.push({ key: 'body', list: 'body', i: 0, text: def.body });
+  (def.passives || []).forEach((o, i) => add('passives', i, o));
+  (def.triggers || []).forEach((o, i) => add('triggers', i, o));
+  if (def.rider && def.rider.text) P.push({ key: 'rider', list: 'rider', i: 0, text: def.rider.text });
+  (def.abilities || []).forEach((o, i) => add('abilities', i, o));
+  if (!P.length && def.text) P.push({ key: 'body', list: 'body', i: 0, text: def.text }); // fixtures and tokens: plain text only
+  return P;
+}
 // =====================================================================
 // EFFECT API (content side). Cards may ONLY use these builders; each returns plain
 // data naming an operation the Sim publishes (see Sim.API). Mix and match freely.
@@ -93,13 +111,18 @@ const Fx = {
   enchantment: (id, name, hp, rest) => ({ id, name, type: 'enchantment', hp, ...rest }), // any non-creature permanent
   quick: (id, name, hp, rest) => spellDef('Quick', id, name, hp, rest),
   slow: (id, name, hp, rest) => spellDef('Slow', id, name, hp, rest),
-  fastAbility: (name, rest) => ({ name, speed: 'Fast', ...rest }), // activated ability; rest: zone, req, cost, target, hp, effects
+  fastAbility: (name, rest) => ({ name, speed: 'Fast', ...rest }), // activated ability; rest: text, zone, req, cost, target, hp, effects
   slowAbility: (name, rest) => ({ name, speed: 'Slow', ...rest }),
 };
 const Cards = {
   list: [],
   add(factory) {
-    this.list.push(factory(Fx));
+    const d = factory(Fx);
+    if (d.body === undefined && d.text !== undefined) d.body = d.text; // authored text of a spell / placeholder: the part that is not an ability
+    d.text = textParts(d)
+      .map(x => x.text)
+      .join(' '); // the card text is DERIVED from its abilities
+    this.list.push(d);
   },
 };
 const FIXTURES = []; // ability-less cards kept ONLY for headless tests; not part of the game's card pool
@@ -130,9 +153,13 @@ FIXTURES.push(
 // Order matters: it is the order of the 'Full Pool' deck.
 Cards.add(Fx =>
   Fx.enchantment('ward', 'Ward', 4, {
-    text: 'Fast. You have lost life: sacrifice this card, then gain 3 life. (Stack HP 2)',
     abilities: [
-      Fx.fastAbility('Restore', { req: [Fx.req.hurt], hp: 2, effects: [Fx.gainLife(3), Fx.sacrificeSelf()] }),
+      Fx.fastAbility('Restore', {
+        text: 'Fast. You have lost life: sacrifice this card, then gain 3 life. (Stack HP 2)',
+        req: [Fx.req.hurt],
+        hp: 2,
+        effects: [Fx.gainLife(3), Fx.sacrificeSelf()],
+      }),
     ],
   })
 );
@@ -145,9 +172,9 @@ Cards.add(Fx =>
 );
 Cards.add(Fx =>
   Fx.creature('archer', 'Archer', 3, 2, {
-    text: 'Slow. Front row: pay 1 life; deal 2 damage to the opponent. (Stack HP 1)',
     abilities: [
       Fx.slowAbility('Volley', {
+        text: 'Slow. Front row: pay 1 life; deal 2 damage to the opponent. (Stack HP 1)',
         req: [Fx.req.front],
         cost: [Fx.payLife(1)],
         hp: 1,
@@ -158,9 +185,9 @@ Cards.add(Fx =>
 );
 Cards.add(Fx =>
   Fx.creature('scout', 'Scout', 1, 1, {
-    text: 'Fast. A creature faces this: sacrifice this card; deal 3 damage to that creature. (Stack HP 0)',
     abilities: [
       Fx.fastAbility('Ambush', {
+        text: 'Fast. A creature faces this: sacrifice this card; deal 3 damage to that creature. (Stack HP 0)',
         req: [Fx.req.target],
         cost: [Fx.sacrificeSelf()],
         target: Fx.target.opposingFront,
@@ -172,8 +199,14 @@ Cards.add(Fx =>
 );
 Cards.add(Fx =>
   Fx.enchantment('charm', 'Charm', 5, {
-    text: 'Slow. Exile your oldest GY card; draw 1. (Stack HP 1)',
-    abilities: [Fx.slowAbility('Recall', { cost: [Fx.exileFromGY(1)], hp: 1, effects: [Fx.draw(1)] })],
+    abilities: [
+      Fx.slowAbility('Recall', {
+        text: 'Slow. Exile your oldest GY card; draw 1. (Stack HP 1)',
+        cost: [Fx.exileFromGY(1)],
+        hp: 1,
+        effects: [Fx.draw(1)],
+      }),
+    ],
   })
 );
 Cards.add(Fx =>
@@ -192,10 +225,16 @@ Cards.add(Fx =>
 );
 Cards.add(Fx =>
   Fx.creature('hummingbird', 'Red Hummingbird', 2, 1, {
-    text: 'When this enters: draw a card. When this card or an opponent\u2019s creature attacks: you may shift this card to an adjacent empty column. Fast, from your GY: exile this card; gain 3 life.',
-    triggers: [Fx.trigger.enter(Fx.draw(1)), Fx.trigger.attack(['self', 'foe'], Fx.shiftAdjacent())],
+    triggers: [
+      withText('When this enters: draw a card.', Fx.trigger.enter(Fx.draw(1))),
+      withText(
+        'When this card or an opponent\u2019s creature attacks: you may shift this card to an adjacent empty column.',
+        Fx.trigger.attack(['self', 'foe'], Fx.shiftAdjacent())
+      ),
+    ],
     abilities: [
       Fx.fastAbility('Feather Balm', {
+        text: 'Fast, from your GY: exile this card; gain 3 life. (Stack HP 1)',
         zone: 'gy',
         req: [Fx.req.hurt],
         cost: [Fx.exileSelf()],
@@ -207,23 +246,43 @@ Cards.add(Fx =>
 );
 Cards.add(Fx =>
   Fx.creature('kingeye', 'King Eye', 6, 10, {
-    text: 'Passive. A black cloud covers each of your other zones: your opponent cannot see those zones or the cards on them. Abilities of cards under a cloud appear to come from King Eye. A cloud is a legal target for anything that targets a card or zone there; the effect passes to what is underneath, and with nothing legal underneath it fizzles (nothing is revealed).',
-    passives: [Fx.obscure()],
+    passives: [
+      withText(
+        'Passive. A black cloud covers each of your other zones: your opponent cannot see those zones or the cards on them. Abilities of cards under a cloud appear to come from King Eye. A cloud is a legal target for anything that targets a card or zone there; the effect passes to what is underneath, and with nothing legal underneath it fizzles (nothing is revealed).',
+        Fx.obscure()
+      ),
+    ],
   })
 );
 Cards.add(Fx => {
   const spread = Fx.repeat(4, Fx.nearestZone(['self', 'vine-token']), Fx.destroyOnZone(), Fx.createToken('vine'));
   return Fx.creature('vine', 'The Vine', 1, 1, {
-    text: 'When this enters and at the start of your turn: 4 times, pick the closest zone not occupied by this card or a Vine token, destroy the card there, and create a Vine token (1/1) on it.',
     tokens: { vine: Fx.creature('vine-token', 'Vine', 1, 1, { text: 'Token. Vanilla 1/1.' }) },
-    triggers: [Fx.trigger.enter(spread), Fx.trigger.turnStart(spread)],
+    triggers: [
+      withText(
+        'When this enters: 4 times, pick the closest zone not occupied by this card or a Vine token, destroy the card there, and create a Vine token (1/1) on it.',
+        Fx.trigger.enter(spread)
+      ),
+      withText('At the start of your turn: do the same.', Fx.trigger.turnStart(spread)),
+    ],
   });
 });
 Cards.add(Fx =>
   Fx.creature('avatar', 'Avatar of Rabies', 3, 7, {
-    text: 'Whenever a creature attacks: you may shift this card to an adjacent empty column. Whenever this card takes combat damage: deal 1 damage to another creature. Damage dealt by this card: that creature loses all its original abilities and gains the abilities of Avatar of Rabies.',
-    triggers: [Fx.trigger.attack(['any'], Fx.shiftAdjacent()), Fx.trigger.damaged(Fx.damageAnother(1))],
-    rider: Fx.rider.inheritAbilities(),
+    triggers: [
+      withText(
+        'Whenever a creature attacks: you may shift this card to an adjacent empty column.',
+        Fx.trigger.attack(['any'], Fx.shiftAdjacent())
+      ),
+      withText(
+        'Whenever this card takes combat damage: deal 1 damage to another creature.',
+        Fx.trigger.damaged(Fx.damageAnother(1))
+      ),
+    ],
+    rider: withText(
+      'Damage dealt by this card: that creature loses all its original abilities and gains the abilities of Avatar of Rabies.',
+      Fx.rider.inheritAbilities()
+    ),
   })
 );
 Cards.add(Fx =>
@@ -250,35 +309,54 @@ Cards.add(Fx =>
 );
 Cards.add(Fx =>
   Fx.creature('blackhawk', 'Black Hawk', 1, 0, {
-    text: 'At the beginning of your combat step: double this card\u2019s power 5 times.',
-    triggers: [Fx.trigger.combat(Fx.repeat(5, Fx.doublePower()))],
+    triggers: [
+      withText(
+        'At the beginning of your combat step: double this card\u2019s power 5 times.',
+        Fx.trigger.combat(Fx.repeat(5, Fx.doublePower()))
+      ),
+    ],
   })
 );
 Cards.add(Fx =>
   Fx.creature('boltmaster', 'Bolt Master', 2, 3, {
-    text: 'When this enters: add a Superbolt from your deck to your hand.',
-    triggers: [Fx.trigger.enter(Fx.fetch('superbolt'))],
+    triggers: [
+      withText(
+        'When this enters: add a Superbolt from your deck to your hand.',
+        Fx.trigger.enter(Fx.fetch('superbolt'))
+      ),
+    ],
   })
 );
 Cards.add(Fx =>
   Fx.enchantment('heavensun', 'Heaven and Sun', 5, {
-    text: 'When this enters: choose 5 cards from your deck and exile them (stack HP 7). At the start of your turn: your opponent picks one of those exiled cards; put it into your hand.',
-    triggers: [Object.assign(Fx.trigger.enter(Fx.vaultFromDeck(5)), { hp: 7 }), Fx.trigger.turnStart(Fx.revealVault())],
+    triggers: [
+      withText(
+        'When this enters: choose 5 cards from your deck and exile them (stack HP 7).',
+        Object.assign(Fx.trigger.enter(Fx.vaultFromDeck(5)), { hp: 7 })
+      ),
+      withText(
+        'At the start of your turn: your opponent picks one of those exiled cards; put it into your hand.',
+        Fx.trigger.turnStart(Fx.revealVault())
+      ),
+    ],
   })
 );
 Cards.add(Fx =>
   Fx.creature('parasite', 'Creeping Parasite', 0, 0, {
     flash: true,
-    text: 'Flash (play it as a Quick spell; it does not use the major action). When this enters, choose one effect unlocked by the number of creatures your opponent controls. 0: look at their hand and send a card to the GY. 1+: 4 damage to any target. 2+: return a card they control to hand. 3+: put a creature from your hand, GY or exile into play. 4+: draw cards equal to their creature count. 5: destroy all cards on the board.',
+    kw: 'Flash (play it as a Quick spell; it does not use the major action).',
     triggers: [
-      Fx.trigger.enter(
-        Fx.modes(
-          Fx.mode('0: look at their hand, send a card to the GY', 0, 99, Fx.pickCard('foeHand', 'toGY')),
-          Fx.mode('1+: 4 damage to any target', 1, 99, Fx.pickCard('anyTarget', 'damage', 4)),
-          Fx.mode('2+: return a card they control to hand', 2, 99, Fx.pickCard('foeBoard', 'toHand')),
-          Fx.mode('3+: put a creature from hand, GY or exile into play', 3, 99, Fx.pickCard('myCreatures', 'summon')),
-          Fx.mode('4+: draw cards equal to their creature count', 4, 99, Fx.drawPerFoeCreature()),
-          Fx.mode('5: destroy all cards on the board', 5, 99, Fx.destroyAll())
+      withText(
+        'When this enters, choose one effect unlocked by the number of creatures your opponent controls. 0: look at their hand and send a card to the GY. 1+: 4 damage to any target. 2+: return a card they control to hand. 3+: put a creature from your hand, GY or exile into play. 4+: draw cards equal to their creature count. 5: destroy all cards on the board.',
+        Fx.trigger.enter(
+          Fx.modes(
+            Fx.mode('0: look at their hand, send a card to the GY', 0, 99, Fx.pickCard('foeHand', 'toGY')),
+            Fx.mode('1+: 4 damage to any target', 1, 99, Fx.pickCard('anyTarget', 'damage', 4)),
+            Fx.mode('2+: return a card they control to hand', 2, 99, Fx.pickCard('foeBoard', 'toHand')),
+            Fx.mode('3+: put a creature from hand, GY or exile into play', 3, 99, Fx.pickCard('myCreatures', 'summon')),
+            Fx.mode('4+: draw cards equal to their creature count', 4, 99, Fx.drawPerFoeCreature()),
+            Fx.mode('5: destroy all cards on the board', 5, 99, Fx.destroyAll())
+          )
         )
       ),
     ],
@@ -287,8 +365,16 @@ Cards.add(Fx =>
 Cards.add(Fx =>
   Fx.creature('shieldguard', 'Shieldguard', 5, 15, {
     retaliate: true,
-    text: 'Retaliate (whenever this takes damage it deals damage equal to its power to the source: the damaging creature, or the controller of the spell). Fast, from your hand: after an opposing creature attacks, if you control a creature in that column, return that creature to your hand and put this card into its zone. (Stack HP 1)',
-    abilities: [Fx.fastAbility('Swap In', { zone: 'hand', req: ['attackedCol'], hp: 1, effects: [Fx.swapIn()] })],
+    kw: 'Retaliate (whenever this takes damage it deals damage equal to its power to the source: the damaging creature, or the controller of the spell).',
+    abilities: [
+      Fx.fastAbility('Swap In', {
+        text: 'Fast, from your hand: after an opposing creature attacks, if you control a creature in that column, return that creature to your hand and put this card into its zone. (Stack HP 1)',
+        zone: 'hand',
+        req: ['attackedCol'],
+        hp: 1,
+        effects: [Fx.swapIn()],
+      }),
+    ],
   })
 );
 Cards.add(Fx =>
@@ -307,38 +393,54 @@ Cards.add(Fx =>
   Fx.enchantment('wardrum', 'War Drum', 0, {
     flash: true,
     extraCost: { major: true },
-    text: 'Flash. Additional cost (optional, your turn only): spend your major action. Passive: cards your opponent controls in this column and the adjacent columns get -1/-1. When this enters: create a Drummer token (3/3; cards you control in its column and the adjacent ones get +1/+1). When this enters, if the additional cost was paid: put a creature from your GY into play; it attacks immediately.',
+    kw: 'Flash. Additional cost (optional, your turn only): spend your major action.',
     tokens: {
       drummer: Fx.creature('drummer-token', 'Drummer', 3, 3, {
         passives: [Fx.aura('own', 1, 1)],
         text: 'Token. Cards you control in this column and the adjacent columns get +1/+1.',
       }),
     },
-    passives: [Fx.aura('foe', -1, -1)],
+    passives: [
+      withText(
+        'Passive: cards your opponent controls in this column and the adjacent columns get -1/-1.',
+        Fx.aura('foe', -1, -1)
+      ),
+    ],
     triggers: [
-      Object.assign(Fx.trigger.enter(Fx.pickCard('myGYCreatures', 'summonAttack')), { cond: 'extraPaid' }),
-      Fx.trigger.enter(Fx.placeToken('drummer')),
+      withText(
+        'When this enters, if the additional cost was paid: put a creature from your GY into play; it attacks immediately.',
+        Object.assign(Fx.trigger.enter(Fx.pickCard('myGYCreatures', 'summonAttack')), { cond: 'extraPaid' })
+      ),
+      withText(
+        'When this enters: create a Drummer token (3/3; cards you control in its column and the adjacent ones get +1/+1).',
+        Fx.trigger.enter(Fx.placeToken('drummer'))
+      ),
     ], // later in the array = higher on the stack = resolves first: the Drummer exists before the creature attacks
   })
 );
 Cards.add(Fx =>
   Fx.creature('shark', 'Deep Sea Shark', 6, 4, {
-    text: 'When this enters: you may pay 3 life; skip your opponent next combat phase (pressing combat becomes End turn instead). After your first combat phase ends: you may have your opponent draw 5 cards (cost; does nothing if they cannot); enter a second combat phase, where creatures can attack again.',
     triggers: [
-      Fx.trigger.enter(
-        Fx.modes(
-          Fx.mode('Pay 3 life: skip opponent next combat', 0, 99, Fx.skipFoeCombat(3)),
-          Fx.mode('Do nothing', 0, 99)
-        )
-      ),
-      Object.assign(
-        Fx.trigger.combatEnd(
+      withText(
+        'When this enters: you may pay 3 life; skip your opponent next combat phase (pressing combat becomes End turn instead).',
+        Fx.trigger.enter(
           Fx.modes(
-            Fx.mode('Opponent draws 5: second combat phase', 0, 99, Fx.secondCombat()),
+            Fx.mode('Pay 3 life: skip opponent next combat', 0, 99, Fx.skipFoeCombat(3)),
             Fx.mode('Do nothing', 0, 99)
           )
-        ),
-        { cond: 'firstCombat' }
+        )
+      ),
+      withText(
+        'After your first combat phase ends: you may have your opponent draw 5 cards (cost; does nothing if they cannot); enter a second combat phase, where creatures can attack again.',
+        Object.assign(
+          Fx.trigger.combatEnd(
+            Fx.modes(
+              Fx.mode('Opponent draws 5: second combat phase', 0, 99, Fx.secondCombat()),
+              Fx.mode('Do nothing', 0, 99)
+            )
+          ),
+          { cond: 'firstCombat' }
+        )
       ),
     ],
   })
@@ -348,10 +450,11 @@ Cards.add(Fx =>
     zoneTarget: Fx.zoneTarget.anyCreature,
     optionalTarget: true,
     stackTarget: true,
-    text: 'Quick. Draw until you have 7 cards in hand. You may target a creature or a spell: damage to it is denied until the end of this turn. From your GY, Fast, when your opponent attacks: exile this card; cancel that attack. (Stack HP 4)',
+    text: 'Quick. Draw until you have 7 cards in hand. You may target a creature or a spell: damage to it is denied until the end of this turn. (Stack HP 4)',
     effects: [Fx.drawUntil(7), Fx.noDamage()],
     abilities: [
       Fx.fastAbility('Cancel Attack', {
+        text: 'From your GY, Fast, when your opponent attacks: exile this card; cancel that attack. (Stack HP 1)',
         zone: 'gy',
         req: [Fx.req.foeAttacking],
         cost: [Fx.exileSelf()],

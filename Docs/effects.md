@@ -125,7 +125,7 @@ Optional fields: `hp`, `zone`, `cond`. `fire()` collects all matches, turn playe
 Test-only fixtures (not in decks): Soldier 2/3, Knight 4/5, Giant 6/8, Guard 1/6, Wolf 3/3, Barrier, Aura, Banner, Trap, Mend, Fireball, Rally, Blast, **Rage** (Quick, HP 2, `req attackOnStack`: `addAttackDamage(4)`).
 
 ## Tests
-`tests/selftest.js` (`node tests/run.js`, or `cardGame.selfTest()` in the console; headless, no THREE/DOM): 307 checks. Added: status order and folds, removal on leaving the board (kept in the list), `keep`, zone-bound statuses, expiry, aura enter/leave/return, linked ability status, player list folds, `nogain`, Heaven and Sun vault, `revealed`, and the Attack bonus (resolves, stays after the attacker leaves, defender can boost). Not yet covered: Creeping Parasite modes other than 0, Shark's second-combat edge cases with statuses.
+`tests/selftest.js` (`node tests/run.js`, or `cardGame.selfTest()` in the console; headless, no THREE/DOM): 313 checks. Added: status order and folds, removal on leaving the board (kept in the list), `keep`, zone-bound statuses, expiry, aura enter/leave/return, linked ability status, player list folds, `nogain`, Heaven and Sun vault, `revealed`, and the Attack bonus (resolves, stays after the attacker leaves, defender can boost). Not yet covered: Creeping Parasite modes other than 0, Shark's second-combat edge cases with statuses.
 
 ## Not implemented
 - Base/Current stat layers and equipment (only the status fold exists), durations other than `turnEnd`, Maximum Damage.
@@ -135,3 +135,9 @@ Test-only fixtures (not in decks): Soldier 2/3, Knight 4/5, Giant 6/8, Guard 1/6
 - Player-chosen trigger order; statuses on stack objects; pruning of old removed statuses.
 - Player stats, Distance/Speed/Acceleration, win/loss.
 - Silent no-ops: `draw` on empty deck; `shiftAdjacent` with no free slot.
+
+## Card text
+The text of a card is **derived** from its abilities: every trigger, activated ability, passive and rider carries its own `text` (`withText(text, trigger)` in `cards.js`), a keyword line is `kw`, the text of a spell is `body`. `textParts(def)` lists the parts in display order and `def.text` is those parts joined (`Cards.add` builds it). The inspector shows every part separately:
+- **greyed out** = not usable from where the card is right now (enter trigger on the board, attack trigger anywhere but the board, a `zone:'gy'` ability anywhere but the GY, a passive off the board);
+- **crossed out** = disabled: Avatar of Rabies replaced the abilities (the new ones are listed after the old ones);
+- **highlighted** (the rest greyed) = the ability you selected on the stack.

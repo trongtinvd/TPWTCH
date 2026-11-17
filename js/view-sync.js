@@ -35,7 +35,7 @@ function targets() {
       c,
       z.position.x,
       z.position.z,
-      0.11 + (Sim.canAttack(game, c) ? 0.2 : 0),
+      0.11 + (Sim.canAttack(game, c) ? ATTACK_RAISE : 0),
       c.owner === 'Opponent' ? Math.PI : 0,
       false,
       k.split('|')[0]
@@ -46,7 +46,9 @@ function targets() {
 const lift = { Player: 0, Opponent: 0 };
 function applyEm(m) {
   m.material.emissive.setHex(
-    m === ui.hovered ? m.userData.hoverEm || (m.userData.baseEm ? 0x44aa55 : 0x333333) : m.userData.baseEm || 0
+    m === ui.hovered
+      ? m.userData.hoverEm || (m.userData.baseEm ? ZONE_FX.hover : ZONE_FX.plain)
+      : m.userData.baseEm || 0
   );
 }
 const tableAt = (px, py) => {
@@ -473,7 +475,7 @@ function buildStack() {
     el.onclick = () =>
       ui.placing && ui.placing.def.stackTarget && o.kind === 'spell'
         ? send({ type: 'PlayCard', iid: ui.placing.iid, tsid: o.sid })
-        : showCard(c);
+        : showCard(c, true, o.kind === 'ability' && !mk ? { from: o.from, list: o.list, i: o.ab, src: o.src } : null);
     stackEl.appendChild(el);
   }
 }
@@ -590,8 +592,8 @@ function sync() {
             : zones.filter(z => z.userData.slot && !game.unusable[z.userData.slotKey]);
   zones.forEach(z => {
     const cur = ch && z.userData.slotKey === chCur;
-    z.userData.baseEm = valid.includes(z) ? (cur ? 0x7a5c14 : 0x1f6b2f) : 0;
-    z.userData.hoverEm = cur ? 0xc99a2a : 0;
+    z.userData.baseEm = valid.includes(z) ? (cur ? ZONE_FX.current : ZONE_FX.valid) : 0;
+    z.userData.hoverEm = cur ? ZONE_FX.hoverCurrent : 0;
     applyEm(z);
   });
   for (const k in clouds)
@@ -729,14 +731,15 @@ function animate() {
     if (tv.on) placeTop();
   }
   for (const p of ['Player', 'Opponent']) {
-    const t = p === game.priority ? 0.45 : 0;
+    const t = p === game.priority ? BOARD_RISE : 0;
     if (lift[p] !== t) {
       lift[p] += (t - lift[p]) * 0.15;
       if (Math.abs(t - lift[p]) < 0.002) lift[p] = t;
       busy = true;
     }
   }
-  for (const p of ['Player', 'Opponent']) pads[p].material.color.lerpColors(GROUND_DIM, GROUND_LIT, lift[p] / 0.45);
+  for (const p of ['Player', 'Opponent'])
+    pads[p].material.color.lerpColors(GROUND_DIM, GROUND_LIT, lift[p] / BOARD_RISE || 0);
   zones.forEach(z => {
     const L = z.userData.owner ? lift[z.userData.owner] : 0;
     z.position.y = L;

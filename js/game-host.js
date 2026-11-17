@@ -39,6 +39,7 @@ const ui = {
   // selection and input
   placing: null, // card being placed / targeted
   selected: null,
+  selHl: null, // the stack ability selected in the inspector: {from, list, i, src} (its text is highlighted)
   hovered: null,
   preview: null, // hovered card (inspector)
   inspHold: false, // suppress inspect until the pointer moves on
@@ -506,7 +507,15 @@ function resetGame() {
   clearTimeout(rp.timer);
   Replays.bar(false);
   cmdLog.length = 0;
-  ui.rpInit = { n: sim.n, d1: deckOf(c.p1).slice(), d2: deckOf(c.p2).slice(), sh: !!c.shuffle, mode: c.mode, a: c.p1, b: c.p2 };
+  ui.rpInit = {
+    n: sim.n,
+    d1: deckOf(c.p1).slice(),
+    d2: deckOf(c.p2).slice(),
+    sh: !!c.shuffle,
+    mode: c.mode,
+    a: c.p1,
+    b: c.p2,
+  };
   for (const m of meshes.values()) cardGroup.remove(m);
   meshes.clear();
   ui.selected = null;

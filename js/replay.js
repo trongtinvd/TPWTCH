@@ -1,37 +1,16 @@
 // replay.js - duel replays. The Sim is deterministic, so seed + decks + the accepted commands (cmdLog) rebuild a duel exactly.
-// Saved to cookies when a duel is left (the newest 5), listed and played back from the main menu.
-// Storage: one small meta cookie per replay (tpw_rpm_<id>) and the data (JSON, deflated, base64url) in chunks (tpw_rp_<id>_<k>).
+// Saved to localStorage when a duel is left (the newest 5), listed and played back from the main menu.
+// Storage: one small meta entry per replay (tpw_rpm_<id>) and the data (JSON, deflated, base64url) in chunks (tpw_rp_<id>_<k>).
 const Replays = (function () {
   const MAX = 5,
-    CHUNK = 3600, // characters per cookie (a cookie holds ~4 KB including its name)
-    MAXCHUNKS = 3, // a longer duel is not saved
+    CHUNK = 500000, // characters per storage entry (replays saved as cookies were chunked at 3600 and still load)
+    MAXCHUNKS = 4, // a longer duel is not saved
     PM = 'tpw_rpm_',
     PD = 'tpw_rp_',
-    mem = new Map(); // fallback when cookies are unavailable (e.g. file://)
-  const jar = () => {
-    let raw = '';
-    try {
-      raw = document.cookie || '';
-    } catch (e) {}
-    return raw
-      .split(';')
-      .map(s => s.trim())
-      .filter(Boolean)
-      .map(s => {
-        const i = s.indexOf('=');
-        return i < 0 ? [s, ''] : [s.slice(0, i), s.slice(i + 1)];
-      });
-  };
-  const setC = (k, v) => {
-    try {
-      document.cookie = k + '=' + v + '; max-age=31536000; path=/; SameSite=Lax';
-    } catch (e) {}
-  };
-  const delC = k => {
-    try {
-      document.cookie = k + '=; max-age=0; path=/; SameSite=Lax';
-    } catch (e) {}
-  };
+    mem = new Map(); // the replays saved in this session (used when storage is full or blocked)
+  const jar = () => Store.keys('tpw_').map(k => [k, Store.get(k)]),
+    setC = (k, v) => Store.set(k, v),
+    delC = k => Store.del(k);
   // ---- packing: JSON -> deflate (when the browser has CompressionStream) -> base64url. First character: z = deflated, j = plain
   const b64 = u8 => {
     let s = '';
@@ -44,7 +23,8 @@ const Replays = (function () {
     for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i);
     return u;
   };
-  const pipe = async (u8, stream) => new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(stream)).arrayBuffer());
+  const pipe = async (u8, stream) =>
+    new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(stream)).arrayBuffer());
   async function pack(obj) {
     const raw = new TextEncoder().encode(JSON.stringify(obj));
     if (typeof CompressionStream === 'function')
@@ -103,14 +83,27 @@ const Replays = (function () {
     if (!init || !cmdLog.length || rp.on) return false;
     const rec = Object.assign({ v: 1 }, init, { cmds: cmdLog.slice() }),
       id = Date.now().toString(36),
-      meta = { id, t: Date.now(), a: init.a, b: init.b, m: init.mode, n: rec.cmds.length, turns: sim.turn, life: [sim.life.Player, sim.life.Opponent], c: 0 };
+      meta = {
+        id,
+        t: Date.now(),
+        a: init.a,
+        b: init.b,
+        m: init.mode,
+        n: rec.cmds.length,
+        turns: sim.turn,
+        life: [sim.life.Player, sim.life.Opponent],
+        c: 0,
+      };
     const data = await pack(rec),
       chunks = [];
     for (let i = 0; i < data.length; i += CHUNK) chunks.push(data.slice(i, i + CHUNK));
     if (chunks.length > MAXCHUNKS) return false; // too long for cookies
     meta.c = chunks.length;
     for (const m of list().slice(0, Math.max(0, list().length - (MAX - 1)))) remove(m.id); // keep the newest MAX
-    chunks.forEach((x, k) => setC(PD + id + '_' + k, x));
+    if (!chunks.every((x, k) => setC(PD + id + '_' + k, x))) {
+      chunks.forEach((x, k) => delC(PD + id + '_' + k)); // storage full: leave nothing half-written
+      return false;
+    }
     setC(PM + id, encodeURIComponent(JSON.stringify(meta))); // the meta cookie goes last: a listed replay is complete
     mem.set(id, { meta, rec });
     return true;
@@ -126,7 +119,12 @@ const Replays = (function () {
     lab = mkEl('span');
     playBtn = mkBtn('Play', toggle, 'c-go');
     const spd = mkEl('select', 'dctl');
-    for (const [v, t] of [['0.5', 'Slow'], ['1', 'Normal'], ['2', 'Fast'], ['4', 'Very fast']]) {
+    for (const [v, t] of [
+      ['0.5', 'Slow'],
+      ['1', 'Normal'],
+      ['2', 'Fast'],
+      ['4', 'Very fast'],
+    ]) {
       const o = mkEl('option');
       o.value = v;
       o.textContent = t;
@@ -252,15 +250,25 @@ const Replays = (function () {
         lst.replaceChildren();
         const L = list().reverse();
         if (!L.length) {
-          lst.appendChild(mkEl('p', 'mmsg')).textContent = 'No replays yet. A replay is saved when you leave a duel (the newest ' + MAX + ' are kept).';
+          lst.appendChild(mkEl('p', 'mmsg')).textContent =
+            'No replays yet. A replay is saved when you leave a duel (the newest ' + MAX + ' are kept).';
           return;
         }
         for (const m of L) {
           const row = mkEl('div', 'rp-row'),
             t = mkEl('span');
           t.textContent =
-            new Date(m.t).toLocaleString() + ' \u00b7 ' + m.a + ' vs ' + m.b + ' \u00b7 ' + (m.m === 'bot' ? 'Vs Bot' : 'Vs Self') +
-            ' \u00b7 turn ' + m.turns + ' \u00b7 life ' + m.life.join(':');
+            new Date(m.t).toLocaleString() +
+            ' \u00b7 ' +
+            m.a +
+            ' vs ' +
+            m.b +
+            ' \u00b7 ' +
+            (m.m === 'bot' ? 'Vs Bot' : 'Vs Self') +
+            ' \u00b7 turn ' +
+            m.turns +
+            ' \u00b7 life ' +
+            m.life.join(':');
           row.append(
             t,
             mkBtn(

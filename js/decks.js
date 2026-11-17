@@ -1,4 +1,4 @@
-// decks.js - Deck store (cookies), default decks, deck validation, fuzzy card search (no THREE; the only DOM use is document.cookie)
+// decks.js - Deck store (localStorage through Store), default decks, deck validation, fuzzy card search (no THREE, no DOM)
 const DECK_MIN = 10,
   DECK_MAX = 100; // the editor grid is 10 x 10
 const BUILTIN_DECKS = [
@@ -27,62 +27,36 @@ const BUILTIN_DECKS = [
 ];
 const DeckStore = (function () {
   const PRE = 'tpw_deck_',
-    known = new Set(DEFS.map(d => d.id)),
-    mem = new Map(); // mem: fallback when cookies are unavailable (e.g. file://)
-  const ckey = n =>
+    known = new Set(DEFS.map(d => d.id));
+  const skey = n =>
     PRE + encodeURIComponent(n).replace(/[!'()*]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase());
   const clean = ids =>
     ids
       .filter(id => known.has(id))
       .filter((id, i, a) => a.indexOf(id) === i)
       .slice(0, DECK_MAX);
-  function fromCookies() {
+  function fromStore() {
     const out = [];
-    let raw = '';
-    try {
-      raw = document.cookie || '';
-    } catch (e) {}
-    for (const part of raw.split(';')) {
-      const t = part.trim(),
-        eq = t.indexOf('=');
-      if (eq < 0 || !t.startsWith(PRE)) continue;
+    for (const k of Store.keys(PRE))
       try {
         out.push({
-          name: decodeURIComponent(t.slice(PRE.length, eq)),
+          name: decodeURIComponent(k.slice(PRE.length)),
           cards: clean(
-            decodeURIComponent(t.slice(eq + 1))
+            decodeURIComponent(Store.get(k) || '')
               .split(',')
               .filter(Boolean)
           ),
         });
       } catch (e) {}
-    }
-    return out;
+    return out.sort((a, b) => a.name.localeCompare(b.name));
   }
-  const userDecks = () => {
-    const L = fromCookies();
-    for (const d of mem.values()) if (!L.some(x => x.name === d.name)) L.push(d);
-    return L;
-  };
-  const list = () => BUILTIN_DECKS.concat(userDecks());
+  const list = () => BUILTIN_DECKS.concat(fromStore());
   return {
     list,
     find: name => list().find(d => d.name === name) || null,
     nameUsed: name => list().some(d => d.name === name),
-    remove(name) {
-      mem.delete(name);
-      try {
-        document.cookie = ckey(name) + '=; max-age=0; path=/; SameSite=Lax';
-      } catch (e) {}
-    },
-    save(name, cards) {
-      cards = clean(cards);
-      mem.set(name, { name, cards });
-      try {
-        document.cookie =
-          ckey(name) + '=' + encodeURIComponent(cards.join(',')) + '; max-age=31536000; path=/; SameSite=Lax';
-      } catch (e) {}
-    },
+    remove: name => Store.del(skey(name)),
+    save: (name, cards) => Store.set(skey(name), encodeURIComponent(clean(cards).join(','))),
   };
 })();
 function deckProblem(cards) {

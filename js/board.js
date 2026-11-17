@@ -63,21 +63,21 @@ function makeZone(name, label, w, d, color, x, z, sub, rot) {
 }
 
 // Permanent board: 5 columns x 4 rows (opponent at top, player at bottom)
-const TILE_W = 2,
-  TILE_D = 2.8,
-  PX = 2.3,
-  PZ = 3.05;
-const OPP = 0x8a4650,
-  OPP_D = 0x6b3a42,
-  PLY = 0x3f5f8f,
-  PLY_D = 0x34507a;
+const TILE_W = cssNum('--tile-w', 2),
+  TILE_D = cssNum('--tile-d', 2.8),
+  PX = cssNum('--col-pitch', 2.3),
+  PZ = cssNum('--row-pitch', 3.05);
+const OPP = cssHex('--zone-opp', 0x8a4650),
+  OPP_D = cssHex('--zone-opp-back', 0x6b3a42),
+  PLY = cssHex('--zone-p1', 0x3f5f8f),
+  PLY_D = cssHex('--zone-p1-back', 0x34507a);
 const rows = [
   { name: 'Opp Back', label: 'Back', color: OPP_D, rot: Math.PI },
   { name: 'Opp Front', label: 'Front', color: OPP, rot: Math.PI },
   { name: 'Player Front', label: 'Front', color: PLY, rot: 0 },
   { name: 'Player Back', label: 'Back', color: PLY_D, rot: 0 },
 ];
-const GAP = 1.7; // opponent half moves up, player half moves down: room for the button row
+const GAP = cssNum('--half-gap', 1.7); // opponent half moves up, player half moves down: room for the button row
 const zRow = r => (r - 1.5) * PZ + (r < 2 ? -GAP / 2 : GAP / 2);
 for (let r = 0; r < 4; r++) {
   for (let c = 0; c < 5; c++) {
@@ -100,7 +100,7 @@ for (let r = 0; r < 4; r++) {
 
 // Side zones, point-symmetric (Yu-Gi-Oh style): player Deck + GY on the right,
 // Extra Deck + Exile on the left; opponent is the same rotated 180 degrees.
-const SX = 7.4,
+const SX = cssNum('--side-x', 7.4),
   sideZones = {};
 function side(who, back, front, sign, color) {
   const rot = who === 'Opponent' ? Math.PI : 0;
@@ -134,21 +134,26 @@ function side(who, back, front, sign, color) {
   );
   sideZones[who + 'exile'].userData.exileOf = who;
 }
-side('Player', 3, 2, 1, 0x2f4466);
-side('Opponent', 0, 1, -1, 0x5e3239);
+side('Player', 3, 2, 1, cssHex('--side-p1', 0x2f4466));
+side('Opponent', 0, 1, -1, cssHex('--side-p2', 0x5e3239));
 
 // Hands: wide strips behind each back row (mirrored)
 const HAND_W = 4 * PX + TILE_W,
   HAND_D = 2.8,
   HZ = zRow(3) + TILE_D / 2 + 0.6 + HAND_D / 2;
-makeZone('Player Hand', 'Hand', HAND_W, HAND_D, 0x2a3b57, 0, HZ, null, 0);
-makeZone('Opponent Hand', 'Hand', HAND_W, HAND_D, 0x4a2a30, 0, -HZ, null, Math.PI);
+makeZone('Player Hand', 'Hand', HAND_W, HAND_D, cssHex('--hand-p1', 0x2a3b57), 0, HZ, null, 0);
+makeZone('Opponent Hand', 'Hand', HAND_W, HAND_D, cssHex('--hand-p2', 0x4a2a30), 0, -HZ, null, Math.PI);
 
 // ---- Clouds (King Eye): one dark slab per slot zone, shown where the Sim has a cloud. Not pickable: the zone beneath stays targetable.
 const cloudGeo = new THREE.BoxGeometry(TILE_W, 0.34, TILE_D),
-  cloudHide = new THREE.MeshBasicMaterial({ color: 0x07070c }),
-  cloudOwn = new THREE.MeshBasicMaterial({ color: 0x07070c, transparent: true, opacity: 0.4, depthWrite: false }),
-  cloudHot = new THREE.MeshBasicMaterial({ color: 0x16402a }), // an enemy cloud over a legal target / pick glows green
+  cloudHide = new THREE.MeshBasicMaterial({ color: cssHex('--cloud-hidden', 0x07070c) }),
+  cloudOwn = new THREE.MeshBasicMaterial({
+    color: cssHex('--cloud-own', 0x07070c),
+    transparent: true,
+    opacity: 0.4,
+    depthWrite: false,
+  }),
+  cloudHot = new THREE.MeshBasicMaterial({ color: cssHex('--cloud-hot', 0x16402a) }), // an enemy cloud over a legal target / pick glows green
   clouds = {};
 for (const k in slotZones) {
   const m = new THREE.Mesh(cloudGeo, cloudHide);

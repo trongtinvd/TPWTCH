@@ -1,7 +1,7 @@
 // card-view.js - Card meshes, 3D artwork, card materials, glow
 // ---- Card meshes ------------------------------------------------------------
-const CW = 1.6,
-  CD = 2.3,
+const CW = cssNum('--card-w', 1.6),
+  CD = cssNum('--card-d', 2.3),
   cardGeo = new THREE.BoxGeometry(CW, 0.08, CD);
 const matCache = {},
   sideMat = new THREE.MeshStandardMaterial({ color: 0x1b1d24 });
@@ -350,9 +350,9 @@ const glowTex = (() => {
   c.width = 168;
   c.height = 224;
   const g = c.getContext('2d');
-  g.shadowColor = '#ffe27a';
+  g.shadowColor = cssStr('--glow-shadow', '#ffe27a');
   g.shadowBlur = 16;
-  g.strokeStyle = '#fff1a8';
+  g.strokeStyle = cssStr('--glow-line', '#fff1a8');
   g.lineWidth = 4;
   for (let i = 0; i < 3; i++) g.strokeRect(20, 20, 128, 184);
   return new THREE.CanvasTexture(c);
@@ -366,17 +366,17 @@ const glowMat = new THREE.MeshBasicMaterial({
   }),
   glowGeo = new THREE.PlaneGeometry(CW + 0.5, CD + 0.5);
 const PW_PAL = [
-    ['#cd7f32', '#5e3410'],
-    ['#cfd3da', '#4b505b'],
-    ['#ffd34d', '#7a5a00'],
+    cssPair('--pw-low', ['#cd7f32', '#5e3410']),
+    cssPair('--pw-same', ['#cfd3da', '#4b505b']),
+    cssPair('--pw-high', ['#ffd34d', '#7a5a00']),
   ],
   HP_PAL = [
-    ['#e04848', '#6e1212'],
-    ['#3f7fd8', '#143672'],
-    ['#3fb26a', '#12522b'],
+    cssPair('--hp-low', ['#e04848', '#6e1212']),
+    cssPair('--hp-same', ['#3f7fd8', '#143672']),
+    cssPair('--hp-high', ['#3fb26a', '#12522b']),
   ],
   badgeTex = {},
-  badgeGeo = new THREE.PlaneGeometry(0.62, 0.62);
+  badgeGeo = new THREE.PlaneGeometry(cssNum('--badge-size', 0.62), cssNum('--badge-size', 0.62));
 function badgeTexture(text, fill, line) {
   const k = text + fill;
   if (badgeTex[k]) return badgeTex[k];
@@ -439,8 +439,8 @@ function setSword(m, on, opp) {
   if (on && !cur) {
     swordProto = swordProto || makeSword();
     const g = swordProto.clone();
-    g.scale.setScalar(0.85);
-    g.position.set(0, 0.45, 0);
+    g.scale.setScalar(cssNum('--sword-scale', 0.85));
+    g.position.set(0, cssNum('--sword-height', 0.45), 0);
     g.rotation.y = opp ? 0 : Math.PI;
     g.traverse(x => {
       x.raycast = () => {};

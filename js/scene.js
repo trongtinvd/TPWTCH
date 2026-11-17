@@ -1,6 +1,6 @@
-//scene.js - Three.js scene, camera, renderer, lights, table
+//scene.js - Three.js scene, camera, renderer, lights, table (colours and light levels come from css/theme.css)
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x14161c);
+scene.background = new THREE.Color(cssHex('--scene-bg', 0x14161c));
 const VW = () => renderer.domElement.clientWidth || innerWidth,
   VH = () => renderer.domElement.clientHeight || innerHeight,
   VX = () => renderer.domElement.getBoundingClientRect().left,
@@ -17,25 +17,25 @@ controls.target.set(0, 0, 0);
 controls.maxPolarAngle = Math.PI / 2 - 0.05;
 controls.update();
 
-scene.add(new THREE.AmbientLight(0xffffff, 0.75));
-const sun = new THREE.DirectionalLight(0xffffff, 0.6);
+scene.add(new THREE.AmbientLight(0xffffff, cssNum('--light-ambient', 0.75)));
+const sun = new THREE.DirectionalLight(0xffffff, cssNum('--light-sun', 0.6));
 sun.position.set(6, 14, 8);
 scene.add(sun);
 
 const table = new THREE.Mesh(
   new THREE.BoxGeometry(21, 0.3, 25),
-  new THREE.MeshStandardMaterial({ color: 0x353c4f, roughness: 0.9 })
+  new THREE.MeshStandardMaterial({ color: cssHex('--table-color', 0x353c4f), roughness: 0.9 })
 );
 table.position.set(0, -0.25, 0);
 scene.add(table);
 // Ground under each half: brightens while that player has priority (matches the board lift)
-const GROUND_DIM = new THREE.Color(0x353c4f),
-  GROUND_LIT = new THREE.Color(0x707c9c),
+const GROUND_DIM = new THREE.Color(cssHex('--pad-dim', 0x353c4f)),
+  GROUND_LIT = new THREE.Color(cssHex('--pad-lit', 0x707c9c)),
   pads = {};
 for (const p of ['Player', 'Opponent']) {
   const pad = new THREE.Mesh(
     new THREE.BoxGeometry(21, 0.02, 12.5),
-    new THREE.MeshStandardMaterial({ color: 0x353c4f, roughness: 0.9 })
+    new THREE.MeshStandardMaterial({ color: GROUND_DIM.getHex(), roughness: 0.9 })
   );
   pad.position.set(0, -0.09, p === 'Player' ? 6.25 : -6.25);
   scene.add(pad);

@@ -1,0 +1,94 @@
+/* theme.css - EVERY tunable look-and-feel value in one place. Reload the page after editing.
+   UI colours are used by index.css / screens.css. The "3D" values are read by js/theme.js at start-up:
+   colours are #hex, distances are world units (a card is --card-w x --card-d), pairs are "fill line". */
+:root {
+  /* ---- UI colours ---- */
+  --bg: #14161c;
+  --fg: #e8eaf0;
+  --panel: rgba(20, 22, 28, 0.8);
+  --p1-color: #3f7fd8;
+  --p2-color: #d4524f;
+  --btn: #3f7fd8;
+  --btn-go: #2f7d5b;
+  --btn-pass: #a8742c;
+  --btn-atk: #7a3b3b;
+  --btn-atk-on: #c0392b;
+  --accent: #3fe07a; /* hover links, drop targets, selected highlight */
+  --drop: #3fa66a;
+  --splat: #b3121c;
+
+  /* ---- inspector text: greyed = not usable right now, crossed out = disabled, highlighted = the selected stack ability ---- */
+  --seg-dim-opacity: 0.38;
+  --seg-off-opacity: 0.7;
+  --seg-hl-bg: rgba(63, 224, 122, 0.22);
+
+  /* ---- card colours by type ---- */
+  --type-creature: #3f7fd8;
+  --type-enchantment: #3fa66a;
+  --type-spell: #d4524f;
+  --type-slow: #8e5bd0; /* Slow spells */
+  --type-ability: #b8892b;
+
+  /* ---- 3D scene ---- */
+  --scene-bg: #14161c;
+  --table-color: #353c4f;
+  --pad-dim: #353c4f; /* ground under a half while the OTHER player has priority */
+  --pad-lit: #707c9c; /* ... while this player has priority */
+  --light-ambient: 0.75;
+  --light-sun: 0.6;
+
+  /* ---- zones ---- */
+  --zone-opp: #8a4650;
+  --zone-opp-back: #6b3a42;
+  --zone-p1: #3f5f8f;
+  --zone-p1-back: #34507a;
+  --side-p1: #2f4466; /* deck / graveyard / exile zones */
+  --side-p2: #5e3239;
+  --hand-p1: #2a3b57;
+  --hand-p2: #4a2a30;
+  --zone-valid: #1f6b2f; /* legal target / placement */
+  --zone-current: #7a5c14;
+  --zone-hover: #44aa55;
+  --zone-hover-current: #c99a2a;
+  --zone-hover-plain: #333333;
+  --cloud-hidden: #07070c; /* King Eye clouds */
+  --cloud-own: #07070c;
+  --cloud-hot: #16402a;
+
+  /* ---- distances (world units) ---- */
+  --tile-w: 2;
+  --tile-d: 2.8;
+  --col-pitch: 2.3; /* distance between columns */
+  --row-pitch: 3.05; /* distance between rows */
+  --half-gap: 1.7; /* gap between the two halves of the board */
+  --side-x: 7.4; /* how far the deck / graveyard columns stand from the centre */
+  --card-w: 1.6;
+  --card-d: 2.3;
+  --board-rise: 0.45; /* how far the half of the player who has priority rises */
+  --attack-raise: 0.2; /* a creature that can attack stands this much higher */
+
+  /* ---- sprites on the cards ---- */
+  --badge-size: 0.62; /* power / HP badges */
+  --sword-scale: 0.85;
+  --sword-height: 0.45;
+  --glow-shadow: #ffe27a; /* the pulsing border of a usable card */
+  --glow-line: #fff1a8;
+  --pw-low: #cd7f32 #5e3410; /* power below / equal to / above the printed value: fill line */
+  --pw-same: #cfd3da #4b505b;
+  --pw-high: #ffd34d #7a5a00;
+  --hp-low: #e04848 #6e1212;
+  --hp-same: #3f7fd8 #143672;
+  --hp-high: #3fb26a #12522b;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) {
+    --bg: #dfe3ea;
+    --fg: #1a1d24;
+    --panel: rgba(255, 255, 255, 0.85);
+  }
+}
+:root[data-theme='dark'] {
+  --bg: #14161c;
+  --fg: #e8eaf0;
+  --panel: rgba(20, 22, 28, 0.8);
+}

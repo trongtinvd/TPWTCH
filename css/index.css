@@ -1,20 +1,4 @@
-:root {
-  --bg: #14161c;
-  --fg: #e8eaf0;
-  --panel: rgba(20, 22, 28, 0.8);
-}
-@media (prefers-color-scheme: light) {
-  :root:not([data-theme='dark']) {
-    --bg: #dfe3ea;
-    --fg: #1a1d24;
-    --panel: rgba(255, 255, 255, 0.85);
-  }
-}
-:root[data-theme='dark'] {
-  --bg: #14161c;
-  --fg: #e8eaf0;
-  --panel: rgba(20, 22, 28, 0.8);
-}
+/* every colour, distance and sprite setting lives in css/theme.css */
 html,
 body {
   margin: 0;
@@ -256,7 +240,7 @@ canvas {
   margin: 0 12px 6px;
 }
 .abtn {
-  background: #3f7fd8;
+  background: var(--btn);
   color: #fff;
   border: 0;
   border-radius: 7px;
@@ -334,10 +318,10 @@ canvas {
   transition: width 0.35s;
 }
 .hpr[data-p='Player'] i {
-  background: #3f7fd8;
+  background: var(--p1-color);
 }
 .hpr[data-p='Opponent'] i {
-  background: #d4524f;
+  background: var(--p2-color);
 }
 .hpr b {
   text-align: right;
@@ -366,16 +350,16 @@ canvas {
   z-index: 3;
 }
 .abtn.c-go:not(:disabled) {
-  background: #2f7d5b;
+  background: var(--btn-go);
 }
 .abtn.c-pass:not(:disabled) {
-  background: #a8742c;
+  background: var(--btn-pass);
 }
 .abtn.c-atk:not(:disabled) {
-  background: #7a3b3b;
+  background: var(--btn-atk);
 }
 .abtn.c-atk.on:not(:disabled) {
-  background: #c0392b;
+  background: var(--btn-atk-on);
 }
 #viewBtn {
   position: fixed;
@@ -401,7 +385,7 @@ canvas {
   z-index: 2;
 }
 #stack.drop {
-  box-shadow: 0 0 0 3px #3fa66a;
+  box-shadow: 0 0 0 3px var(--drop);
 }
 #stack .sh {
   font-size: 12px;
@@ -447,12 +431,12 @@ canvas {
   0%,
   100% {
     box-shadow:
-      0 0 0 2px #3fe07a,
+      0 0 0 2px var(--accent),
       0 0 4px 1px rgba(63, 224, 122, 0.35);
   }
   50% {
     box-shadow:
-      0 0 0 3px #3fe07a,
+      0 0 0 3px var(--accent),
       0 0 16px 6px rgba(63, 224, 122, 0.85);
   }
 }
@@ -590,12 +574,12 @@ canvas {
   height: 24px;
   pointer-events: none;
   border-radius: 55% 45% 60% 40%;
-  background: #b3121c;
+  background: var(--splat);
   transform: rotate(-8deg);
   box-shadow:
-    16px 7px 0 -4px #b3121c,
-    -14px 5px 0 -5px #b3121c,
-    26px -3px 0 -8px #b3121c;
+    16px 7px 0 -4px var(--splat),
+    -14px 5px 0 -5px var(--splat),
+    26px -3px 0 -8px var(--splat);
 }
 #banner {
   position: fixed;
@@ -792,4 +776,20 @@ canvas {
     bottom: auto;
     top: calc(var(--topH) + 84px);
   }
+}
+/* ---- inspector text parts: greyed = not usable right now, crossed out = disabled, highlighted = the selected stack ability ---- */
+.seg {
+  transition: opacity 0.15s;
+}
+.seg.dim {
+  opacity: var(--seg-dim-opacity);
+}
+.seg.off {
+  opacity: var(--seg-off-opacity);
+  text-decoration: line-through;
+}
+.seg.hl {
+  background: var(--seg-hl-bg);
+  border-radius: 4px;
+  box-shadow: 0 0 0 2px var(--seg-hl-bg);
 }
