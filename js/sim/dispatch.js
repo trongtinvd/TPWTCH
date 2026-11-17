@@ -4,7 +4,7 @@ Sim.def('dispatch', function (K) {
   let canPayExtra, isPerm, majorUsed, other, slowish; // util
   let lg; // logs
   let PL, abDef, addStatus, dmgs, has, live, removeStatus; // statuses
-  let freeSlots, recalc, sweepUnusable; // state
+  let declareWinner, freeSlots, recalc, sweepUnusable; // state
   let findTarget, targetColumns, targetZones; // targeting
   let payCost; // costs
   let askCounters, resume; // fx
@@ -15,7 +15,8 @@ Sim.def('dispatch', function (K) {
     // mutates s; returns {ok, why, events}
     const ev = [],
       fail = why => ({ ok: false, why, events: [] });
-    if (s.choice && cmd.type !== 'Choose') return fail('Waiting for ' + s.choice.player + ' to choose');
+    if (s.choice && !['Choose', 'Surrender', 'Leave'].includes(cmd.type))
+      return fail('Waiting for ' + s.choice.player + ' to choose'); // giving up is possible at any time
     if (s.phase === 'deck' && cmd.type !== 'ReorderDeck' && cmd.type !== 'Start')
       return fail('Deck building: press Start when your deck is ready');
     switch (cmd.type) {
@@ -254,6 +255,15 @@ Sim.def('dispatch', function (K) {
         openRespond(s, ev, 'end');
         ev.push({ t: 'EndStepEntered' });
         break; // the turn really ends when the opponent passes
+      case 'Surrender':
+      case 'Leave': {
+        // the player gives up (Surrender) or walks away (Leave): the other player wins. Allowed at any time, even during a choice
+        if (!['Player', 'Opponent'].includes(cmd.player)) return fail('Unknown player');
+        if (s.phase !== 'play') return fail('The game has not started');
+        if (s.result) return fail('The game is already decided');
+        declareWinner(s, other(cmd.player), cmd.type === 'Leave' ? 'left' : 'surrender', ev);
+        break;
+      }
       default:
         return fail('Unknown command');
     }
@@ -291,6 +301,7 @@ Sim.def('dispatch', function (K) {
       'canPlay',
       'dealDamage',
       'declareAttack',
+      'declareWinner',
       'dmgs',
       'endTurn',
       'findTarget',
@@ -327,6 +338,7 @@ Sim.def('dispatch', function (K) {
         canPlay,
         dealDamage,
         declareAttack,
+        declareWinner,
         dmgs,
         endTurn,
         findTarget,

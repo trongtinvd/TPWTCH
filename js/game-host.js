@@ -67,6 +67,7 @@ const ui = {
   camAngle: 0,
   camGoal: 0,
   autoTimer: 0,
+  stepTimer: 0, // the pause after a spell / ability resolved, before automation goes on
   autoDepth: 0,
   lastCfg: null, // {mode:'self'|'bot', p1, p2, shuffle} of the running game
   rpInit: null, // what a replay needs besides the commands: seed, both decks, mode, deck names
@@ -211,6 +212,11 @@ function send(cmd) {
     sync();
     return { ok: false, why: 'Replay: watching only', events: [] };
   } // while a replay plays only the replay itself sends commands
+  if (Result.blocks()) {
+    ui.note = 'The game is decided: use the result window or Exit';
+    sync();
+    return { ok: false, why: 'The game is decided', events: [] };
+  } // open result dialog, or the other side left
   if (ui.fxBusy) {
     sync();
     return { ok: false, why: 'Animation in progress', events: [] };
@@ -298,24 +304,33 @@ function send(cmd) {
       setView(sim.choice ? sim.choice.player : sim.priority);
     } // something resolved: the animation plays from the seat that gets priority next
   }
+  // a spell or ability that resolved: a short pause before automatic passes / the bot / the result dialog go on, so the outcome can be seen
+  const wait =
+      r.ok && pre.stack.some(o => o.kind !== 'attack' && !sim.stack.some(q => q.sid === o.sid)) ? FX.resolve : 0,
+    next = () => {
+      clearTimeout(ui.stepTimer);
+      if (wait) ui.stepTimer = setTimeout(autoStep, wait);
+      else autoStep();
+    };
   if (jobs.length) {
     game = pre;
     sync();
     fxRun(jobs, () => {
       game = sim;
       sync();
-      autoStep();
+      next();
     });
   } // keep showing the old state until the animation ends
   else {
     game = sim;
     sync();
-    if (r.ok) autoStep();
+    if (r.ok) next();
   }
   return r;
 }
 function autoStep() {
   if (MenuUI.away || rp.on) return; // the menu or the deck editor is on screen (or a replay plays): nothing happens by itself
+  if (Result.check()) return; // the game is decided: the result dialog (or the Exit button) takes over
   if (ui.mode === 'bot' && botWants()) {
     botSchedule();
     return;
@@ -383,7 +398,7 @@ const place = (c, zone) => {
   } else send(cmd);
 };
 function undo() {
-  if (!undoStack.length || ui.fxBusy) return;
+  if (!undoStack.length || ui.fxBusy || Result.blocks()) return;
   if (!rp.on) cmdLog.pop(); // an undone command is not part of the duel any more
   sim = undoStack.pop();
   game = sim;
@@ -391,6 +406,7 @@ function undo() {
   fxReset();
   closeMenu();
   sync();
+  Result.check();
 }
 const camArrive = () =>
   new Promise(r => {
@@ -491,6 +507,8 @@ function resetGame() {
   ui.autoView = c.mode === 'self';
   ui.pin = null;
   botMem.turn = -1;
+  Result.reset();
+  clearTimeout(ui.stepTimer);
   clearTimeout(ui.botTimer);
   const deckOf = n => (DeckStore.find(n) || BUILTIN_DECKS[0]).cards;
   sim = Sim.create(newSeed(), DEFS, {
@@ -609,6 +627,18 @@ const FN = [
     on: () => myPriority() && !game.stack.length && !game.respond && game.priority === game.active,
     show: inPlay,
   },
+  {
+    id: 'surrender',
+    cls: 'c-atk',
+    label: () => 'Surrender',
+    run: () => {
+      confirmBox('Surrender? ' + NAME[ui.view] + ' loses the game.', 'Surrender', 'Cancel').then(ok => {
+        if (ok && !game.result) send({ type: 'Surrender', player: ui.view });
+      });
+    },
+    on: () => inPlay() && !game.result && !rp.on && !Result.blocks() && !ui.fxBusy && !ui.placing,
+    show: () => inPlay() && !rp.on,
+  },
 ];
 const DBTN = [
   {
@@ -651,7 +681,7 @@ const DBTN = [
     on: () => true,
     show: () => ui.mode === 'self',
   }, // debug deck editing: click a Deck zone, drag rows
-  { id: 'menu', label: () => 'Main menu', run: () => MenuUI.leaveGame(), on: () => true },
+  { id: 'menu', cls: 'c-exit', label: () => 'Exit', run: () => MenuUI.leaveGame(), on: () => true },
   { id: 'player', label: () => 'Switch player', run: switchPlayer, on: () => true, show: () => ui.mode === 'self' },
   {
     id: 'auto',
@@ -696,5 +726,6 @@ function updateDbg() {
     b.el.disabled = !b.on();
     if (b.show) b.el.hidden = !b.show();
     if (b.id === 'battle') b.el.classList.toggle('on', game.attackPhase);
+    if (b.id === 'menu') b.el.classList.toggle('pulseR', Result.pulsing()); // the other side left: this is the way out
   });
 }

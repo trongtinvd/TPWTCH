@@ -3,7 +3,7 @@ Sim.def('ops', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
   let cname, colKeys, zoneDist; // util
   let PL, addStatus, clearAttacked, clearStatuses, has, hasSt, hurt, isRevealed, live, removeStatus, syncLife; // statuses
-  let cloudMap, destroy, freeSlots, makeToken, recalc; // state
+  let cloudMap, declareWinner, destroy, freeSlots, makeToken, recalc; // state
   let pendingAtk; // targeting
   let ask, askCounters, askDeck, foeCreatures, runFx, suspend, upToAsk; // fx
   let CH; // ch
@@ -313,6 +313,9 @@ Sim.def('ops', function (K) {
       addStatus(x.s, PL(x.s, x.who), { kind: 'nogain', srcName: x.src.def.name });
     },
     Aura: () => {}, // passive, read by recalc()
+    WinGame: (x, e) => {
+      declareWinner(x.s, e.who === 'foe' ? x.foe : x.who, 'effect', x.ev);
+    }, // the controller (who:'foe' = the opponent) wins; ignored when the game is already decided
     DrawUntil: (x, e) => OPS.Draw(x, { n: Math.max(0, e.n - x.s.piles[x.who].hand.length) }),
     NoDamage: x => {
       if (x.t && x.t.loc === 'board')
@@ -401,6 +404,7 @@ Sim.def('ops', function (K) {
       'cname',
       'colKeys',
       'dealDamage',
+      'declareWinner',
       'destroy',
       'fire',
       'foeCreatures',
@@ -435,6 +439,7 @@ Sim.def('ops', function (K) {
         cname,
         colKeys,
         dealDamage,
+        declareWinner,
         destroy,
         fire,
         foeCreatures,

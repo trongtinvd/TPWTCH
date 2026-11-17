@@ -12,8 +12,8 @@ Simulation never touches Node3D, meshes, animations, cameras, VFX. It takes **Co
 - Events (design): TurnStarted/Ended, PermanentEntered/Left/Summoned, CreatureAttackDeclared, AttackStarted, DamageAttempted/Dealt/Received, CreatureDestroyed/PermanentDestroyed, CardDrawn/Played/Exiled, StackObjectCreated/Resolved, AbilityActivated.
 
 ### Implemented in the prototype
-- **Commands:** `ReorderDeck`, `Start`, `Draw`, `PlayCard`, `Pass`, `SetAttackPhase`, `Attack`, `Choose`, `Activate`, `EndTurn`. (`Choose` answers any pending choice.)
-- **Events:** `DeckReordered`, `PlayerReady`, `GameStarted`, `CardDrawn/Added/Milled/Discarded`, `PermanentSummoned/Moved/Destroyed/Returned`, `StackObjectCreated/Resolved/Damaged/Countered/Fizzled`, `DamageDenied`, `PriorityPassed`, `ResponseWindowOpened/Closed`, `AbilityActivated`, `AttackPhaseChanged`, `CreatureAttackDeclared`, `AttackCancelled`, `AttackBoosted`, `CombatSkipped`, `DamageDealt`, `DamageRemoved`, `PlayerDamaged`, `LifePaid`, `LifeCounterAdded`, `CounterAdded`, `CardExiled`, `ZoneUnusable`, `AbilitiesTransformed`, `ChoiceRequested/Made`, `TurnChanged`.
+- **Commands:** `ReorderDeck`, `Start`, `Draw`, `PlayCard`, `Pass`, `SetAttackPhase`, `Attack`, `Choose`, `Activate`, `EndTurn`, `Surrender`, `Leave`. (`Choose` answers any pending choice; `Surrender` / `Leave` are allowed at any time.)
+- **Events:** `DeckReordered`, `PlayerReady`, `GameStarted`, `CardDrawn/Added/Milled/Discarded`, `PermanentSummoned/Moved/Destroyed/Returned`, `StackObjectCreated/Resolved/Damaged/Countered/Fizzled`, `DamageDenied`, `PriorityPassed`, `ResponseWindowOpened/Closed`, `AbilityActivated`, `AttackPhaseChanged`, `CreatureAttackDeclared`, `AttackCancelled`, `AttackBoosted`, `CombatSkipped`, `DamageDealt`, `DamageRemoved`, `PlayerDamaged`, `LifePaid`, `LifeCounterAdded`, `CounterAdded`, `CardExiled`, `ZoneUnusable`, `AbilitiesTransformed`, `ChoiceRequested/Made`, `TurnChanged`, `GameDecided`.
 - `Sim.dispatch(state, cmd)` mutates state and returns `{ok, why, events}`. Content (`DEFS`) is injected into `Sim.create(n, defs)`.
 - **Presentation host:** `send(cmd)` keeps `sim` (authoritative) and `game` (on screen). While showcase animations play, `game` is the pre-command snapshot; input is rejected until they finish. Animations are derived by diffing stack snapshots (Q13).
 - **Undo** = `structuredClone` snapshots (max 200); `eventLog` keeps 200 events (not yet a replay format).
@@ -87,7 +87,7 @@ Headless runs, replay, stats, AI tournaments, personality evolution. Benchmark f
 8. State growth from kept-but-removed statuses.
 
 ## Rules tests
-Status in `tests/selftest.js` (`node tests/run.js`, or `cardGame.selfTest()` in the console; headless, 313 checks):
+Status in `tests/selftest.js` (`node tests/run.js`, or `cardGame.selfTest()` in the console; headless, 327 checks):
 - [x] Effect APIs valid; determinism; deck phase; draw / major action; placement.
 - [x] Combat trample and edge cases; Attack objects (no HP, bonus, cancel, attacker leaving, defender priority).
 - [x] Stack HP, LIFO, costs, fizzle; triggers and simultaneous order.

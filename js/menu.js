@@ -219,12 +219,32 @@ function startDialog(mode) {
     cb.checked = MenuUI.last.shuffle;
     cw.append(cb, document.createTextNode(' Shuffle the decks at the start'));
     box.appendChild(cw);
+    let sb = null; // Vs Bot: what the bot does when the game ends
+    if (mode === 'bot') {
+      const bw = mkEl('label', 'mfield');
+      bw.appendChild(mkEl('span')).textContent = 'When the game ends, the bot';
+      sb = mkEl('select', 'dctl');
+      for (const [v, t] of [
+        ['random', 'Chooses at random'],
+        ['rematch', 'Asks for a rematch'],
+        ['continue', 'Asks to continue'],
+        ['end', 'Ends (leaves)'],
+      ]) {
+        const o = mkEl('option');
+        o.value = v;
+        o.textContent = t;
+        sb.appendChild(o);
+      }
+      sb.value = MenuUI.last.botEnd || 'random';
+      bw.appendChild(sb);
+      box.appendChild(bw);
+    }
     const row = mkEl('div', 'mrow');
     row.append(
       mkBtn(
         'Start',
         () => {
-          MenuUI.last = { p1: s1.value, p2: s2.value, shuffle: cb.checked };
+          MenuUI.last = { p1: s1.value, p2: s2.value, shuffle: cb.checked, botEnd: sb ? sb.value : MenuUI.last.botEnd };
           close();
           MenuUI.play(Object.assign({ mode }, MenuUI.last));
         },
@@ -238,7 +258,7 @@ function startDialog(mode) {
 const MenuUI = {
   away: true, // true while the main menu or the deck editor is on screen: the game underneath is paused (no bot, no auto-pass)
   root: null,
-  last: { p1: BUILTIN_DECKS[0].name, p2: BUILTIN_DECKS[1].name, shuffle: true },
+  last: { p1: BUILTIN_DECKS[0].name, p2: BUILTIN_DECKS[1].name, shuffle: true, botEnd: 'random' },
   build() {
     const r = (this.root = mkEl('div', 'screen'));
     r.id = 'mainMenu';
@@ -270,6 +290,7 @@ const MenuUI = {
     if (!this.root) this.build();
     this.away = true;
     rp.playing = false;
+    Result.reset();
     Replays.bar(false);
     clearTimeout(ui.botTimer);
     closeMenu();
@@ -288,8 +309,15 @@ const MenuUI = {
     newGame(cfg);
   },
   leaveGame() {
-    confirmBox('Leave this game and return to the main menu?', 'Leave', 'Stay').then(ok => {
+    // hot seat, game still running: the viewed seat leaves, so the other player is shown the result (a dialog with only Leave)
+    const early = ui.mode === 'self' && !rp.on && !sim.result && game.phase === 'play';
+    confirmBox(
+      early ? 'Leave this game? ' + NAME[other(ui.view)] + ' wins.' : 'Leave this game and return to the main menu?',
+      'Leave',
+      'Stay'
+    ).then(ok => {
       if (!ok) return;
+      if (early && !Result.blocks() && send({ type: 'Leave', player: ui.view }).ok) return;
       Replays.saveCurrent()
         .catch(() => false)
         .then(() => MenuUI.show());

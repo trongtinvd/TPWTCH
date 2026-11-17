@@ -111,7 +111,8 @@ const Replays = (function () {
   // ---- playback: the replay sends its recorded commands through the normal send(); input is closed while it runs
   let bar = null,
     lab,
-    playBtn;
+    playBtn,
+    showBtn;
   function build() {
     bar = mkEl('div');
     bar.id = 'rpbar';
@@ -144,9 +145,20 @@ const Replays = (function () {
       }),
       spd,
       lab,
+      mkBtn('Hide', () => {
+        rp.hidden = true;
+        showBar(true);
+      }),
       mkBtn('Exit replay', exit, 'c-atk')
     );
     document.body.appendChild(bar);
+    showBtn = mkBtn('Replay controls', () => {
+      rp.hidden = false;
+      showBar(true);
+    });
+    showBtn.id = 'rpshow';
+    showBtn.hidden = true;
+    document.body.appendChild(showBtn);
   }
   function showBar(on) {
     if (!bar) {
@@ -154,9 +166,11 @@ const Replays = (function () {
       build();
     }
     const v = !!on && rp.on && !MenuUI.away;
-    bar.hidden = !v;
+    bar.hidden = !v || !!rp.hidden;
+    showBtn.hidden = !v || !rp.hidden;
     if (v) {
-      lab.textContent = rp.i + ' / ' + rp.rec.cmds.length;
+      lab.textContent =
+        rp.i + ' / ' + rp.rec.cmds.length + (sim.result ? ' \u00b7 decided: ' + Result.text(sim.result) : '');
       playBtn.textContent = rp.playing ? 'Pause' : 'Play';
     }
   }
@@ -178,6 +192,7 @@ const Replays = (function () {
       return false;
     }
     rp.i++;
+    Result.replayCheck(); // the game was just decided: pause here (Play runs the rest of the record)
     showBar(true);
     return true;
   }
@@ -218,7 +233,8 @@ const Replays = (function () {
   }
   function start(rec) {
     clearTimeout(rp.timer);
-    Object.assign(rp, { on: true, feed: false, rec, i: 0, playing: false });
+    Result.reset();
+    Object.assign(rp, { on: true, feed: false, rec, i: 0, playing: false, hidden: false });
     ui.mode = 'replay';
     ui.deckEdit = false;
     ui.autoView = true;

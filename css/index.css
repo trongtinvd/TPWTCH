@@ -793,3 +793,43 @@ canvas {
   border-radius: 4px;
   box-shadow: 0 0 0 2px var(--seg-hl-bg);
 }
+.abtn.c-exit:not(:disabled) {
+  background: var(--btn-exit);
+}
+@keyframes pr {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 2px var(--exit-glow),
+      0 0 4px 1px var(--exit-glow);
+  }
+  50% {
+    box-shadow:
+      0 0 0 3px var(--exit-glow),
+      0 0 18px 7px var(--exit-glow);
+  }
+}
+.abtn.pulseR {
+  animation: pr 0.9s ease-in-out infinite;
+}
+#rpshow {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  z-index: 3;
+  padding: 4px 10px;
+  font-size: 11px;
+  opacity: 0.75;
+}
+#rpshow[hidden] {
+  display: none;
+}
+@media (orientation: portrait) {
+  #rpshow {
+    left: 8px;
+    transform: none;
+    bottom: auto;
+    top: calc(var(--topH) + 84px);
+  }
+}

@@ -484,3 +484,74 @@
   padding: 5px 9px;
   font-size: 12px;
 }
+/* ---- result dialog (draggable, no backdrop: the board stays visible) ---- */
+.result {
+  position: fixed;
+  z-index: 60;
+  width: min(360px, 92vw);
+  background: var(--bg);
+  color: var(--fg);
+  border-radius: 12px;
+  border: 1px solid rgba(128, 128, 128, 0.4);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+.result[hidden] {
+  display: none;
+}
+.rs-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  padding: 10px 14px;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.3);
+}
+.rs-head small {
+  font-size: 11px;
+  font-weight: 400;
+  opacity: 0.6;
+}
+.rs-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+}
+.rs-why {
+  font-size: 13px;
+  opacity: 0.85;
+}
+.rs-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+.rs-btns {
+  display: flex;
+  gap: 6px;
+}
+.rs-btns .abtn {
+  flex: 1;
+}
+.abtn.rs-opt.sel,
+.abtn.rs-opt.sel:disabled {
+  background: var(--btn-go);
+  color: #fff;
+  opacity: 1;
+  box-shadow: 0 0 0 2px var(--accent) inset;
+}
+.abtn.rs-opt.ask {
+  outline: 2px dashed var(--btn-pass);
+  outline-offset: 1px;
+}
+.rs-note {
+  font-size: 11px;
+  opacity: 0.75;
+}

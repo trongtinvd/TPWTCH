@@ -26,3 +26,8 @@ const BOARD_RISE = cssNum('--board-rise', 0.45),
     hoverCurrent: cssHex('--zone-hover-current', 0xc99a2a),
     plain: cssHex('--zone-hover-plain', 0x333333),
   };
+const FX = {
+  stack: cssNum('--fx-stack-ms', 1700), // a spell / ability card flying to or from the stack
+  attack: cssNum('--fx-attack-ms', 700), // the same for an Attack object
+  resolve: cssNum('--fx-resolve-ms', 700), // pause after a spell / ability resolved
+};

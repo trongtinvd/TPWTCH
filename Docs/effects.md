@@ -70,6 +70,7 @@ Handlers get `x = {s, ev, src, t, who, foe, ...}`. Effects run in list order. An
 | `vaultFromDeck(n)` / `revealVault()` | Heaven and Sun: `vault` statuses on the card. |
 | `swapIn()` | Shieldguard (reads the Attack on the stack). |
 | `shieldAll(color)`, `noLifeGain()` | `shield` statuses on your board cards; `nogain` on you. |
+| `winGame(who?)` | The controller wins the game (`who:'foe'`: the opponent). Sets `state.result` (why `effect`); ignored when the game is already decided. |
 | `skipFoeCombat(pay)`, `secondCombat()` | Shark: pay life, `skipCombat` on the foe; second combat (foe draws 5 as a cost; if you hold a `skipCombat` status it is used up instead). |
 
 ## Costs (paid at activation, never refunded if countered/fizzled)
@@ -125,7 +126,7 @@ Optional fields: `hp`, `zone`, `cond`. `fire()` collects all matches, turn playe
 Test-only fixtures (not in decks): Soldier 2/3, Knight 4/5, Giant 6/8, Guard 1/6, Wolf 3/3, Barrier, Aura, Banner, Trap, Mend, Fireball, Rally, Blast, **Rage** (Quick, HP 2, `req attackOnStack`: `addAttackDamage(4)`).
 
 ## Tests
-`tests/selftest.js` (`node tests/run.js`, or `cardGame.selfTest()` in the console; headless, no THREE/DOM): 313 checks. Added: status order and folds, removal on leaving the board (kept in the list), `keep`, zone-bound statuses, expiry, aura enter/leave/return, linked ability status, player list folds, `nogain`, Heaven and Sun vault, `revealed`, and the Attack bonus (resolves, stays after the attacker leaves, defender can boost). Not yet covered: Creeping Parasite modes other than 0, Shark's second-combat edge cases with statuses.
+`tests/selftest.js` (`node tests/run.js`, or `cardGame.selfTest()` in the console; headless, no THREE/DOM): 327 checks. Added: status order and folds, removal on leaving the board (kept in the list), `keep`, zone-bound statuses, expiry, aura enter/leave/return, linked ability status, player list folds, `nogain`, Heaven and Sun vault, `revealed`, and the Attack bonus (resolves, stays after the attacker leaves, defender can boost). Not yet covered: Creeping Parasite modes other than 0, Shark's second-combat edge cases with statuses.
 
 ## Not implemented
 - Base/Current stat layers and equipment (only the status fold exists), durations other than `turnEnd`, Maximum Damage.
@@ -133,7 +134,7 @@ Test-only fixtures (not in decks): Soldier 2/3, Knight 4/5, Giant 6/8, Guard 1/6
 - Observation filtering beyond King Eye clouds and `revealed`.
 - Real-time input windows.
 - Player-chosen trigger order; statuses on stack objects; pruning of old removed statuses.
-- Player stats, Distance/Speed/Acceleration, win/loss.
+- Player stats, Distance/Speed/Acceleration. (Win/loss is built: life <= -1, `winGame`, Surrender, Leave; see `RULES.md`.)
 - Silent no-ops: `draw` on empty deck; `shiftAdjacent` with no free slot.
 
 ## Card text

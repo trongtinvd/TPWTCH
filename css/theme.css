@@ -13,6 +13,8 @@
   --btn-pass: #a8742c;
   --btn-atk: #7a3b3b;
   --btn-atk-on: #c0392b;
+  --btn-exit: #d63a2f; /* Exit / Leave */
+  --exit-glow: #ff5a4d; /* the pulsing Exit button */
   --accent: #3fe07a; /* hover links, drop targets, selected highlight */
   --drop: #3fa66a;
   --splat: #b3121c;
@@ -66,6 +68,11 @@
   --card-d: 2.3;
   --board-rise: 0.45; /* how far the half of the player who has priority rises */
   --attack-raise: 0.2; /* a creature that can attack stands this much higher */
+
+  /* ---- timing (milliseconds) ---- */
+  --fx-stack-ms: 1700; /* a spell / ability card flying to or from the stack */
+  --fx-attack-ms: 700; /* the same for an Attack object: the sword already shows the attack */
+  --fx-resolve-ms: 700; /* pause after a spell / ability resolved, before automatic passes and the bot go on */
 
   /* ---- sprites on the cards ---- */
   --badge-size: 0.62; /* power / HP badges */

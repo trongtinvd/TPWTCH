@@ -1,7 +1,7 @@
 // state.js - game state: creation, zones, clouds, recalc (state-based rules), leaving / entering the board
 Sim.def('state', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
-  let byId, majorUsed, mulberry32, slotRow; // util
+  let byId, majorUsed, mulberry32, other, slotRow; // util
   let lg, syncLogs; // logs
   let abDef, addStatus, clearStatuses, hasSt, hpOf, live, removeStatus, syncLife, totalDamage; // statuses
   let fire; // stack
@@ -49,6 +49,7 @@ Sim.def('state', function (K) {
       choice: null,
       unusable: {},
       respond: null,
+      result: null, // null | {winner:'Player'|'Opponent'|null (a draw), why:'life'|'surrender'|'left'|'effect', turn}: set once, never changed
     }; // respond: null | {kind:'enter'|'end'} = the non-turn player may respond before play continues
     for (const [p, seed] of [
       ['Player', n * 2 + 1],
@@ -136,10 +137,22 @@ Sim.def('state', function (K) {
         dead.forEach(c => destroy(s, c, ev));
       }
       for (const p of ['Player', 'Opponent']) syncLife(s, p);
+      if (!s.result) {
+        // a player at life <= -1 has lost (0 is still alive); both at once = a draw
+        const lost = ['Player', 'Opponent'].filter(q => s.life[q] <= -1);
+        if (lost.length === 2) declareWinner(s, null, 'life', ev);
+        else if (lost.length === 1) declareWinner(s, other(lost[0]), 'life', ev);
+      }
     } finally {
       rcBusy = false;
     }
     syncLogs(s, ev);
+  }
+  function declareWinner(s, p, why, ev) {
+    // the first decision stands: later life changes or effects never change the result. p = null is a draw
+    if (s.result) return;
+    s.result = { winner: p, why, turn: s.turn };
+    ev.push({ t: 'GameDecided', winner: p, why });
   }
   function sweepUnusable(s, ev) {
     // a card that somehow ends up on an unusable zone goes to the graveyard
@@ -203,6 +216,7 @@ Sim.def('state', function (K) {
       cloudMap,
       create,
       createGame,
+      declareWinner,
       destroy,
       enterBoard,
       freeSlots,
@@ -223,6 +237,7 @@ Sim.def('state', function (K) {
       'live',
       'majorUsed',
       'mulberry32',
+      'other',
       'removeStatus',
       'slotRow',
       'syncLife',
@@ -243,6 +258,7 @@ Sim.def('state', function (K) {
         live,
         majorUsed,
         mulberry32,
+        other,
         removeStatus,
         slotRow,
         syncLife,

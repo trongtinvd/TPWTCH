@@ -105,7 +105,7 @@ function botChoose(s, p, rnd, mem) {
 // ---- host side (browser): the bot is always the Opponent seat ----
 const botMem = { turn: -1, n: 0 },
   botR = botRng(Date.now());
-const botWants = () => !MenuUI.away && botActor(sim) === 'Opponent';
+const botWants = () => !MenuUI.away && !Result.blocks() && botActor(sim) === 'Opponent'; // the bot never surrenders, and waits while the result is shown
 function botSchedule() {
   clearTimeout(ui.botTimer);
   ui.botTimer = setTimeout(botTick, 650);

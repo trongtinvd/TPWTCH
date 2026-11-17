@@ -97,6 +97,7 @@ const Fx = {
   swapIn: () => ({ op: 'SwapIn' }),
   shieldAll: color => ({ op: 'ShieldAll', color }),
   noLifeGain: () => ({ op: 'NoLifeGain' }),
+  winGame: who => ({ op: 'WinGame', who }), // effect: the controller (who:'foe' = the opponent) wins the game
   aura: (who, atk, hp) => ({ op: 'Aura', who, atk, hp }), // passive: own/foe cards in this card's column and the adjacent columns get +atk/+hp (derived, never stored)
   drawUntil: n => ({ op: 'DrawUntil', n }),
   addAttackDamage: (amount, whose) => ({ op: 'AddAttackDamage', amount, whose }), // effect: adds damage to the topmost Attack object on the stack (whose: 'mine' | 'foe' | 'any')

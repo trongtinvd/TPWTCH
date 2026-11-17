@@ -62,7 +62,13 @@ King Eye clouds are **derived from the board** (a passive), not stored statuses;
 ## Setup [proto]
 - Decks are **singleton** (one copy of each card, currently 25 cards), shuffled from a seed.
 - **Deck-building phase:** each player reorders their own deck, then presses Start. Decks lock when a player is ready. When both are ready each gets an opening hand of 5 and Player 1's turn starts.
-- Life: 20 each. **[not built]** No win/loss check: life can go to 0 or below and play continues.
+- Life: 20 each. A player at life -1 or less has lost (see Victory).
+
+## Victory [proto]
+- A player **loses at life <= -1** (0 is still alive), checked by `recalc` after every command. Both players at -1 or less at once = a **draw**.
+- An effect can make a player win (`winGame`: the controller, or with `'foe'` the opponent).
+- `Surrender` ends the game at once (the other player wins) and is allowed at any time, even during a choice. `Leave` is the same with the reason "left" (a player walking away from a running game).
+- The result is recorded **once** in `state.result = {winner, why, turn}` and never changes (`why`: life, surrender, left, effect). Play is not stopped by the Sim: the host shows the result dialog, and **Continue** (both players) just goes on with the same game, result unchanged. **Rematch** (both players) starts a new game at once. **Leave** returns to the menu; the other side's dialog disappears and its Exit button pulses.
 
 ## Turn: one major action
 1. Draw two (one if only one card is left; illegal on an empty deck), OR 2. Summon one permanent / play one Slow spell, OR 3. Enter the attack phase.

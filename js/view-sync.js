@@ -315,7 +315,7 @@ document.querySelectorAll('#hp .hpr').forEach(r => {
 // ---- Showcase animations. The simulation has already moved on; the screen keeps the OLD state until they finish ----
 const hiddenSids = new Set();
 const fxReset = () => hiddenSids.clear();
-function fly(def, sub, from, toFn, s0, s1) {
+function fly(def, sub, from, toFn, s0, s1, ms = FX.stack) {
   const g = document.createElement('div');
   g.className = 'ghost';
   g.style.setProperty('--tc', cardColor(def));
@@ -335,9 +335,9 @@ function fly(def, sub, from, toFn, s0, s1) {
       { transform: at(mid, 1.7), opacity: 1, offset: 0.7, easing: 'ease-in' },
       { transform: at(to || mid, s1), opacity: to ? 0.85 : 0, offset: 1 },
     ],
-    { duration: 1700, fill: 'forwards' }
+    { duration: ms, fill: 'forwards' }
   );
-  return Promise.race([a.finished, new Promise(r => setTimeout(r, 2600))])
+  return Promise.race([a.finished, new Promise(r => setTimeout(r, ms + 900))])
     .catch(() => {})
     .then(() => g.remove());
 }
@@ -354,12 +354,13 @@ const subOf = (src, o) =>
   o.kind === 'spell'
     ? src.def.timing + ' spell'
     : ((src.def[o.list] || [])[o.ab] || {}).name || (o.kind === 'attack' ? 'Attack' : 'Trigger');
+const fxMs = o => (o.kind === 'attack' ? FX.attack : FX.stack); // an Attack is already shown by the sword: a shorter stack animation
 async function enterJob(pre, o, i) {
   const src = pre.cards[o.src || o.iid],
     m = o.kind === 'spell' ? meshes.get(src.iid) : null,
     mk = maskOf(o, sim, pre);
   if (mk) {
-    await fly(mk.def, 'Ability', screenOf(mk), () => stackSlot(src.owner, i), 0.45, 0.32);
+    await fly(mk.def, 'Ability', screenOf(mk), () => stackSlot(src.owner, i), 0.45, 0.32, fxMs(o));
     return;
   } // hidden source: it starts from King Eye
   const from = screenOf(src);
@@ -367,7 +368,7 @@ async function enterJob(pre, o, i) {
     m.visible = false;
     ui.dirty = true;
   } // the hand card is carried by the ghost
-  await fly(src.def, subOf(src, o), from, () => stackSlot(src.owner, i), 0.45, 0.32);
+  await fly(src.def, subOf(src, o), from, () => stackSlot(src.owner, i), 0.45, 0.32, fxMs(o));
 }
 async function leaveJob(pre, o) {
   const src = pre.cards[o.src || o.iid],
@@ -379,7 +380,7 @@ async function leaveJob(pre, o) {
   const mk = maskOf(o, sim, pre),
     mid = { x: (b.left + b.right) / 2, y: (b.top + b.bottom) / 2 };
   if (mk) {
-    await fly(mk.def, 'Ability', mid, () => screenOf(mk), 0.32, 0.45);
+    await fly(mk.def, 'Ability', mid, () => screenOf(mk), 0.32, 0.45, fxMs(o));
     return;
   }
   await fly(
@@ -395,7 +396,8 @@ async function leaveJob(pre, o) {
           ? screenOf(src)
           : null,
     0.32,
-    0.45
+    0.45,
+    fxMs(o)
   );
 }
 function fxJobs(pre, post) {

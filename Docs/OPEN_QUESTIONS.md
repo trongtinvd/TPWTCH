@@ -46,6 +46,10 @@ Settle **before the card pool grows**; record decisions in `RULES.md`.
 - [ ] 44. **Log visibility.** The log of a visible opponent card shows its starting deck position and history. Hide deck positions of the other player's cards? Revealed hand cards: whole log or only the part since revealed?
 - [ ] 45. **Destroyed by a rule vs by an effect.** Zone-gone destruction is marked `by:'rule'`. Should "when destroyed by an effect" triggers (future) ignore it? Should it trigger "destroyed" abilities at all?
 
+- [ ] 46. **Win vs loss at the same time.** A `winGame` effect resolving while a player is at -1: the first decision stands (proto). Should a win effect beat a life loss, or a loss win over everything?
+- [ ] 47. **Continuing a decided game.** The result is fixed, so life below -1 no longer matters. Should a continued game still show who is "winning", and should a second decision (e.g. the other player also at -1) ever count?
+- [ ] 48. **Leaving a running game.** Hot seat: the viewed seat leaving gives the other seat the win. Online: a disconnect timeout is open.
+
 ## Timing and ordering
 - [ ] 6. Simultaneous trigger order? (Proto: turn player's first on the stack, other player's resolve first; within a player, creation order.)
 - [ ] 7. Mandatory vs optional trigger order? (Players cannot yet order their own triggers.)
@@ -55,7 +59,7 @@ Settle **before the card pool grows**; record decisions in `RULES.md`.
 - [ ] 17. What exactly ends an effect? (Proto: leave zone, requirement fails, link ends, clears itself, expires, removed by an effect.)
 - [ ] 19. **Do Slow abilities spend the major action?** Design: free. Proto: they spend it on activation.
 - [ ] 21. Should combat end the turn (original) or only the attack phase (proto)? Is entering the attack phase with no attack a legal "pass"? (End turn during combat ends the combat phase first: proto.)
-- [ ] 22. Win/loss: what happens at life <= 0, checked at <= 0 or <= -1?
+- [x] 22. Win/loss: a player loses at life <= -1 (0 is alive); both at once = a draw; the first decision stands. See `RULES.md` (Victory).
 
 ## Combat
 - [ ] 20. Trample vs kill threshold: ATK = HP + 1 both kills and tramples 1. Intended?
