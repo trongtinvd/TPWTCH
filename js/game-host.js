@@ -6,6 +6,17 @@
 const other = Sim.other,
   isPerm = Sim.isPerm;
 const NAME = { Player: 'Player 1', Opponent: 'Player 2' };
+// the "stops": response windows the Sim opens when state.stops asks for them (the Pass button and the log name them)
+const STOP_NAMES = {
+  enter: 'permanent entered',
+  end: 'end step (turn ended)',
+  turnStart: 'turn started',
+  combatStart: 'combat started',
+  combatEnd: 'combat ended',
+  draw: 'cards drawn',
+  stack: 'stack emptied',
+};
+const STOPS_ON = { turnStart: true, combatStart: true, combatEnd: true, draw: true, stack: true }; // real games run with every stop on
 const disp = n => n.replace(/^Opp(onent)?\b/, 'Player 2').replace(/^Player(?! [12])\b/, 'Player 1');
 const deckStatus = () =>
   'Deck building \u00b7 ' +
@@ -20,7 +31,7 @@ let sim = Sim.create(newSeed(), DEFS),
 const undoStack = [],
   eventLog = []; // snapshots for undo; recent rule events
 const cmdLog = []; // every ACCEPTED command of the running duel: with the seed and the decks it IS the replay (the Sim is deterministic)
-const rp = { on: false, feed: false, rec: null, i: 0, playing: false, speed: 1, timer: 0 }; // replay playback (replay.js)
+const rp = { on: false, feed: false, rec: null, i: 0, playing: false, speed: 1, timer: 0, view: 'auto', min: false }; // replay playback (replay.js). view: auto | p1 | p2 (seat shown); min: the control bar is minimised
 // ---- THE UI STATE. Every mutable piece of interaction state lives here (the view never edits `game`; it only calls send()).
 // Rule: only sync() turns state into pixels: handlers change ui.* and call sync() / send(); sync() rebuilds the meshes and the panels and
 // sets ui.dirty, and the render loop in main.js draws only while ui.dirty (or an animation) asks for it.
@@ -51,6 +62,7 @@ const ui = {
   lastEmptyTap: 0,
   pinchD: 0, // two-finger pinch zooms the top view
   hoverP: null, // player inspection: hovered / pinned (click a life bar)
+  stackLog: false, // the stack panel is flipped over: the game log is shown (js/gamelog.js)
   selP: null,
   inspLast: null, // what the inspector shows right now (the status toggle re-renders it)
   pickCards: [],
@@ -69,7 +81,8 @@ const ui = {
   autoTimer: 0,
   stepTimer: 0, // the pause after a spell / ability resolved, before automation goes on
   autoDepth: 0,
-  lastCfg: null, // {mode:'self'|'bot', p1, p2, shuffle} of the running game
+  lastCfg: null, // {mode:'self'|'bot', p1, p2, shuffle, botSeat} of the running game
+  botSeat: 'Opponent', // the seat the bot plays (Vs Bot: Opponent; after "take over as Player 2": Player)
   rpInit: null, // what a replay needs besides the commands: seed, both decks, mode, deck names
   botTimer: 0,
   // render on demand
@@ -169,9 +182,15 @@ function makeSword() {
   g.add(blade, tip, guard, grip);
   return g;
 }
+const isCombatHit = e => (e.t === 'DamageDealt' && e.type === 'combat') || (e.t === 'PlayerDamaged' && e.combat);
+const attackResolved = (pre, post) => {
+  // did this command resolve the Attack that was on top of the stack?
+  const o = pre.stack[pre.stack.length - 1];
+  return !!o && o.kind === 'attack' && !post.stack.some(q => q.sid === o.sid);
+};
 async function attackJob(pre, ev) {
   // sword flies down the column; every hit gets a splat; splats go away, THEN the numbers update
-  const comb = ev.filter(e => (e.t === 'DamageDealt' && e.type === 'combat') || (e.t === 'PlayerDamaged' && e.combat));
+  const comb = ev.filter(e => isCombatHit(e) || (e.t === 'DamageDenied' && attackResolved(pre, sim))); // a denied hit still gets its sword
   if (!comb.length) return;
   const moved = ev.filter(e => e.t === 'PermanentMoved'); // a shift happened before the strike: move the card first, so the attack runs straight down its NEW column
   for (const e of moved) {
@@ -183,22 +202,25 @@ async function attackJob(pre, ev) {
     }
   }
   if (moved.length) await sleep(600);
-  const a = meshes.get(comb[0].source);
-  if (!a) return;
+  const ao = pre.stack[pre.stack.length - 1], // the Attack that just resolved is on top of the old stack
+    a = meshes.get(ao && ao.kind === 'attack' ? ao.iid : comb[0].source) || meshes.get(comb[0].source),
+    z0 = ao && ao.slotAt && slotZones[ao.slotAt], // the attacker may be gone already (killed in response): the sword starts where it stood
+    from0 = a ? { x: a.position.x, z: a.position.z } : z0 ? { x: z0.position.x, z: z0.position.z } : null;
+  if (!from0) return;
   const sword = makeSword(),
     undo = [];
-  let cur = { x: a.position.x, z: a.position.z };
+  let cur = from0;
   sword.position.set(cur.x, 0.9, cur.z);
   scene.add(sword);
   for (const e of comb) {
-    const m = e.t === 'DamageDealt' ? meshes.get(e.target) : null;
-    if (e.t === 'DamageDealt' && !m) continue;
+    const m = e.t === 'PlayerDamaged' ? null : meshes.get(e.target);
+    if (e.t !== 'PlayerDamaged' && !m) continue; // a target that is already gone shows nothing (it used to be drawn as a hit on the player)
     const to = m ? { x: m.position.x, z: m.position.z } : { x: cur.x, z: (e.player === 'Opponent' ? -1 : 1) * 7.3 },
       from = cur;
     sword.rotation.y = to.z >= from.z ? 0 : Math.PI;
     await tween(280, t => sword.position.set(from.x + (to.x - from.x) * t, 0.9, from.z + (to.z - from.z) * t));
     cur = to;
-    undo.push(m ? splat3D(m) : splatBar(e.player));
+    undo.push(e.t === 'DamageDenied' ? () => {} : m ? splat3D(m) : splatBar(e.player));
     ui.dirty = true;
   }
   await sleep(700);
@@ -206,7 +228,7 @@ async function attackJob(pre, ev) {
   undo.forEach(f => f());
   ui.dirty = true;
 }
-function send(cmd) {
+function send(cmd, src) {
   if (rp.on && !rp.feed) {
     ui.note = 'Replay: watching only';
     sync();
@@ -241,12 +263,13 @@ function send(cmd) {
     if (undoStack.length > 200) undoStack.shift();
     if (!rp.on) cmdLog.push(JSON.parse(JSON.stringify(cmd)));
     eventLog.push(...r.events);
+    GameLog.add(pre.turn, cmd, r.events, src); // src: auto | bot | replay (a click is 'player')
     if (eventLog.length > 200) eventLog.splice(0, eventLog.length - 200);
     ui.placing = null;
     ui.selected = null;
     ui.inspHold = true; // any action closes the inspection panel
     jobs = fxJobs(pre, sim);
-    if (r.events.some(e => (e.t === 'DamageDealt' && e.type === 'combat') || (e.t === 'PlayerDamaged' && e.combat))) {
+    if (r.events.some(isCombatHit) || (attackResolved(pre, sim) && r.events.some(e => e.t === 'DamageDenied'))) {
       // order: attack animation -> damage numbers -> triggered abilities appear on the stack
       const A = new Set(pre.stack.map(o => o.sid)),
         ent = jobs.filter(j => j.enter);
@@ -344,15 +367,11 @@ function autoStep() {
   } else if (game.respond) {
     if (mode === 'off' || (mode === 'normal' && !Sim.hasAction(game, p))) cmd = { type: 'Pass', player: p };
   } else if (ui.autoTurn && mode !== 'always' && p === game.active) {
-    const canAtk = Object.values(game.cards).some(c => c.owner === p && !Sim.canAttack(game, c));
-    const done = game.attackPhase
-      ? mode === 'off'
-        ? !canAtk
-        : !Sim.hasAction(game, p)
-      : mode === 'off'
-        ? Sim.majorUsed(game)
-        : !Sim.hasAction(game, p);
-    if (done) cmd = { type: 'EndTurn', player: p };
+    const acts = Sim.actionsOf(game, p);
+    if (game.attackPhase) {
+      // the combat phase ends by itself when no attack is left (the next pass of automation then ends the turn if nothing else can be done)
+      if (!acts.some(a => a.kind === 'attack')) cmd = { type: 'SetAttackPhase', player: p, on: false };
+    } else if (mode === 'off' ? Sim.majorUsed(game) : !acts.length) cmd = { type: 'EndTurn', player: p };
   }
   if (!cmd) return;
   if (ui.autoView && ui.camAngle !== ui.camGoal) {
@@ -362,7 +381,7 @@ function autoStep() {
   } // let the camera reach the seat holding priority before an automatic pass / end turn skips past it
   ui.autoDepth++;
   try {
-    send(cmd);
+    send(cmd, 'auto');
   } finally {
     ui.autoDepth--;
   }
@@ -401,6 +420,7 @@ function undo() {
   if (!undoStack.length || ui.fxBusy || Result.blocks()) return;
   if (!rp.on) cmdLog.pop(); // an undone command is not part of the duel any more
   sim = undoStack.pop();
+  GameLog.pop();
   game = sim;
   ui.placing = null;
   fxReset();
@@ -503,6 +523,7 @@ function resetGame() {
   const c = ui.lastCfg || { mode: 'self', p1: BUILTIN_DECKS[0].name, p2: BUILTIN_DECKS[1].name, shuffle: true };
   ui.lastCfg = c;
   ui.mode = c.mode;
+  ui.botSeat = c.botSeat || 'Opponent';
   ui.deckEdit = false;
   ui.autoView = c.mode === 'self';
   ui.pin = null;
@@ -515,11 +536,13 @@ function resetGame() {
     decks: { Player: deckOf(c.p1), Opponent: deckOf(c.p2) },
     shuffle: c.shuffle,
     autoStart: true,
+    stops: STOPS_ON,
   });
   game = sim;
   fxReset();
   undoStack.length = 0;
   eventLog.length = 0;
+  GameLog.clear();
   rp.on = false;
   rp.playing = false;
   clearTimeout(rp.timer);
@@ -530,9 +553,12 @@ function resetGame() {
     d1: deckOf(c.p1).slice(),
     d2: deckOf(c.p2).slice(),
     sh: !!c.shuffle,
+    stops: STOPS_ON,
     mode: c.mode,
     a: c.p1,
     b: c.p2,
+    kind: c.mode, // what the replay list colours by: bot | self | over (take over)
+    base: 0, // commands that belong to an earlier replay (a take over from the current state): a duel with no new command is not saved
   };
   for (const m of meshes.values()) cardGroup.remove(m);
   meshes.clear();
@@ -540,13 +566,16 @@ function resetGame() {
   ui.openList = null;
   inspect.hidden = true;
   deckPanel.hidden = true;
-  setView('Player');
+  setView(c.mode === 'bot' ? other(ui.botSeat) : 'Player');
   sync();
 }
 
 // ---- Game function buttons (HTML, top right) and debug buttons (HTML, bottom right) ----
+const hint = kind =>
+  !rp.on && !game.choice && game.phase === 'play' && Sim.actionsOf(game, ui.view).some(a => a.kind === kind); // is that action available to the viewed seat now? (pulses the Draw / Attack buttons)
+const debugOk = () => (ui.mode === 'self' || ui.mode === 'bot') && game.phase === 'play' && !rp.on; // debug tools (deck list: add to hand) exist in Vs Self / Vs Bot
 const myPriority = () => ui.view === game.priority && !ui.placing && !game.choice; // nobody holds a usable priority while a player is making a choice
-const inPlay = () => game.phase === 'play';
+const inPlay = () => game.phase === 'play' && !rp.on; // a replay only views: every gameplay button is hidden
 const FN = [
   {
     id: 'start',
@@ -581,9 +610,7 @@ const FN = [
     id: 'pass',
     cls: 'c-pass',
     label: () =>
-      game.respond && !game.stack.length
-        ? 'Pass (' + ({ end: 'end step' }[game.respond.kind] || 'entered') + ')'
-        : 'Pass',
+      game.respond && !game.stack.length ? 'Pass (' + (STOP_NAMES[game.respond.kind] || 'entered') + ')' : 'Pass',
     run: pass,
     on: () => myPriority() && (game.stack.length > 0 || !!game.respond),
     show: inPlay,
@@ -650,6 +677,7 @@ const DBTN = [
       autoStep();
     },
     on: () => true,
+    show: () => !rp.on,
   },
   {
     id: 'actions',
@@ -660,11 +688,13 @@ const DBTN = [
       autoStep();
     },
     on: () => true,
+    show: () => !rp.on,
   },
   {
     id: 'reset',
-    label: () => 'Reset game',
+    label: () => (rp.on ? 'Restart replay' : 'Reset game'),
     run: () => {
+      if (rp.on) return Replays.restart(); // a replay never turns into a game: Restart plays it again from the beginning
       Replays.saveCurrent()
         .catch(() => false)
         .then(resetGame);
@@ -681,6 +711,13 @@ const DBTN = [
     on: () => true,
     show: () => ui.mode === 'self',
   }, // debug deck editing: click a Deck zone, drag rows
+  {
+    id: 'rpview',
+    label: () => 'View: ' + { p1: 'Player 1', p2: 'Player 2', auto: 'Current player' }[rp.view],
+    run: () => Replays.cycleView(),
+    on: () => rp.on,
+    show: () => rp.on,
+  }, // replay only: Player 1 -> Player 2 -> Current player (the camera follows priority)
   { id: 'menu', cls: 'c-exit', label: () => 'Exit', run: () => MenuUI.leaveGame(), on: () => true },
   { id: 'player', label: () => 'Switch player', run: switchPlayer, on: () => true, show: () => ui.mode === 'self' },
   {
@@ -726,6 +763,8 @@ function updateDbg() {
     b.el.disabled = !b.on();
     if (b.show) b.el.hidden = !b.show();
     if (b.id === 'battle') b.el.classList.toggle('on', game.attackPhase);
+    if (b.id === 'draw' || b.id === 'battle')
+      b.el.classList.toggle('pulseG', !b.el.disabled && !b.el.hidden && hint(b.id)); // an available action is highlighted
     if (b.id === 'menu') b.el.classList.toggle('pulseR', Result.pulsing()); // the other side left: this is the way out
   });
 }

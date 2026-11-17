@@ -18,6 +18,9 @@
   --accent: #3fe07a; /* hover links, drop targets, selected highlight */
   --drop: #3fa66a;
   --splat: #b3121c;
+  --rp-bot: #3f7fd8; /* replay kinds: Vs Bot / Vs Self / Take over */
+  --rp-self: #8e5bd0;
+  --rp-over: #d98a2b;
 
   /* ---- inspector text: greyed = not usable right now, crossed out = disabled, highlighted = the selected stack ability ---- */
   --seg-dim-opacity: 0.38;
@@ -53,6 +56,7 @@
   --zone-hover: #44aa55;
   --zone-hover-current: #c99a2a;
   --zone-hover-plain: #333333;
+  --zone-action: #9a7a1c; /* a zone holding something you can use now (graveyard ability) */
   --cloud-hidden: #07070c; /* King Eye clouds */
   --cloud-own: #07070c;
   --cloud-hot: #16402a;
@@ -71,8 +75,8 @@
 
   /* ---- timing (milliseconds) ---- */
   --fx-stack-ms: 1700; /* a spell / ability card flying to or from the stack */
-  --fx-attack-ms: 700; /* the same for an Attack object: the sword already shows the attack */
-  --fx-resolve-ms: 700; /* pause after a spell / ability resolved, before automatic passes and the bot go on */
+  --fx-attack-ms: 0; /* the same for an Attack object: the sword already shows the attack */
+  --fx-resolve-ms: 1700; /* pause after a spell / ability resolved, before automatic passes and the bot go on */
 
   /* ---- sprites on the cards ---- */
   --badge-size: 0.62; /* power / HP badges */

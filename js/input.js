@@ -11,6 +11,14 @@ function pickAt(x, y, list) {
   return h ? h.object : null;
 }
 function passByRightClick() {
+  if (rp.on) return false;
+  const k = game.choice;
+  if (k && !foeChoice()) {
+    // a shift choice: right click / double tap on empty space = stay where it is (exactly like clicking the zone the card stands on)
+    if (k.kind) return false;
+    send({ type: 'Choose', player: k.player, option: 'stay' });
+    return true;
+  }
   const b = FN.find(x => x.id === 'pass');
   if (!b || !b.on()) return false;
   closeMenu();
@@ -27,7 +35,7 @@ addEventListener(
     ui.downAt = { x: e.clientX, y: e.clientY };
     const o = pickAt(e.clientX, e.clientY),
       c = o && o.userData.card;
-    ui.dragCand = c && c.loc === 'hand' && c.owner === ui.view && !uiCanPlay(c) ? c : null;
+    ui.dragCand = !rp.on && c && c.loc === 'hand' && c.owner === ui.view && !uiCanPlay(c) ? c : null;
     panFrom = tv.on && !ui.dragCand ? { x: e.clientX, y: e.clientY } : null;
     if (ui.dragCand) controls.enabled = false; // keep the camera still while dragging a card
   },
@@ -165,7 +173,7 @@ addEventListener('pointerup', e => {
   }
   if (u.card && !ui.placing) {
     showCard(u.card);
-    openMenu(u.card, e.clientX, e.clientY);
+    if (!rp.on) openMenu(u.card, e.clientX, e.clientY); // a replay only inspects
   } else if (u.deckOf && !ui.placing) {
     closeMenu();
     showList(u.deckOf, 'deck');

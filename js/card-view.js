@@ -466,7 +466,8 @@ function setGlow(m, on) {
     m.userData.glow = null;
   }
 }
-const canUse = c =>
+const canUse = c => !rp.on && canUseNow(c); // nothing glows in a replay
+const canUseNow = c =>
   (game.choice &&
     !foeChoice() &&
     game.choice.kind === 'pick' &&

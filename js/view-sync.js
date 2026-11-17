@@ -35,7 +35,7 @@ function targets() {
       c,
       z.position.x,
       z.position.z,
-      0.11 + (Sim.canAttack(game, c) ? ATTACK_RAISE : 0),
+      0.11 + (!rp.on && Sim.canAttack(game, c) ? ATTACK_RAISE : 0),
       c.owner === 'Opponent' ? Math.PI : 0,
       false,
       k.split('|')[0]
@@ -450,8 +450,23 @@ async function fxRun(jobs, done) {
 }
 function buildStack() {
   // shared stack panel: your objects on the left, the opponent's on the right
+  const atEnd = stackEl.scrollHeight - stackEl.scrollTop - stackEl.clientHeight < 40,
+    wasLog = stackEl.classList.contains('log'),
+    keep = stackEl.scrollTop; // (read before the panel is rebuilt)
   stackEl.innerHTML =
-    '<div class="sh">Stack \u00b7 ' + (game.stack.length ? 'bottom resolves first' : 'empty') + '</div>';
+    '<div class="sh"><span>' +
+    (ui.stackLog ? 'Log' : 'Stack \u00b7 ' + (game.stack.length ? 'bottom resolves first' : 'empty')) +
+    '</span><span class="shb">' +
+    (ui.stackLog
+      ? '<button class="xbtn" data-logcopy style="font-size:11px" title="Copy the whole log">Copy</button>'
+      : '') +
+    '<button class="xbtn" data-flip title="Flip the panel: stack / game log" aria-label="Flip the panel: stack or game log">\u21c4</button></span></div>';
+  stackEl.classList.toggle('log', !!ui.stackLog);
+  if (ui.stackLog) {
+    stackEl.appendChild(GameLog.view());
+    stackEl.scrollTop = atEnd || !wasLog ? stackEl.scrollHeight : keep;
+    return;
+  }
   for (let i = 0; i < game.stack.length; i++) {
     // oldest at the top of the panel, new objects appended at the bottom
     const o = game.stack[i],
@@ -484,7 +499,13 @@ function buildStack() {
 function sync() {
   const seat = game.choice ? game.choice.player : game.priority;
   if (ui.pin && ui.pin !== seat) ui.pin = null; // a manual seat switch holds until priority moves on
-  if (ui.autoView && !ui.viewHold && !ui.pin && game.phase === 'play' && ui.view !== seat) setView(seat);
+  const quiet =
+    !game.choice &&
+    !game.stack.length &&
+    !!game.respond &&
+    !['enter', 'end'].includes(game.respond.kind) &&
+    (ui.actions === 'off' || (ui.actions === 'normal' && !Sim.hasAction(game, seat))); // a new stop that will be passed by itself: the camera does not swing over for it
+  if (ui.autoView && !ui.viewHold && !ui.pin && game.phase === 'play' && ui.view !== seat && !quiet) setView(seat);
   updateDbg();
   buildStack();
   applyLink();
@@ -530,7 +551,8 @@ function sync() {
     );
     setSword(
       m,
-      !t.down &&
+      !rp.on &&
+        !t.down &&
         t.c.loc === 'board' &&
         [null, 'Stack is not empty', 'Waiting for the response window'].includes(Sim.canAttack(game, t.c)),
       !!t.rot
@@ -592,9 +614,19 @@ function sync() {
           : tcols
             ? zones.filter(z => z.userData.slot && tcols.includes(z.userData.slot.col))
             : zones.filter(z => z.userData.slot && !game.unusable[z.userData.slotKey]);
+  const actZones = new Set(); // zones that hold something the viewer can use now: the graveyard when one of its cards has a usable ability
+  if (!rp.on && !game.choice && game.phase === 'play')
+    for (const a of Sim.actionsOf(game, ui.view))
+      if (a.kind === 'ability' && game.cards[a.iid].loc === 'gy') actZones.add(sideZones[ui.view + 'gy']);
   zones.forEach(z => {
     const cur = ch && z.userData.slotKey === chCur;
-    z.userData.baseEm = valid.includes(z) ? (cur ? ZONE_FX.current : ZONE_FX.valid) : 0;
+    z.userData.baseEm = valid.includes(z)
+      ? cur
+        ? ZONE_FX.current
+        : ZONE_FX.valid
+      : actZones.has(z)
+        ? ZONE_FX.action
+        : 0;
     z.userData.hoverEm = cur ? ZONE_FX.hoverCurrent : 0;
     applyEm(z);
   });
@@ -619,7 +651,9 @@ function sync() {
             ? ' on a highlighted zone'
             : ' on the board or the stack')
         : foeChoice()
-          ? 'Bot is choosing\u2026'
+          ? rp.on
+            ? NAME[game.choice.player] + ' is choosing\u2026'
+            : 'Bot is choosing\u2026'
           : game.choice
             ? NAME[game.choice.player] +
               ': ' +
@@ -628,7 +662,7 @@ function sync() {
                 ? ' Click a highlighted card, zone or life bar.'
                 : game.choice.kind
                   ? ' Pick an option in the list.'
-                  : ' Click a green zone to shift there, or the amber zone to stay.')
+                  : ' Click a green zone to shift there, or the amber zone (or right click / double tap empty space) to stay.')
             : ui.placing
               ? ui.placing.def.zoneTarget || ui.placing.def.playerTarget
                 ? 'Targeting for ' +
@@ -652,7 +686,7 @@ function sync() {
                     game.stack.map(o => stackName(o) + (o.hp == null ? '' : ' [HP ' + o.hp + ']')).join(' \u2192 ') +
                     ' \u00b7 '
                   : game.respond
-                    ? 'Response window: ' + ({ end: 'end step' }[game.respond.kind] || 'permanent entered') + ' \u00b7 '
+                    ? 'Response window: ' + (STOP_NAMES[game.respond.kind] || game.respond.kind) + ' \u00b7 '
                     : 'Stack empty \u00b7 ') +
                 NAME[game.priority] +
                 ' has priority' +

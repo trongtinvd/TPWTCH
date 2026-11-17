@@ -2662,6 +2662,119 @@ function selfTest() {
     }
     check('the bot never surrenders or leaves', !bad && seen > 50, 'bad=' + bad + ' seen=' + seen);
   }
+  // ================= Patch 7: stops, actionsOf, DebugToHand =================
+  {
+    const STOPS = { turnStart: true, combatStart: true, combatEnd: true, draw: true, stack: true },
+      mk = (seed, stops) => {
+        const s = Sim.create(seed, DEFS.concat(FIXTURES), { stops });
+        for (const p of ['Player', 'Opponent']) D(s, { type: 'Start', player: p });
+        return s;
+      };
+    let s = mk(950, STOPS);
+    D(s, { type: 'Draw', player: 'Player' });
+    eq(
+      'stop "cards drawn": after the turn player draws, the non-turn player gets a window',
+      [s.respond && s.respond.kind, s.priority],
+      ['draw', 'Opponent']
+    );
+    rej(
+      '...the turn player cannot act meanwhile',
+      s,
+      { type: 'SetAttackPhase', player: 'Player', on: true },
+      'priority'
+    );
+    D(s, { type: 'Pass', player: 'Opponent' });
+    eq('...passing closes it', [s.respond, s.priority], [null, 'Player']);
+    s = mk(951, STOPS);
+    const wf = take(s, 'Player', 'wolf', 'board', 'Player|front|0');
+    D(s, { type: 'SetAttackPhase', player: 'Player', on: true });
+    eq(
+      'stop "combat started"',
+      [s.attackPhase, s.respond && s.respond.kind, s.priority],
+      [true, 'combatStart', 'Opponent']
+    );
+    rej('no attack while that window is open', s, { type: 'Attack', iid: wf.iid }, 'response window');
+    D(s, { type: 'Pass', player: 'Opponent' });
+    D(s, { type: 'SetAttackPhase', player: 'Player', on: false });
+    eq('stop "combat ended"', [s.respond && s.respond.kind, s.priority], ['combatEnd', 'Opponent']);
+    D(s, { type: 'Pass', player: 'Opponent' });
+    D(s, { type: 'EndTurn', player: 'Player' });
+    eq('stop "turn ended" (end step)', s.respond && s.respond.kind, 'end');
+    D(s, { type: 'Pass', player: 'Opponent' });
+    eq(
+      'stop "turn started": the new turn\u2019s non-turn player gets a window',
+      [s.active, s.respond && s.respond.kind, s.priority],
+      ['Opponent', 'turnStart', 'Player']
+    );
+    s = mk(952, STOPS);
+    const zp = take(s, 'Player', 'zap', 'hand');
+    D(s, { type: 'PlayCard', iid: zp.iid });
+    D(s, { type: 'Pass', player: 'Opponent' });
+    const rr = D(s, { type: 'Pass', player: 'Player' });
+    eq(
+      'stop "stack emptied": a StackEmptied event, then the non-turn player gets a window',
+      [s.stack.length, s.respond && s.respond.kind, s.priority, rr.events.some(e => e.t === 'StackEmptied')],
+      [0, 'stack', 'Opponent', true]
+    );
+    s = mk(953, null);
+    D(s, { type: 'Draw', player: 'Player' });
+    eq('without stops (the default) no window opens after a draw', s.respond, null);
+    s = mk(954, null);
+    const hz = take(s, 'Player', 'zap', 'hand'),
+      hg = take(s, 'Player', 'hummingbird', 'gy');
+    setLife(s, 'Player', 10);
+    const A = Sim.actionsOf(s, 'Player');
+    check(
+      'actionsOf lists what can be done: draw, the playable hand card and the graveyard ability',
+      A.some(a => a.kind === 'draw') &&
+        A.some(a => a.kind === 'play' && a.iid === hz.iid) &&
+        A.some(a => a.kind === 'ability' && a.iid === hg.iid),
+      JSON.stringify(A)
+    );
+    check(
+      'hasAction agrees with it; the player without priority has no action',
+      Sim.hasAction(s, 'Player') && !Sim.actionsOf(s, 'Opponent').length
+    );
+    s = mk(955, null);
+    const dc = s.piles.Player.deck[0],
+      h0 = s.piles.Player.hand.length;
+    rej('DebugToHand needs the debug flag', s, { type: 'DebugToHand', iid: dc.iid }, 'Debug');
+    const dr = D(s, { type: 'DebugToHand', iid: dc.iid, debug: true });
+    eq(
+      'DebugToHand moves a deck card to its owner\u2019s hand',
+      [
+        dc.loc,
+        s.piles.Player.hand.length,
+        s.piles.Player.deck.includes(dc),
+        dr.events.some(e => e.t === 'CardAdded' && e.iid === dc.iid),
+      ],
+      ['hand', h0 + 1, false, true]
+    );
+    rej('...and only from a deck', s, { type: 'DebugToHand', iid: dc.iid, debug: true }, 'Debug');
+    const g = Sim.create(956, DEFS, {
+        decks: { Player: BUILTIN_DECKS[1].cards, Opponent: BUILTIN_DECKS[0].cards },
+        shuffle: true,
+        autoStart: true,
+        stops: STOPS,
+      }),
+      rnd = botRng(5),
+      mem = {};
+    let bad = 0,
+      stuck = false;
+    for (let i = 0; i < 600; i++) {
+      const c = botChoose(g, botActor(g), rnd, mem);
+      if (!c) {
+        stuck = true;
+        break;
+      }
+      if (!D(g, c).ok) bad++;
+    }
+    check(
+      'bot vs bot with every stop on: every command legal, never stuck, turns keep passing',
+      !bad && !stuck && g.turn > 3,
+      'bad=' + bad + ' stuck=' + stuck + ' turn=' + g.turn
+    );
+  }
   out.push(
     '---- ' +
       out.filter(l => l.startsWith('PASS')).length +

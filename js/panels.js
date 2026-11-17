@@ -82,6 +82,13 @@ function buildList() {
     { owner, kind } = ui.openList,
     cards = listCards(ui.openList),
     gy = kind !== 'deck',
+    rowActs = new Set(
+      !rp.on && !game.choice && game.phase === 'play'
+        ? Sim.actionsOf(game, ui.view)
+            .filter(a => a.kind === 'ability')
+            .map(a => a.iid)
+        : []
+    ), // graveyard cards with a usable ability
     canEdit =
       kind === 'deck' &&
       ((game.phase === 'deck' && owner === ui.view && !game.ready[owner]) || (ui.deckEdit && game.phase === 'play'));
@@ -113,7 +120,7 @@ function buildList() {
   if (!cards.length) deckPanel.insertAdjacentHTML('beforeend', '<div class="note">Empty</div>');
   cards.forEach((c, i) => {
     const row = document.createElement('div');
-    row.className = 'row' + (c === ui.selected ? ' sel' : '');
+    row.className = 'row' + (c === ui.selected ? ' sel' : '') + (rowActs.has(c.iid) ? ' act' : '');
     row.tabIndex = 0;
     row.style.setProperty('--tc', cardColor(c.def));
     row.style.background = posColor(i, cards.length, gy ? 275 : 42);
@@ -155,7 +162,10 @@ function buildList() {
       });
       row.appendChild(mv);
     }
-    row.addEventListener('click', () => showCard(c));
+    row.addEventListener('click', e => {
+      showCard(c);
+      if (!rp.on) openMenu(c, e.clientX, e.clientY); // GY: its abilities; deck (debug, Vs Self / Vs Bot): add to hand. No trip across the scene
+    });
     row.addEventListener('keydown', e => {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
@@ -252,7 +262,7 @@ function showCard(c, pin = true, hl = null) {
     stack: 'On the stack (' + NAME[c.owner] + ')',
   }[c.loc];
   const gyActs =
-    c.loc === 'gy' || c.loc === 'hand'
+    !rp.on && (c.loc === 'gy' || c.loc === 'hand')
       ? (Sim.abDef(c).abilities || [])
           .map((a, i) => ({ a, i, why: c.owner !== ui.view ? 'Not your card' : Sim.canActivate(game, c, i) }))
           .filter(x => x.a.zone === c.loc)
@@ -361,6 +371,8 @@ function showPlayer(p, pin) {
 }
 function actionsFor(c) {
   const acts = [];
+  if (c.loc === 'deck' && debugOk())
+    acts.push({ t: 'Debug: add to hand', run: () => send({ type: 'DebugToHand', iid: c.iid, debug: true }) });
   if (c.loc === 'hand' && c.owner === ui.view) acts.push({ t: 'Play', why: uiCanPlay(c), run: () => play(c) });
   if (c.loc === 'board' && c.def.type === 'creature')
     acts.push({
@@ -368,7 +380,7 @@ function actionsFor(c) {
       why: c.owner !== ui.view ? 'Not your creature' : Sim.canAttack(game, c),
       run: () => send({ type: 'Attack', iid: c.iid }),
     });
-  if (c.loc === 'board' || c.loc === 'hand')
+  if (c.loc === 'board' || c.loc === 'hand' || c.loc === 'gy')
     (Sim.abDef(c).abilities || []).forEach(
       (a, i) =>
         (a.zone || 'board') === c.loc &&

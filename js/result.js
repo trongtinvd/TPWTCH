@@ -88,7 +88,7 @@ const Result = (function () {
       return;
     }
     for (const p of ['Player', 'Opponent']) {
-      const bot = ui.mode === 'bot' && p === 'Opponent', // the bot answers by itself
+      const bot = ui.mode === 'bot' && p === ui.botSeat, // the bot answers by itself
         o = other(p),
         row = mkEl('div', 'rs-row'),
         btns = mkEl('div', 'rs-btns');
@@ -147,8 +147,8 @@ const Result = (function () {
   }
   function botLeaves() {
     close();
-    R.left = 'Opponent';
-    ui.note = NAME.Opponent + ' (bot) left. Press Exit to return to the main menu.';
+    R.left = ui.botSeat;
+    ui.note = NAME[ui.botSeat] + ' (bot) left. Press Exit to return to the main menu.';
     sync();
   }
   function botDecides() {
@@ -156,9 +156,9 @@ const Result = (function () {
     let v = (ui.lastCfg && ui.lastCfg.botEnd) || 'random';
     if (v === 'random') v = botPick(['rematch', 'continue', 'end'], botR);
     if (v === 'end') return botLeaves();
-    R.pick.Opponent = v;
+    R.pick[ui.botSeat] = v;
     render();
-    if (R.pick.Player === v) (v === 'continue' ? doContinue : doRematch)();
+    if (R.pick[other(ui.botSeat)] === v) (v === 'continue' ? doContinue : doRematch)();
   }
   function show() {
     if (!box) build();

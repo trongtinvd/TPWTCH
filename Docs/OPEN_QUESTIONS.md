@@ -49,6 +49,8 @@ Settle **before the card pool grows**; record decisions in `RULES.md`.
 - [ ] 46. **Win vs loss at the same time.** A `winGame` effect resolving while a player is at -1: the first decision stands (proto). Should a win effect beat a life loss, or a loss win over everything?
 - [ ] 47. **Continuing a decided game.** The result is fixed, so life below -1 no longer matters. Should a continued game still show who is "winning", and should a second decision (e.g. the other player also at -1) ever count?
 - [ ] 48. **Leaving a running game.** Hot seat: the viewed seat leaving gives the other seat the win. Online: a disconnect timeout is open.
+- [ ] 49. **Stops are for the non-turn player only.** Should the turn player get a window too (e.g. after the stack empties)? Should turn 1 start have a stop?
+- [ ] 50. **Which stops are on.** All five extra stops are on in real games; a per-player setting (Arena style) is open.
 
 ## Timing and ordering
 - [ ] 6. Simultaneous trigger order? (Proto: turn player's first on the stack, other player's resolve first; within a player, creation order.)

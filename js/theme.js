@@ -25,6 +25,7 @@ const BOARD_RISE = cssNum('--board-rise', 0.45),
     hover: cssHex('--zone-hover', 0x44aa55),
     hoverCurrent: cssHex('--zone-hover-current', 0xc99a2a),
     plain: cssHex('--zone-hover-plain', 0x333333),
+    action: cssHex('--zone-action', 0x9a7a1c),
   };
 const FX = {
   stack: cssNum('--fx-stack-ms', 1700), // a spell / ability card flying to or from the stack

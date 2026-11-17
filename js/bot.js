@@ -105,7 +105,7 @@ function botChoose(s, p, rnd, mem) {
 // ---- host side (browser): the bot is always the Opponent seat ----
 const botMem = { turn: -1, n: 0 },
   botR = botRng(Date.now());
-const botWants = () => !MenuUI.away && !Result.blocks() && botActor(sim) === 'Opponent'; // the bot never surrenders, and waits while the result is shown
+const botWants = () => !MenuUI.away && !Result.blocks() && botActor(sim) === ui.botSeat; // the bot never surrenders, and waits while the result is shown
 function botSchedule() {
   clearTimeout(ui.botTimer);
   ui.botTimer = setTimeout(botTick, 650);
@@ -116,13 +116,13 @@ function botTick() {
     botSchedule();
     return;
   } // wait for the animation
-  const cmd = botChoose(sim, 'Opponent', botR, botMem);
+  const cmd = botChoose(sim, ui.botSeat, botR, botMem);
   if (!cmd) {
     console.warn('Bot has no legal command');
     ui.note = 'Bot has no legal command';
     sync();
     return;
   }
-  send(cmd);
+  send(cmd, 'bot');
 }
-const foeChoice = () => ui.mode === 'bot' && !!game.choice && game.choice.player === 'Opponent'; // a choice the bot must answer: the human sees and clicks nothing for it
+const foeChoice = () => !!game.choice && (rp.on || (ui.mode === 'bot' && game.choice.player === ui.botSeat)); // (in a replay every choice belongs to the replay) // a choice the bot must answer: the human sees and clicks nothing for it

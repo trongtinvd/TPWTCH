@@ -154,6 +154,12 @@ Sim.def('stack', function (K) {
     s.priority = other(s.active);
     ev.push({ t: 'ResponseWindowOpened', kind }); // the non-turn player ALWAYS responds first, even with enter triggers already on the stack
   }
+  function stopAt(s, ev, kind) {
+    // an optional "stop": at this moment the non-turn player gets priority on an empty stack (turnStart, combatStart, combatEnd, draw, stack).
+    // s.stops is set by the host; null = no stops. A window that is already open is never replaced.
+    if (!s.stops || !s.stops[kind] || s.respond) return;
+    openRespond(s, ev, kind);
+  }
   function endTurn(s, ev) {
     for (const o of [...Object.values(s.cards), PL(s, 'Player'), PL(s, 'Opponent')])
       live(o)
@@ -169,9 +175,10 @@ Sim.def('stack', function (K) {
     s.passes = 0;
     ev.push({ t: 'TurnChanged', active: s.active });
     fire(s, ev, 'turnStart', null);
+    stopAt(s, ev, 'turnStart');
   }
   return {
-    exports: { canActivate, canPlay, endTurn, fire, hitStack, openRespond, pushObj, resolveObj },
+    exports: { canActivate, canPlay, endTurn, fire, hitStack, openRespond, pushObj, resolveObj, stopAt },
     needs: [
       'COLTARGETS',
       'COND',

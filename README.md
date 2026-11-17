@@ -39,6 +39,7 @@ Plain scripts loaded in order by `index.html` (no build step):
 - `js/scene.js`, `js/board.js`, `js/card-view.js`, `js/view-sync.js` three.js scene, board, card meshes, state -> mesh sync
 - `js/game-host.js`, `js/input.js`, `js/layout.js`, `js/panels.js`, `js/menu.js`, `js/deck-editor.js`, `js/replay.js`, `js/result.js` host and UI state, pointer input, phone panel resizing (localStorage), panels, menu, deck editor, duel replays (localStorage), result dialog (rematch / continue / leave)
 - `css/theme.css` every colour, distance and sprite setting as a CSS variable; `js/theme.js` reads them for the 3D scene; `js/storage.js` the only code that touches localStorage
+- `js/gamelog.js` the game log (back of the stack panel: every command and rule event, by name)
 - `js/main.js` console hook and render loop
 - `tests/selftest.js` headless rules tests, `tests/run.js` runs them in Node
 

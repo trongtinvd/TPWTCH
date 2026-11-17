@@ -49,6 +49,7 @@ Sim.def('state', function (K) {
       choice: null,
       unusable: {},
       respond: null,
+      stops: opts.stops || null, // extra priority windows ("stops") that are on: {turnStart, combatStart, combatEnd, draw, stack}; null = none (the rules tests)
       result: null, // null | {winner:'Player'|'Opponent'|null (a draw), why:'life'|'surrender'|'left'|'effect', turn}: set once, never changed
     }; // respond: null | {kind:'enter'|'end'} = the non-turn player may respond before play continues
     for (const [p, seed] of [

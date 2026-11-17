@@ -23,6 +23,7 @@
     "format": "prettier --write js css tests"
   },
   "dependencies": {
+    "prettier": "^3.10.1",
     "three": "^0.187.0"
   },
   "devDependencies": {

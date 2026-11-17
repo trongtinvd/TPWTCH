@@ -10,7 +10,7 @@ Sim.def('dispatch', function (K) {
   let askCounters, resume; // fx
   let CH; // ch
   let canAttack, dealDamage, declareAttack; // combat
-  let canActivate, canPlay, endTurn, fire, openRespond, pushObj, resolveObj; // stack
+  let canActivate, canPlay, endTurn, fire, openRespond, pushObj, resolveObj, stopAt; // stack
   function dispatch(s, cmd) {
     // mutates s; returns {ok, why, events}
     const ev = [],
@@ -68,6 +68,7 @@ Sim.def('dispatch', function (K) {
         c.loc = 'hand';
         s.piles[c.owner].hand.push(c);
         ev.push({ t: 'CardDrawn', iid: c.iid, player: c.owner });
+        stopAt(s, ev, 'draw'); // stop: cards drawn
         break;
       }
       case 'PlayCard': {
@@ -155,6 +156,10 @@ Sim.def('dispatch', function (K) {
           s.passes = 0;
           s.priority = s.respond ? other(s.active) : s.active;
           if (!dead) ev.push({ t: 'StackObjectResolved', iid: c.iid });
+          if (!s.stack.length) {
+            ev.push({ t: 'StackEmptied' });
+            stopAt(s, ev, 'stack'); // stop: stack emptied
+          }
         } else {
           s.priority = other(s.priority);
           ev.push({ t: 'PriorityPassed', to: s.priority });
@@ -185,8 +190,12 @@ Sim.def('dispatch', function (K) {
         if (cmd.on && !was) {
           s.combats = (s.combats || 0) + 1;
           fire(s, ev, 'combat', null);
+          stopAt(s, ev, 'combatStart'); // stop: combat started
         }
-        if (!cmd.on && was) fire(s, ev, 'combatEnd', null);
+        if (!cmd.on && was) {
+          fire(s, ev, 'combatEnd', null);
+          stopAt(s, ev, 'combatEnd'); // stop: combat ended
+        }
         break;
       }
       case 'Attack': {
@@ -250,11 +259,23 @@ Sim.def('dispatch', function (K) {
           s.attackPhase = false;
           ev.push({ t: 'AttackPhaseChanged', on: false });
           fire(s, ev, 'combatEnd', null);
-          if (s.stack.length) break;
+          stopAt(s, ev, 'combatEnd');
+          if (s.stack.length || s.respond) break;
         } // ending the turn ends combat first, so 'after combat' triggers (Shark) still happen
         openRespond(s, ev, 'end');
         ev.push({ t: 'EndStepEntered' });
         break; // the turn really ends when the opponent passes
+      case 'DebugToHand': {
+        // debug tool (Vs Self / Vs Bot): a card of a deck goes to its owner's hand. No rules, no major action. Recorded like any command, so replays keep it
+        const c = s.cards[cmd.iid];
+        if (!cmd.debug || !c || c.loc !== 'deck') return fail('Debug: the card must be in a deck');
+        const P = s.piles[c.owner];
+        P.deck.splice(P.deck.indexOf(c), 1);
+        c.loc = 'hand';
+        P.hand.push(c);
+        ev.push({ t: 'CardAdded', iid: c.iid, player: c.owner, debug: true });
+        break;
+      }
       case 'Surrender':
       case 'Leave': {
         // the player gives up (Surrender) or walks away (Leave): the other player wins. Allowed at any time, even during a choice
@@ -271,24 +292,34 @@ Sim.def('dispatch', function (K) {
     recalc(s, ev);
     return { ok: true, events: ev };
   }
-  function hasAction(s, p) {
-    // is there anything legal for p right now?
-    if (s.phase !== 'play' || p !== s.priority) return false;
+  function actionsOf(s, p) {
+    // EVERYTHING legal for p right now (the one source for the highlights, the automation and hasAction):
+    // {kind:'draw'} | {kind:'battle'} (enter the attack phase) | {kind:'play', iid} | {kind:'attack', iid} | {kind:'ability', iid, ab}
+    const out = [];
+    if (s.phase !== 'play' || p !== s.priority) return out;
     const P = s.piles[p],
       mine = Object.values(s.cards).filter(c => c.owner === p && (c.loc === 'board' || c.loc === 'gy')),
       turn = p === s.active && !s.stack.length;
-    if (turn && !s.attackPhase && !majorUsed(s) && P.deck.length) return true;
-    if (P.hand.some(c => !canPlay(s, c))) return true;
-    if (
-      s.attackPhase
-        ? mine.some(c => !canAttack(s, c))
-        : turn && !majorUsed(s) && mine.some(c => c.def.type === 'creature')
-    )
-      return true;
-    return mine.concat(P.hand).some(c => (abDef(c).abilities || []).some((a, i) => !canActivate(s, c, i)));
+    if (turn && !s.attackPhase && !majorUsed(s) && P.deck.length) out.push({ kind: 'draw' });
+    P.hand.forEach(c => {
+      if (!canPlay(s, c)) out.push({ kind: 'play', iid: c.iid });
+    });
+    if (s.attackPhase)
+      mine.forEach(c => {
+        if (!canAttack(s, c)) out.push({ kind: 'attack', iid: c.iid });
+      });
+    else if (turn && !majorUsed(s) && mine.some(c => c.loc === 'board' && c.def.type === 'creature'))
+      out.push({ kind: 'battle' });
+    mine.concat(P.hand).forEach(c =>
+      (abDef(c).abilities || []).forEach((a, i) => {
+        if (!canActivate(s, c, i)) out.push({ kind: 'ability', iid: c.iid, ab: i });
+      })
+    );
+    return out;
   }
+  const hasAction = (s, p) => actionsOf(s, p).length > 0; // is there anything legal for p right now?
   return {
-    exports: { dispatch, hasAction },
+    exports: { actionsOf, dispatch, hasAction },
     needs: [
       'CH',
       'PL',
@@ -321,6 +352,7 @@ Sim.def('dispatch', function (K) {
       'resolveObj',
       'resume',
       'slowish',
+      'stopAt',
       'sweepUnusable',
       'targetColumns',
       'targetZones',
@@ -358,6 +390,7 @@ Sim.def('dispatch', function (K) {
         resolveObj,
         resume,
         slowish,
+        stopAt,
         sweepUnusable,
         targetColumns,
         targetZones,
