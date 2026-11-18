@@ -207,6 +207,7 @@ async function attackJob(pre, ev) {
     z0 = ao && ao.slotAt && slotZones[ao.slotAt], // the attacker may be gone already (killed in response): the sword starts where it stood
     from0 = a ? { x: a.position.x, z: a.position.z } : z0 ? { x: z0.position.x, z: z0.position.z } : null;
   if (!from0) return;
+  if (a) setSword(a, false, false); // the strike takes over from the sword that stood on the attacker
   const sword = makeSword(),
     undo = [];
   let cur = from0;

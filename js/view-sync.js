@@ -516,6 +516,7 @@ function sync() {
     inspect.hidden = true;
   }
   const T = targets();
+  const atkSet = new Set(game.stack.filter(o => o.kind === 'attack').map(o => o.iid)); // creatures whose Attack is on the stack right now
   ui.pickCards = [];
   ui.pickList = null;
   for (const [id, t] of T) {
@@ -554,7 +555,8 @@ function sync() {
       !rp.on &&
         !t.down &&
         t.c.loc === 'board' &&
-        [null, 'Stack is not empty', 'Waiting for the response window'].includes(Sim.canAttack(game, t.c)),
+        ([null, 'Stack is not empty', 'Waiting for the response window'].includes(Sim.canAttack(game, t.c)) ||
+          atkSet.has(t.c.iid)), // the sword stays while the Attack is on the stack
       !!t.rot
     );
     m.visible = !seenHidden(t.c);
