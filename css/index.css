@@ -941,3 +941,34 @@ canvas {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
+/* ---- action points: a four-point star per unspent point under each life bar ---- */
+.hpr .aps {
+  grid-column: 2 / -1;
+  display: flex;
+  gap: 3px;
+  min-height: 16px;
+  flex-wrap: wrap;
+}
+.apstar {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ap-color);
+  cursor: pointer;
+  line-height: 0;
+}
+.apstar svg {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+  filter: drop-shadow(0 0 2px var(--ap-color));
+}
+.apstar:hover svg {
+  transform: scale(1.25);
+}
+.lge.apl {
+  cursor: pointer;
+  text-decoration: underline dotted;
+}

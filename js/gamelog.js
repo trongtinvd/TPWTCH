@@ -55,6 +55,10 @@ const GameLog = (function () {
     AbilityActivated: e => cn(e.iid) + ' activates ability #' + (e.ab + 1) + ' (' + e.speed + ')',
     ChoiceRequested: e => who(e.player) + ' must choose',
     ChoiceMade: e => who(e.player) + ' chose',
+    ActionPointGained: e => who(e.player) + ' gains an action point',
+    ActionPointSpent: e => who(e.player) + ' spends an action point: ' + e.why,
+    CardRevealed: e => cn(e.iid) + ' is revealed by ' + who(e.player),
+    CardReturnedExtra: e => cn(e.iid) + ' returns to the extra deck',
     GameDecided: e => 'GAME DECIDED: ' + (e.winner ? who(e.winner) + ' wins' : 'draw') + ' (' + e.why + ')',
   };
   const evText = e => (T[e.t] ? T[e.t](e) : JSON.stringify(e));
@@ -69,7 +73,12 @@ const GameLog = (function () {
     return parts.join(' ');
   }
   function add(turn, cmd, events, src) {
-    groups.push({ turn, src: src || 'player', cmd: cmdText(cmd), lines: events.map(e => [e.t, evText(e)]) });
+    groups.push({
+      turn,
+      src: src || 'player',
+      cmd: cmdText(cmd),
+      lines: events.map(e => [e.t, evText(e), e.t === 'ActionPointSpent' ? { p: e.player, id: e.id } : null]),
+    }); // a spent action point can be clicked in the log: it opens its inspection panel
     if (groups.length > MAX) groups.shift();
     ver++;
   }
@@ -112,10 +121,15 @@ const GameLog = (function () {
         h.appendChild(s);
       }
       d.appendChild(h);
-      for (const [name, text] of g.lines) {
+      for (const [name, text, ap] of g.lines) {
         const l = document.createElement('div'),
           c = document.createElement('code');
-        l.className = 'lge';
+        l.className = 'lge' + (ap ? ' apl' : '');
+        if (ap) {
+          l.dataset.ap = ap.id;
+          l.dataset.app = ap.p;
+          l.title = 'Click to inspect this action point';
+        }
         c.textContent = name;
         l.append(c, document.createTextNode(text));
         d.appendChild(l);
@@ -168,7 +182,9 @@ const GameLog = (function () {
     setTimeout(() => stackEl.classList.remove('flipping'), 320);
   }
   stackEl.addEventListener('click', e => {
-    if (e.target.closest('[data-flip]')) flip();
+    const apl = e.target.closest('[data-ap]');
+    if (apl) showAP(apl.dataset.app, +apl.dataset.ap, true);
+    else if (e.target.closest('[data-flip]')) flip();
     else if (e.target.closest('[data-logcopy]')) copy(e.target.closest('[data-logcopy]'));
   });
   return { add, pop, clear, view };

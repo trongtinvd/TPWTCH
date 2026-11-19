@@ -13,6 +13,7 @@ Sim.def('logs', function (K) {
     CardMilled: ['milled', 'gy'],
     CardDiscarded: ['discarded', 'gy'],
     CardExiled: ['exiled', 'exile', 'gone'],
+    CardReturnedExtra: ['returned to the extra deck', 'extra'],
     PermanentSummoned: ['entered the board', 'board'],
     PermanentMoved: ['shifted', 'board'],
     PermanentDestroyed: ['destroyed', 'gy', 'gone'],
@@ -52,7 +53,10 @@ Sim.def('logs', function (K) {
     ' \u00b7 ' +
     (
       {
-        start: () => 'shuffled into the deck at position ' + e.pos + ' of ' + e.of,
+        start: () =>
+          e.to === 'extra'
+            ? 'placed in the extra deck (' + e.pos + ' of ' + e.of + ')'
+            : 'shuffled into the deck at position ' + e.pos + ' of ' + e.of,
         locked: () => 'deck locked at position ' + e.pos + ' of ' + e.of,
         zone: () => (e.from || 'nowhere') + ' \u2192 ' + e.to + ' (' + e.how + ')',
         'status+': () => 'applied: ' + e.text,

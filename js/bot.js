@@ -74,11 +74,11 @@ function botCandidates(s, p, rnd, mem) {
       if (cmd) add(2, cmd);
     }
   for (const c of mine)
-    if (['board', 'hand', 'gy'].includes(c.loc))
+    if (['board', 'hand', 'gy', 'deck'].includes(c.loc))
       (Sim.abDef(c).abilities || []).forEach((a, i) => {
         if (Sim.canActivate(s, c, i) === null) add(2, { type: 'Activate', iid: c.iid, ab: i });
       });
-  if (!Sim.majorUsed(s)) {
+  if (Sim.hasAP(s, p)) {
     if (mine.some(c => c.loc === 'board' && c.def.type === 'creature'))
       add(3, { type: 'SetAttackPhase', player: p, on: true });
     if (s.piles[p].deck.length) add(1, { type: 'Draw', player: p });

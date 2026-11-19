@@ -129,8 +129,18 @@ addEventListener('pointerup', e => {
   ui.downAt = null;
   const o = pickAt(e.clientX, e.clientY),
     u = o ? o.userData : {};
-  if (e.button === 2 && !u.card && !u.deckOf && !u.gyOf && !u.exileOf && !ui.placing && passByRightClick()) return;
-  if (e.pointerType === 'touch' && !u.card && !u.deckOf && !u.gyOf && !u.exileOf && !ui.placing) {
+  if (
+    e.button === 2 &&
+    !u.card &&
+    !u.deckOf &&
+    !u.gyOf &&
+    !u.exileOf &&
+    !u.extraOf &&
+    !ui.placing &&
+    passByRightClick()
+  )
+    return;
+  if (e.pointerType === 'touch' && !u.card && !u.deckOf && !u.gyOf && !u.exileOf && !u.extraOf && !ui.placing) {
     const now = performance.now();
     if (now - ui.lastEmptyTap < 400) {
       ui.lastEmptyTap = 0;
@@ -183,6 +193,9 @@ addEventListener('pointerup', e => {
   } else if (u.exileOf && !ui.placing) {
     closeMenu();
     showList(u.exileOf, 'exile');
+  } else if (u.extraOf && !ui.placing) {
+    closeMenu();
+    showList(u.extraOf, 'extra');
   } else closeAll(); // empty space / plain zone: close every popup
 });
 function updateHover() {
@@ -206,6 +219,7 @@ function updateHover() {
     u.deckOf ||
     u.gyOf ||
     u.exileOf ||
+    u.extraOf ||
     u.card ||
     ((ui.placing || game.choice) && u.baseEm) ||
     (ui.placing && u.card && u.card.loc === 'board' && slotZones[u.card.slot] && slotZones[u.card.slot].userData.baseEm)

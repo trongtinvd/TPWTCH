@@ -163,9 +163,6 @@
 .de-extra {
   flex: 2 1 0;
   grid-template-rows: repeat(2, minmax(0, 1fr));
-  opacity: 0.3;
-  filter: grayscale(1);
-  pointer-events: none;
 }
 .de-xl {
   font-size: 11px;
@@ -371,8 +368,13 @@
   }
   .de-extra {
     flex: none;
-    height: 30px;
+    width: 100%;
+    aspect-ratio: 10/1.6;
     gap: 2px;
+  }
+  .de-extra .de-cell span,
+  .de-extra .de-cell b {
+    display: none;
   }
   .de-left {
     order: 2;

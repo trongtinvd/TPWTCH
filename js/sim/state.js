@@ -1,19 +1,19 @@
 // state.js - game state: creation, zones, clouds, recalc (state-based rules), leaving / entering the board
 Sim.def('state', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
-  let byId, majorUsed, mulberry32, other, slotRow; // util
+  let byId, mulberry32, other, slotRow; // util
   let lg, syncLogs; // logs
   let abDef, addStatus, clearStatuses, hasSt, hpOf, live, removeStatus, syncLife, totalDamage; // statuses
   let fire; // stack
   let dispatch; // dispatch
-  function buildDeck(owner, seed, defs, shuffle = true) {
-    // CardInstances, top of deck first
+  function buildDeck(owner, seed, defs, shuffle = true, loc = 'deck') {
+    // CardInstances, top of deck first (the extra deck is never shuffled)
     const rnd = mulberry32(seed);
     const cards = defs.map((def, i) => ({
-      iid: owner.toLowerCase() + '-' + i,
+      iid: owner.toLowerCase() + (loc === 'extra' ? 'x-' : '-') + i,
       def,
       owner,
-      loc: 'deck',
+      loc,
       slot: null,
       statuses: [],
     }));
@@ -40,11 +40,12 @@ Sim.def('state', function (K) {
       passes: 0,
       attackPhase: false,
       life: { Player: 20, Opponent: 20 },
-      players: { Player: { statuses: [] }, Opponent: { statuses: [] } },
+      players: { Player: { statuses: [], ap: [] }, Opponent: { statuses: [], ap: [] } },
       maxLife: 20,
       turn: 1,
       seq: 0,
-      majorUsed: false,
+      apn: 0, // action point ids
+      drawn: { Player: 0, Opponent: 0 }, // cards drawn since the game started (the opening hand does not count)
       sid: 0,
       choice: null,
       unusable: {},
@@ -59,14 +60,31 @@ Sim.def('state', function (K) {
       const deck = buildDeck(
         p,
         seed,
-        opts.decks && opts.decks[p] ? opts.decks[p].map(id => byId[id]).filter(Boolean) : defs,
+        opts.decks && opts.decks[p]
+          ? opts.decks[p].map(id => byId[id]).filter(d => d && !d.extra)
+          : defs.filter(d => !d.extra),
         opts.shuffle !== false
       );
+      const extra = buildDeck(
+        p,
+        seed,
+        opts.extra && opts.extra[p]
+          ? opts.extra[p].map(id => byId[id]).filter(d => d && d.extra)
+          : opts.decks
+            ? []
+            : defs.filter(d => d.extra),
+        false,
+        'extra'
+      ); // no list given and no decks given: the whole pool (extra deck creatures go to the extra deck)
+      extra.forEach((c, i) => {
+        s.cards[c.iid] = c;
+        lg(s, c, { kind: 'start', to: 'extra', pos: i + 1, of: extra.length });
+      });
       deck.forEach((c, i) => {
         s.cards[c.iid] = c;
         lg(s, c, { kind: 'start', to: 'deck', pos: i + 1, of: deck.length });
       });
-      s.piles[p] = { deck, hand: [], gy: [], exile: [] }; // opening hands are dealt when both players press Start
+      s.piles[p] = { deck, hand: [], gy: [], exile: [], extra }; // opening hands are dealt when both players press Start
       for (const row of ['front', 'back']) for (let c = 0; c < 5; c++) s.slots[p + '|' + row + '|' + c] = null; // slot -> iid
     }
     return s;
@@ -162,8 +180,16 @@ Sim.def('state', function (K) {
       if (id) destroy(s, s.cards[id], ev, 'left the board: its zone became unusable (a rule, not an effect)');
     }
   }
+  function release(c) {
+    // a card played under temporary control (L4) goes back to its real owner when it leaves: the owner's zones receive it
+    if (c.home) {
+      c.owner = c.home;
+      delete c.home;
+    }
+  }
   function destroy(s, c, ev, why) {
     // leaves the field for the graveyard; its statuses are removed (they stay in the list, greyed)
+    release(c);
     s.slots[c.slot] = null;
     c.slot = null;
     clearStatuses(s, c, why || 'left the board');
@@ -176,6 +202,7 @@ Sim.def('state', function (K) {
     recalc(s, ev);
   }
   function bounce(s, t, ev) {
+    release(t);
     if (t.slot) s.slots[t.slot] = null;
     t.slot = null;
     clearStatuses(s, t, 'left the board');
@@ -189,7 +216,7 @@ Sim.def('state', function (K) {
   }
   function enterBoard(s, t, slot, ev) {
     const P = s.piles[t.owner];
-    for (const k of ['hand', 'gy', 'exile']) {
+    for (const k of ['hand', 'gy', 'exile', 'extra']) {
       const i = P[k].indexOf(t);
       if (i >= 0) P[k].splice(i, 1);
     }
@@ -223,6 +250,7 @@ Sim.def('state', function (K) {
       freeSlots,
       makeToken,
       recalc,
+      release,
       sweepUnusable,
     },
     needs: [
@@ -236,7 +264,6 @@ Sim.def('state', function (K) {
       'hpOf',
       'lg',
       'live',
-      'majorUsed',
       'mulberry32',
       'other',
       'removeStatus',
@@ -257,7 +284,6 @@ Sim.def('state', function (K) {
         hpOf,
         lg,
         live,
-        majorUsed,
         mulberry32,
         other,
         removeStatus,

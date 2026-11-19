@@ -8,7 +8,9 @@ const TYPES = {
 };
 TYPES.ability = { label: 'Ability', color: themed('--type-ability', '#b8892b') };
 const SLOW_COLOR = themed('--type-slow', '#8e5bd0'); // Slow spells are purple
-const cardColor = def => (def.type === 'spell' && def.timing === 'Slow' ? SLOW_COLOR : TYPES[def.type].color);
+const EXTRA_COLOR = themed('--type-extra', '#a63fd0'); // extra deck creatures are purple
+const cardColor = def =>
+  def.extra ? EXTRA_COLOR : def.type === 'spell' && def.timing === 'Slow' ? SLOW_COLOR : TYPES[def.type].color;
 // ---- Card shapes: defaults for type / timing / speed, so a card states only what is special about it.
 // A spell may give `say` instead of `text`: the text becomes "<Timing>. <say> (Stack HP n)" (the "(Stack HP n)" part is left out at 0 HP).
 const spellDef = (timing, id, name, hp, rest = {}) => {
@@ -28,6 +30,20 @@ function textParts(def) {
     add = (list, i, o) => o && o.text && P.push({ key: list + ':' + i, list, i, text: o.text });
   if (def.kw) P.push({ key: 'kw', list: 'kw', i: 0, text: def.kw });
   if (def.body) P.push({ key: 'body', list: 'body', i: 0, text: def.body });
+  if ((def.conditions || []).length)
+    P.push({
+      key: 'conditions',
+      list: 'conditions',
+      i: 0,
+      text: 'Conditions: ' + def.conditions.map(o => o.text).join('; ') + '.',
+    });
+  if ((def.materials || []).length)
+    P.push({
+      key: 'materials',
+      list: 'materials',
+      i: 0,
+      text: 'Materials: ' + def.materials.map(o => o.text).join(', ') + '.',
+    });
   (def.passives || []).forEach((o, i) => add('passives', i, o));
   (def.triggers || []).forEach((o, i) => add('triggers', i, o));
   if (def.rider && def.rider.text) P.push({ key: 'rider', list: 'rider', i: 0, text: def.rider.text });
@@ -49,6 +65,7 @@ const Fx = {
   repeat: (n, ...effects) => ({ op: 'Repeat', n, effects }), // composition: run effects n times
   // costs (paid on activation)
   payLife: n => ({ op: 'PayLife', n }),
+  spendAP: () => ({ op: 'SpendAP' }), // cost: spend one action point (usable on the opponent's turn too, when a Fast ability asks for it)
   exileFromGY: n => ({ op: 'ExileFromGY', n }),
   exileSelf: () => ({ op: 'ExileSelf' }), // cost: exile this card from the graveyard
   shiftAdjacent: () => ({ op: 'ShiftAdjacent' }), // effect: controller may move this card to an adjacent empty column
@@ -68,6 +85,7 @@ const Fx = {
     damaged: (...effects) => ({ on: 'damaged', effects }), // this card takes combat damage
     turnStart: (...effects) => ({ on: 'turnStart', effects }), // start of its controller's turn
     attack: (by, ...effects) => ({ on: 'attack', by, effects }), // by: 'self' and/or 'foe' (creature controlled by this card's opponent)
+    foeEnter: (...effects) => ({ on: 'enter', by: ['foe'], effects }), // when a card the opponent controls enters (add cond:'foeAdjacent' to ask for a neighbour)
   },
   // requirements (strings) and targets (strings)
   req: {
@@ -77,6 +95,8 @@ const Fx = {
     stack: 'stack',
     foeAttacking: 'foeAttacking',
     attackOnStack: 'attackOnStack',
+    fusionOK: 'fusionOK', // the card's Fusion effect has an extra deck creature it can summon
+    exInGY: 'exInGY', // an extra deck creature is in your graveyard
   },
   target: { opposingFront: 'opposingFront', attacker: 'attacker' },
   zoneTarget: { anyPermanent: 'anyPermanent', anyCreature: 'anyCreature' }, // spell target: a zone with a card (or a cloud) on it, chosen when the spell is played
@@ -107,7 +127,30 @@ const Fx = {
   secondCombat: () => ({ op: 'SecondCombat' }),
   upTo: (who, from, then, n, types) => ({ op: 'UpTo', who, from, then, n, types }), // who: me|foe; from: gy|hand; then: toHand|play
   placeToken: token => ({ op: 'PlaceToken', token }), // effect: the controller picks a free front zone and puts the token there
+  // extra deck: `materials` and `conditions` are plain data on the creature; they do nothing by themselves, Fusion effects (and other cards) read them
+  mat: (type, n, same) => {
+    const noun = type === 'any' ? 'card' : type,
+      art = /^[aeiou]/.test(noun) ? 'an ' : 'a ';
+    return {
+      type,
+      n,
+      same,
+      text:
+        (n > 1 ? n + ' ' + noun + 's' : art + noun) +
+        (same ? ' with the same ' + same.map(k => (k === 'atk' ? 'power' : 'HP')).join(' or the same ') : ''),
+    }; // same: the cards share at least one of these stats ('atk' | 'hp')
+  },
+  exCond: {
+    lostLife: () => ({ op: 'LostLife', text: 'a player has lost life' }),
+    bothDrew: n => ({ op: 'BothDrewMoreThan', n, text: 'both players have drawn more than ' + n + ' cards this game' }),
+  },
+  fusion: o => ({ op: 'Fusion', ...o }), // effect: reveal an extra deck creature (pick: conditions | fusable | any), choose its materials among `from` zones, pay them (pay: gy | exile | hand), summon it (summon); cond: must | ignoreHB (ignored when only hand + field cards are used) | none
+  selfToHand: () => ({ op: 'SelfToHand' }), // effect: this card goes from the deck or the GY to its owner's hand
+  sendAdjacentPair: () => ({ op: 'SendAdjacentPair' }), // effect: target two adjacent cards the opponent controls; THEY send one of them to the GY
+  reorderTop: (who, n) => ({ op: 'ReorderTop', who, n }), // effect: look at the top n cards of a deck (who: me | foe) and put them back in the order you wish
+  declareName: () => ({ op: 'DeclareName' }), // effect: declare a card name, look at the foe's top card, you may play it if it matches, and repeat
   // card shapes (see spellDef above)
+  exCreature: (id, name, atk, hp, rest) => ({ id, name, type: 'creature', extra: true, atk, hp, ...rest }), // an extra deck creature (purple): lives in the extra deck, enters the front row when summoned
   creature: (id, name, atk, hp, rest) => ({ id, name, type: 'creature', atk, hp, ...rest }),
   enchantment: (id, name, hp, rest) => ({ id, name, type: 'enchantment', hp, ...rest }), // any non-creature permanent
   quick: (id, name, hp, rest) => spellDef('Quick', id, name, hp, rest),
@@ -345,7 +388,7 @@ Cards.add(Fx =>
 Cards.add(Fx =>
   Fx.creature('parasite', 'Creeping Parasite', 0, 0, {
     flash: true,
-    kw: 'Flash (play it as a Quick spell; it does not use the major action).',
+    kw: 'Flash (play it as a Quick spell; it does not spend an action point).',
     triggers: [
       withText(
         'When this enters, choose one effect unlocked by the number of creatures your opponent controls. 0: look at their hand and send a card to the GY. 1+: 4 damage to any target. 2+: return a card they control to hand. 3+: put a creature from your hand, GY or exile into play. 4+: draw cards equal to their creature count. 5: destroy all cards on the board.',
@@ -393,8 +436,8 @@ Cards.add(Fx =>
 Cards.add(Fx =>
   Fx.enchantment('wardrum', 'War Drum', 0, {
     flash: true,
-    extraCost: { major: true },
-    kw: 'Flash. Additional cost (optional, your turn only): spend your major action.',
+    extraCost: { ap: true },
+    kw: 'Flash. Additional cost (optional): spend an action point.',
     tokens: {
       drummer: Fx.creature('drummer-token', 'Drummer', 3, 3, {
         passives: [Fx.aura('own', 1, 1)],
@@ -476,6 +519,93 @@ Cards.add(Fx =>
       Fx.upTo('foe', 'gy', 'toHand', 2),
       Fx.upTo('foe', 'gy', 'play', 2, ['creature', 'enchantment']),
       Fx.draw(2, 'foe'),
+    ],
+  })
+);
+Cards.add(Fx =>
+  Fx.quick('underworldfusion', 'Underworld Fusion', 10, {
+    req: [Fx.req.fusionOK],
+    say: 'Reveal an extra deck creature whose conditions are met and exile its materials from your GY; summon that creature.',
+    effects: [Fx.fusion({ from: ['gy'], pay: 'exile', summon: true, pick: 'conditions', cond: 'must' })],
+    abilities: [
+      Fx.fastAbility('Undo Fusion', {
+        text: 'Fast, from your GY: exile this card; return an extra deck creature from your GY to the extra deck, and return the materials used to summon it from exile to your hand. (Stack HP 1)',
+        zone: 'gy',
+        req: [Fx.req.exInGY],
+        cost: [Fx.exileSelf()],
+        hp: 1,
+        effects: [Fx.pickCard('myGYEx', 'returnEx')],
+      }),
+    ],
+  })
+);
+Cards.add(Fx =>
+  Fx.quick('depthfusion', 'Depth Sea Fusion', 7, {
+    req: [Fx.req.fusionOK],
+    say: 'Reveal an extra deck creature and send its materials from your field, hand or deck to the GY; summon it if its conditions are met (ignored if the materials come only from your hand and field).',
+    effects: [
+      Fx.fusion({ from: ['board', 'hand', 'deck'], pay: 'gy', summon: true, pick: 'fusable', cond: 'ignoreHB' }),
+    ],
+    abilities: [
+      Fx.fastAbility('Recover', {
+        text: 'Fast, from your deck or GY: spend an action point; add this card to your hand. (Stack HP 1)',
+        zone: ['deck', 'gy'],
+        cost: [Fx.spendAP()],
+        hp: 1,
+        effects: [Fx.selfToHand()],
+      }),
+    ],
+  })
+);
+Cards.add(Fx =>
+  Fx.creature('cultivator', 'Biology Cultivator', 4, 9, {
+    triggers: [
+      withText(
+        'When this enters: reveal an extra deck creature; if its conditions are met, put its materials from your deck into your hand.',
+        Object.assign(
+          Fx.trigger.enter(Fx.fusion({ from: ['deck'], pay: 'hand', summon: false, pick: 'any', cond: 'must' })),
+          { hp: 1 }
+        )
+      ),
+    ],
+  })
+);
+// ---- Extra deck creatures (keep them last: the extra deck of the 'Full Pool' deck is in this order)
+Cards.add(Fx => {
+  const strike = Fx.sendAdjacentPair();
+  return Fx.exCreature('widowmaker', 'Widow Maker', 6, 7, {
+    conditions: [Fx.exCond.lostLife()],
+    materials: [Fx.mat('creature', 2, ['atk', 'hp'])],
+    triggers: [
+      withText(
+        'When this enters: target two adjacent cards your opponent controls; they send one of them to the GY.',
+        Object.assign(Fx.trigger.enter(strike), { hp: 1 })
+      ),
+      withText(
+        'When this attacks: target two adjacent cards your opponent controls; they send one of them to the GY.',
+        Object.assign(Fx.trigger.attack(['self'], strike), { hp: 1 })
+      ),
+      withText(
+        'When a card your opponent controls enters adjacent to another card they control: target a creature you control; it attacks.',
+        Object.assign(Fx.trigger.foeEnter(Fx.pickCard('myBoardCreatures', 'attack')), { cond: 'foeAdjacent', hp: 0 })
+      ),
+    ],
+  });
+});
+Cards.add(Fx =>
+  Fx.exCreature('librarian', 'L4: The Librarian', 10, 10, {
+    conditions: [Fx.exCond.bothDrew(7)],
+    materials: [Fx.mat('creature', 1), Fx.mat('enchantment', 1)],
+    triggers: [
+      withText(
+        'When this enters, if it was summoned using Heaven and Sun: look at the top 3 cards of your opponent\u2019s deck and put them back on top in any order.',
+        Object.assign(Fx.trigger.enter(Fx.reorderTop('foe', 3)), { cond: 'usedMat', card: 'heavensun', hp: 5 })
+      ),
+      withText(
+        'When this enters: declare a card name, then look at the top card of your opponent\u2019s deck; if it has that name you may play it, and repeat this effect.',
+        Object.assign(Fx.trigger.enter(Fx.declareName()), { hp: 10 })
+      ),
+      withText('At the start of your turn: draw a card.', Fx.trigger.turnStart(Fx.draw(1))),
     ],
   })
 );

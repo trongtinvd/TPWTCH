@@ -14,6 +14,12 @@ const apiErrors = () => {
     (d.passives || []).forEach(p => A.passives.includes(p.op) || bad.push(d.id + ': unknown passive ' + p.op));
     (d.req || []).forEach(r => A.requirements.includes(r) || bad.push(d.id + ': unknown requirement ' + r));
     walk(d.id, d.effects, 'effects');
+    (d.conditions || []).forEach(
+      e => A.exConds.includes(e.op) || bad.push(d.id + ': unknown extra deck condition ' + e.op)
+    );
+    (d.materials || []).forEach(
+      m => ['creature', 'enchantment', 'any'].includes(m.type) || bad.push(d.id + ': unknown material type ' + m.type)
+    );
     if (d.colTarget && !A.colTargets.includes(d.colTarget)) bad.push(d.id + ': unknown column target ' + d.colTarget);
     (d.triggers || []).forEach(g => {
       A.triggers.includes(g.on) || bad.push(d.id + ': unknown trigger ' + g.on);
@@ -29,7 +35,7 @@ const apiErrors = () => {
   });
   // Fx and Sim cannot drift: every Fx builder is called with no arguments and must name a published op / trigger,
   // and every named requirement / target / zone target / column target must exist
-  const ops = new Set([...A.effects, ...A.costs, ...A.riders, ...A.passives]),
+  const ops = new Set([...A.effects, ...A.costs, ...A.riders, ...A.passives, ...A.exConds]),
     names = { req: 'requirements', target: 'targets', zoneTarget: 'zoneTargets', colTarget: 'colTargets' };
   const scan = (o, path) => {
     for (const [k, v] of Object.entries(o)) {
@@ -51,6 +57,7 @@ const apiErrors = () => {
   };
   scan(Fx, '');
   scan(Fx.trigger, 'trigger.');
+  scan(Fx.exCond, 'exCond.');
   scan(Fx.rider, 'rider.');
   return bad;
 };

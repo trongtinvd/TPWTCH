@@ -3,6 +3,7 @@ const DeckEditor = (function () {
   const S = {
     name: '',
     cards: [],
+    extra: [], // the extra deck (extra deck creatures only)
     loaded: null,
     saved: '',
     query: '',
@@ -34,13 +35,14 @@ const DeckEditor = (function () {
     drag = null,
     lastPT = 'mouse',
     noClick = false;
-  const snap = () => JSON.stringify([S.name.trim(), S.cards]),
+  const snap = () => JSON.stringify([S.name.trim(), S.cards, S.extra]),
     dirty = () => snap() !== S.saved;
   const ownName = () => (S.loaded && !S.loaded.builtin ? S.loaded.name : null); // a default deck can never be overwritten: save under a new name
-  const problem = () => (dirty() ? saveProblem(S.name, S.cards, ownName()) : 'Nothing to save');
+  const problem = () => (dirty() ? saveProblem(S.name, S.cards, ownName(), S.extra) : 'Nothing to save');
 
-  function cell(i) {
-    const id = S.cards[i],
+  const inAny = id => S.cards.includes(id) || S.extra.includes(id);
+  function cell(i, list = S.cards) {
+    const id = list[i],
       c = mkEl('div', 'de-cell' + (id ? '' : ' empty'));
     c.dataset.i = i;
     if (id) {
@@ -57,24 +59,26 @@ const DeckEditor = (function () {
     }
     return c;
   }
-  const renderGrid = () => grid.replaceChildren(...Array.from({ length: DECK_MAX }, (_, i) => cell(i)));
+  const renderGrid = () => {
+    grid.replaceChildren(...Array.from({ length: DECK_MAX }, (_, i) => cell(i)));
+    extra.replaceChildren(...Array.from({ length: EXTRA_MAX }, (_, i) => cell(i, S.extra)));
+  };
   const typeOk = d =>
     S.fType === 'all' ||
-    (S.fType === 'quick' || S.fType === 'slow'
-      ? d.type === 'spell' && String(d.timing).toLowerCase() === S.fType
-      : d.type === S.fType);
+    (S.fType === 'extra'
+      ? !!d.extra
+      : S.fType === 'quick' || S.fType === 'slow'
+        ? d.type === 'spell' && String(d.timing).toLowerCase() === S.fType
+        : d.type === S.fType && !d.extra);
   const cardList = () =>
     rankCards(S.query, DEFS).filter(
-      d =>
-        (!S.fOnly || cardMatches(S.query, d)) &&
-        typeOk(d) &&
-        (S.fIn === 'all' || S.cards.includes(d.id) === (S.fIn === 'in'))
+      d => (!S.fOnly || cardMatches(S.query, d)) && typeOk(d) && (S.fIn === 'all' || inAny(d.id) === (S.fIn === 'in'))
     );
   function renderList() {
     const st = list.scrollTop;
     list.replaceChildren(
       ...cardList().map(d => {
-        const inDeck = S.cards.includes(d.id),
+        const inDeck = inAny(d.id),
           r = mkEl('div', 'de-row' + (inDeck ? ' in' : '')),
           im = new Image(),
           nm = mkEl('div', 'nm'),
@@ -101,7 +105,8 @@ const DeckEditor = (function () {
       insp.innerHTML = '<div class="pbody"><p>Hover or click a card to inspect it.</p></div>';
       return;
     }
-    const k = S.cards.indexOf(id);
+    const k = S.cards.indexOf(id),
+      kx = S.extra.indexOf(id);
     insp.style.setProperty('--tc', cardColor(d));
     insp.innerHTML =
       '<div class="art"></div><div class="pbody"><h3></h3><div class="meta"></div><div class="stats"></div><p></p><div class="where"></div></div>';
@@ -119,7 +124,9 @@ const DeckEditor = (function () {
     insp.querySelector('.where').textContent =
       k >= 0
         ? 'In the deck: position ' + (k + 1) + ' of ' + S.cards.length + (k === 0 ? ' (top)' : '')
-        : 'Not in the deck';
+        : kx >= 0
+          ? 'In the extra deck: position ' + (kx + 1) + ' of ' + S.extra.length
+          : 'Not in the deck';
   }
   function updateTop() {
     const p = problem();
@@ -137,19 +144,22 @@ const DeckEditor = (function () {
     S.sel = id;
     renderInspect(id);
   };
+  const listOf = id => (byId[id] && byId[id].extra ? S.extra : S.cards), // extra deck creatures live in the extra deck
+    maxOf = id => (byId[id] && byId[id].extra ? EXTRA_MAX : DECK_MAX);
   const add = id => {
-    if (!id || S.cards.includes(id) || S.cards.length >= DECK_MAX) return;
-    S.cards.push(id);
+    if (!id || inAny(id) || listOf(id).length >= maxOf(id)) return;
+    listOf(id).push(id);
     changed();
   };
   const remove = id => {
-    const i = S.cards.indexOf(id);
+    const L = listOf(id),
+      i = L.indexOf(id);
     if (i < 0) return;
-    S.cards.splice(i, 1);
+    L.splice(i, 1);
     changed();
   };
-  const move = (i, j) => {
-    S.cards.splice(j, 0, S.cards.splice(i, 1)[0]);
+  const move = (i, j, L = S.cards) => {
+    L.splice(j, 0, L.splice(i, 1)[0]);
     changed();
   };
 
@@ -169,10 +179,11 @@ const DeckEditor = (function () {
   function load(deck, key) {
     S.name = deck.name;
     S.cards = deck.cards.slice();
+    S.extra = (deck.extra || []).slice();
     S.loaded = deck;
     S.last = deck.name;
     S.saved = snap();
-    S.sel = S.cards[0] || null;
+    S.sel = S.cards[0] || S.extra[0] || null;
     nameIn.value = S.name;
     refreshSelect(key);
     changed();
@@ -183,6 +194,7 @@ const DeckEditor = (function () {
     while (DeckStore.nameUsed(n)) n = 'New deck ' + i++;
     S.name = n;
     S.cards = [];
+    S.extra = [];
     S.loaded = null;
     S.saved = snap();
     S.sel = null;
@@ -193,7 +205,7 @@ const DeckEditor = (function () {
   function save() {
     if (problem()) return;
     const n = S.name.trim();
-    DeckStore.save(n, S.cards);
+    DeckStore.save(n, S.cards, S.extra);
     S.name = n;
     nameIn.value = n;
     S.loaded = DeckStore.find(n);
@@ -215,7 +227,7 @@ const DeckEditor = (function () {
 
   const cellUnder = (x, y) => {
     const e = document.elementFromPoint(x, y);
-    return e && e.closest ? e.closest('.de-grid .de-cell') : null;
+    return e && e.closest ? e.closest('.de-grid .de-cell, .de-extra .de-cell') : null;
   };
   function makeGhost(id) {
     const d = byId[id],
@@ -232,14 +244,14 @@ const DeckEditor = (function () {
   }
   function moveGhost(d, x, y) {
     d.ghost.style.transform = 'translate(' + (x - 32) + 'px,' + (y - 36) + 'px)';
-    grid.querySelectorAll('.drop').forEach(c => c.classList.remove('drop'));
+    root.querySelectorAll('.drop').forEach(c => c.classList.remove('drop'));
     const t = cellUnder(x, y);
     if (t) t.classList.add('drop');
   }
   function activate(d, x, y) {
     d.on = true;
     d.ghost = makeGhost(d.id);
-    if (d.kind === 'grid') d.el.classList.add('dragging');
+    if (d.kind !== 'list') d.el.classList.add('dragging');
     try {
       if (navigator.vibrate) navigator.vibrate(15);
     } catch (e) {}
@@ -260,7 +272,7 @@ const DeckEditor = (function () {
       ghost: null,
       timer: 0,
     });
-    if (kind === 'grid' && e.pointerType !== 'mouse')
+    if (kind !== 'list' && e.pointerType !== 'mouse')
       d.timer = setTimeout(() => {
         if (drag === d) activate(d, d.cx, d.cy);
       }, 350); // touch: a long press picks a deck card up, so a plain swipe still scrolls the page
@@ -271,9 +283,9 @@ const DeckEditor = (function () {
     drag = null;
     clearTimeout(d.timer);
     if (d.ghost) d.ghost.remove();
-    grid.querySelectorAll('.dragging, .drop').forEach(c => c.classList.remove('dragging', 'drop'));
+    root.querySelectorAll('.dragging, .drop').forEach(c => c.classList.remove('dragging', 'drop'));
     if (!d.on) {
-      if (apply && d.kind === 'grid') select(d.id);
+      if (apply && d.kind !== 'list') select(d.id);
       return;
     } // never picked up: a plain tap just inspects
     noClick = true;
@@ -283,12 +295,19 @@ const DeckEditor = (function () {
     if (!apply) return;
     const t = cellUnder(e.clientX, e.clientY);
     if (!t) return;
-    const j = +t.dataset.i;
-    if (d.kind === 'grid') {
-      const k = Math.min(j, S.cards.length - 1);
-      if (k !== d.i) move(d.i, k);
-    } else if (!S.cards.includes(d.id) && S.cards.length < DECK_MAX) {
-      S.cards.splice(Math.min(j, S.cards.length), 0, d.id);
+    const j = +t.dataset.i,
+      inX = !!t.closest('.de-extra'); // dropped on the extra deck grid?
+    if (d.kind === 'grid' || d.kind === 'xgrid') {
+      // reorder inside the same deck (a card never changes deck by dragging)
+      if (inX !== (d.kind === 'xgrid')) return;
+      const L = d.kind === 'xgrid' ? S.extra : S.cards,
+        k = Math.min(j, L.length - 1);
+      if (k !== d.i) move(d.i, k, L);
+    } else if (!inAny(d.id)) {
+      const ex = !!(byId[d.id] && byId[d.id].extra),
+        L = listOf(d.id);
+      if (L.length >= maxOf(d.id) || (!ex && inX)) return; // a card goes only into its own deck
+      L.splice(ex && !inX ? L.length : Math.min(j, L.length), 0, d.id);
       S.sel = d.id;
       changed();
     }
@@ -298,7 +317,7 @@ const DeckEditor = (function () {
     root.id = 'deckEditor';
     root.hidden = true;
     root.innerHTML =
-      '<div class="de-left de-panel"></div><div class="de-center"><div class="de-top"></div><div class="de-grid"></div><div class="de-xl">Extra Deck \u00b7 not implemented yet</div><div class="de-extra"></div></div>' +
+      '<div class="de-left de-panel"></div><div class="de-center"><div class="de-top"></div><div class="de-grid"></div><div class="de-xl">Extra Deck</div><div class="de-extra"></div></div>' +
       '<div class="de-right"><input class="dctl de-search" placeholder="Search cards\u2026" spellcheck="false" autocomplete="off"><div class="de-list"></div><div class="de-exit"></div></div>';
     document.body.appendChild(root);
     insp = root.querySelector('.de-left');
@@ -353,6 +372,7 @@ const DeckEditor = (function () {
         [
           ['all', 'All types'],
           ['creature', 'Creatures'],
+          ['extra', 'Extra deck creatures'],
           ['enchantment', 'Enchantments'],
           ['quick', 'Quick spells'],
           ['slow', 'Slow spells'],
@@ -370,7 +390,6 @@ const DeckEditor = (function () {
       only
     );
     search.after(fl);
-    extra.replaceChildren(...Array.from({ length: 20 }, () => mkEl('div', 'de-cell empty')));
     root.addEventListener(
       'pointerdown',
       e => {
@@ -398,11 +417,15 @@ const DeckEditor = (function () {
     });
     insp.addEventListener('click', () => insp.classList.toggle('open')); // phone: the compact inspector expands when tapped
     // dragging (grid: reorder; list: insert at the cell it is dropped on)
-    grid.addEventListener('pointerdown', e => {
-      if (e.button !== 0) return;
-      const c = e.target.closest('.de-cell[data-id]');
-      if (c) begin('grid', c, c.dataset.id, +c.dataset.i, e);
-    });
+    for (const [g, kind] of [
+      [grid, 'grid'],
+      [extra, 'xgrid'],
+    ])
+      g.addEventListener('pointerdown', e => {
+        if (e.button !== 0) return;
+        const c = e.target.closest('.de-cell[data-id]');
+        if (c) begin(kind, c, c.dataset.id, +c.dataset.i, e);
+      });
     list.addEventListener('pointerdown', e => {
       if (e.button !== 0) return;
       const r = e.target.closest('.de-row');
@@ -439,17 +462,19 @@ const DeckEditor = (function () {
     addEventListener('pointerup', e => endDrag(true, e));
     addEventListener('pointercancel', e => endDrag(false, e));
     // removing / adding without a mouse: double tap
-    grid.addEventListener('contextmenu', e => {
-      e.preventDefault();
-      if (lastPT !== 'mouse') return;
-      const c = e.target.closest('.de-cell[data-id]');
-      if (c) remove(c.dataset.id);
-    });
-    grid.addEventListener('dblclick', e => {
-      if (lastPT === 'mouse') return;
-      const c = e.target.closest('.de-cell[data-id]');
-      if (c) remove(c.dataset.id);
-    });
+    for (const g of [grid, extra]) {
+      g.addEventListener('contextmenu', e => {
+        e.preventDefault();
+        if (lastPT !== 'mouse') return;
+        const c = e.target.closest('.de-cell[data-id]');
+        if (c) remove(c.dataset.id);
+      });
+      g.addEventListener('dblclick', e => {
+        if (lastPT === 'mouse') return;
+        const c = e.target.closest('.de-cell[data-id]');
+        if (c) remove(c.dataset.id);
+      });
+    }
     list.addEventListener('click', e => {
       if (noClick) return;
       const r = e.target.closest('.de-row');
@@ -468,7 +493,7 @@ const DeckEditor = (function () {
       const r = e.target.closest('.de-row');
       if (!r) return;
       const id = r.dataset.id;
-      if (S.cards.includes(id)) remove(id);
+      if (inAny(id)) remove(id);
       else add(id);
     });
     const hov = e => {
@@ -476,7 +501,7 @@ const DeckEditor = (function () {
       const c = e.target.closest('[data-id]');
       renderInspect(c ? c.dataset.id : S.sel);
     };
-    for (const h of [grid, list]) {
+    for (const h of [grid, extra, list]) {
       h.addEventListener('pointerover', hov);
       h.addEventListener('pointerleave', () => renderInspect(S.sel));
     }

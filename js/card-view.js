@@ -251,6 +251,31 @@ SHAPES.shieldguard = () => [
   mk(Bx(0.2, 1.5, 0.2), 0xe0b341),
   mk(Bx(0.8, 0.2, 0.2), 0xe0b341, 0, 0.2, 0),
 ];
+SHAPES.underworldfusion = () => [
+  mk(Tr(0.8, 0.07), 0x7b3fb8, 0, 0, 0, H),
+  mk(Sp(0.35), 0x2a1840, 0, 0, 0, 0, 0, 0x331155),
+  mk(Tr(0.55, 0.05), 0xc08cff),
+];
+SHAPES.depthfusion = () => [
+  mk(Tr(0.8, 0.07), 0x2a6fb8, 0, 0, 0, H),
+  mk(Sp(0.35), 0x1b3a5e, 0, 0, 0, 0, 0, 0x113355),
+  mk(Tr(0.55, 0.05), 0x6fd3ff),
+];
+SHAPES.cultivator = () =>
+  [
+    mk(Cl(0.5, 0.6, 0.5), 0x6e4a26, 0, -0.55, 0),
+    mk(Cl(0.07, 0.07, 1.1), 0x3f8f3a, 0, 0.05, 0),
+    mk(Sp(0.28), 0xf0a0d0, 0, 0.7, 0),
+  ].concat(ring(5, a => mk(Sp(0.1), 0xffe14d, Math.cos(a) * 0.36, 0.7, Math.sin(a) * 0.36)));
+SHAPES.widowmaker = () =>
+  [mk(Sp(0.45), 0x15161c), mk(Sp(0.25), 0x23242c, 0.5, 0.1, 0), mk(Bx(0.2, 0.2, 0.05), 0xd4363a, 0, 0, 0.45)].concat(
+    ring(8, a => mk(Cn(0.05, 0.8, 6), 0x15161c, Math.cos(a) * 0.65, -0.1, Math.sin(a) * 0.65, 0, Math.cos(a) * 1.2))
+  );
+SHAPES.librarian = () => [
+  mk(Bx(1.3, 0.18, 0.9), 0x6e3a8e, 0, -0.3, 0),
+  mk(Bx(1.2, 0.5, 0.8), 0xeee6d0, 0, 0, 0),
+  mk(Sp(0.22), 0xffe14d, 0, 0.55, 0, 0, 0, 0x665500),
+];
 SHAPES.spirit = () => [
   mk(Sp(0.5), 0xe8f4ff, 0, 0, 0, 0, 0, 0x335577),
   mk(Tr(0.8, 0.06), 0xd4524f),

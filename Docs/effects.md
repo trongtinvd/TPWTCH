@@ -12,7 +12,8 @@ Card factory -> Fx builders -> plain {op:...} -> Sim.dispatch -> stack object ->
 | `COSTS` | Sim | `check` (payable?) and `pay` (mutates). |
 | `REQS` | Sim | Return reason string, or `null` if satisfied. |
 | `TARGETS` | Sim | Target finders. |
-| `COND` | Sim | Trigger conditions (`ownInAttackCol`, `extraPaid`, `firstCombat`). |
+| `COND` | Sim | Trigger conditions (`ownInAttackCol`, `extraPaid`, `firstCombat`, `foeAdjacent`, `usedMat`). |
+| `EXCOND` | Sim | Conditions of extra deck creatures (`LostLife`, `BothDrewMoreThan`); read by Fusion effects. |
 | `CH` / `THEN` | Sim | Answers to `Choose` and the "then" actions of `PickCard`. |
 | Status API | Sim | `addStatus`, `removeStatus`, `statusLines`, `hpOf`, `atkOf`, `lifeOf`, `hasSt`, `isRevealed`. See below. |
 | `Sim.API` | Sim | Published list of all names above, plus trigger and passive names. |
@@ -20,7 +21,7 @@ Card factory -> Fx builders -> plain {op:...} -> Sim.dispatch -> stack object ->
 
 Runtime `runFx` silently skips unknown ops. Definitions are deep-frozen; runtime state lives on instances: `{iid, def, owner, loc, slot, statuses[], logs[]}`. To add a block: add a handler entry + matching `Fx` builder. Each card is a factory `Cards.add(Fx => ({...}))` built with the Fx card shapes (`Fx.creature`, `Fx.enchantment`, `Fx.quick`, `Fx.slow`, `Fx.fastAbility`, `Fx.slowAbility`; a spell may give `say` and get "<Timing>. <say> (Stack HP n)" as text). Effect handlers live in `js/sim/ops.js` (the registry), and `Sim.API` is generated from the registries, so `apiErrors()` fails at load if a card or an Fx builder names something missing.
 
-Card `type`: `creature`, `enchantment` (any non-creature permanent), `spell` (`timing` Quick or Slow); `ability` is internal (stack tokens). Flags: `flash:true`, `retaliate:true`, `extraCost:{major:true}`.
+Card `type`: `creature`, `enchantment` (any non-creature permanent), `spell` (`timing` Quick or Slow); `ability` is internal (stack tokens). Flags: `flash:true`, `retaliate:true`, `extraCost:{ap:true}` (optional additional cost: spend an action point), `extra:true` (extra deck creature, see `RULES.md`; with `materials` / `conditions` data). An ability `zone` is one of `board`, `hand`, `gy`, `deck` or a list of them.
 
 ## Statuses
 One ordered list per card (`card.statuses`) and per player (`state.players[p].statuses`); see `RULES.md` for the rules and the kind table.
@@ -64,24 +65,28 @@ Handlers get `x = {s, ev, src, t, who, foe, ...}`. Effects run in list order. An
 | `removeDamage(n)`, `damageAnother(n)` | Bandages / Avatar. Bandages asks which `damage` status to reduce; a fully removed one is greyed. |
 | `obscure()`, `aura(who, atk, hp)` (passives) | Clouds; aura: cards of `'own'`/`'foe'` in the source's column and adjacent columns hold a `mod` status while in range. |
 | `modes`, `mode` | Controller picks one mode whose `[min,max]` fits the opponent's creature count. |
-| `pickCard(from, then, amount?)` | `from`: `foeHand` (adds `revealed`), `foeBoard`, `anyTarget`, `myCreatures`, `myGYCreatures`. `then`: `toGY`, `toHand`, `damage`, `summon`, `summonAttack` (put into play, then it attacks at once as an extra Attack). |
+| `pickCard(from, then, amount?)` | `from`: `foeHand` (adds `revealed`), `foeBoard`, `anyTarget`, `myCreatures`, `myGYCreatures`, `myGYEx` (extra deck creatures in your GY), `myBoardCreatures` (targetable creatures you control). `then`: `toGY`, `toHand`, `damage`, `summon`, `summonAttack` (put into play, then it attacks at once as an extra Attack), `attack` (an extra Attack), `returnEx` (back to the extra deck, the materials used come back from exile to the hand). |
 | `upTo(who, from, then, n, types?)` | Up to n picks (with Done): `then` `toHand` or `play`. The resolving card is not offered. |
 | `destroyAll`, `drawPerFoeCreature` | Parasite. |
 | `vaultFromDeck(n)` / `revealVault()` | Heaven and Sun: `vault` statuses on the card. |
 | `swapIn()` | Shieldguard (reads the Attack on the stack). |
+| `fusion({from, pay, summon, pick, cond})` | Reveal an extra deck creature, choose its materials in the `from` zones, pay them (`gy` / `exile` / `hand`), summon it. See `RULES.md` (Extra deck); implemented in `js/sim/fusion.js`. |
+| `selfToHand()` | This card goes from the deck or GY to its owner's hand (Depth Sea Fusion). |
+| `sendAdjacentPair()` | Target two adjacent cards the opponent controls (zones under the foe's clouds are offered whatever is under them); the opponent sends one of them to the GY (Widow Maker). |
+| `reorderTop(who, n)`, `declareName()` | L4: look at the top n cards of a deck and reorder them; declare a card name, look at the opponent's top card, play it if it matches (temporary control) and repeat. |
 | `shieldAll(color)`, `noLifeGain()` | `shield` statuses on your board cards; `nogain` on you. |
 | `winGame(who?)` | The controller wins the game (`who:'foe'`: the opponent). Sets `state.result` (why `effect`); ignored when the game is already decided. |
 | `skipFoeCombat(pay)`, `secondCombat()` | Shark: pay life, `skipCombat` on the foe; second combat (foe draws 5 as a cost; if you hold a `skipCombat` status it is used up instead). |
 
 ## Costs (paid at activation, never refunded if countered/fizzled)
-`payLife(n)` (`paid` status), `exileFromGY(n)`, `exileSelf()`, `sacrificeSelf()` (destroys immediately). Optional card cost `extraCost:{major:true}` (War Drum): asked on play; adds `extraPaid`.
+`payLife(n)` (`paid` status), `exileFromGY(n)`, `exileSelf()`, `sacrificeSelf()` (destroys immediately). `spendAP()` (spends one of the owner's action points, any turn). Optional card cost `extraCost:{ap:true}` (War Drum): asked on play, payable whenever the owner has a point; adds `extraPaid`.
 
 ## Requirements / targets
-`front`, `hurt`, `target`, `stack`, `foeAttacking`, `attackedCol`, `attackOnStack`. Targets: `opposingFront`, `attacker` (the topmost Attack the opponent controls). Zone targets `anyPermanent`, `anyCreature`; `colTarget` `fullColumn`; `playerTarget`; `optionalTarget`, `stackTarget` (Quick Intuition).
+`front`, `hurt`, `target`, `stack`, `foeAttacking`, `attackedCol`, `attackOnStack`, `fusionOK` (the card's Fusion effect has a creature it can summon), `exInGY` (an extra deck creature in your GY). Targets: `opposingFront`, `attacker` (the topmost Attack the opponent controls). Zone targets `anyPermanent`, `anyCreature`; `colTarget` `fullColumn`; `playerTarget`; `optionalTarget`, `stackTarget` (Quick Intuition).
 **Fizzle:** target gone at resolution (or a red-shielded zone target) -> no effects, `StackObjectFizzled`; costs stay paid.
 
 ## Activation (`canActivate` order)
-1. Zone. 2. Reqs. 3. Priority. 4. Speed (`Slow`: own turn, empty stack, no attack phase, major action unused; `Fast`: free). 5. Costs payable. Slow sets `majorUsed` on activation. After any activation the opponent gets priority first.
+1. Zone. 2. Reqs. 3. Priority. 4. Speed (`Slow`: own turn, empty stack, no attack phase, an action point available; `Fast`: free). 5. Costs payable. Slow spends an action point on activation. After any activation the opponent gets priority first.
 
 ## Playing cards and priority
 See `RULES.md`. Flash permanents need only priority and a free zone.
@@ -89,7 +94,7 @@ See `RULES.md`. Flash permanents need only priority and a free zone.
 ## Triggers
 | Trigger | Fires for |
 |---|---|
-| `enter` | Only the card that entered. |
+| `enter` | Only the card that entered; with `by:['foe']` (`foeEnter`) a card the opponent controls that entered (Widow Maker; `cond:'foeAdjacent'`: it stands next to another card its controller has). |
 | `attack(by, ...)` | `'self'`, `'foe'` or `'any'`; fired when the Attack is declared; goes above the Attack. |
 | `damaged` | The card that takes combat damage. |
 | `combat` | Beginning of its controller's combat step. |
@@ -102,12 +107,12 @@ Optional fields: `hp`, `zone`, `cond`. `fire()` collects all matches, turn playe
 `declareAttack(s, c, ev, extra)` pushes `{kind:'attack', iid, controller, hp:null, slotAt, bonus:0}`, fires attack triggers above it, gives the defender priority. `resolveAttack`: damage = `atkOf(attacker)` if on board else 0, plus `bonus`, down the column (`slotAt` if the attacker left). Normal `Attack` command needs an empty stack; extra attacks come from effects.
 
 ## Choices
-`state.choice = {player, iid, kind, options, labels?, prompt, cont?}`; only `Choose` is accepted. Kinds: shift (no kind), `damage`, `counter` (options are `damage` status ids), `mode`, `pick`, `place`, `swap`, `vault`, `vaultpick`, `upto`. Without `labels` it is answered by clicking the board; with `labels` the picker panel shows.
+`state.choice = {player, iid, kind, options, labels?, prompt, cont?}`; only `Choose` is accepted. Kinds: shift (no kind), `damage`, `counter` (options are `damage` status ids), `mode`, `pick`, `place`, `swap`, `vault`, `vaultpick`, `upto`, and for the extra deck cards `fusepick` (reveal), `fusemat` (a material), `pair` / `pairsend` (Widow Maker: the controller picks two adjacent cards, the opponent picks which one goes), `reorder`, `declare`, `libplay`, `libseen` (L4). Without `labels` it is answered by clicking the board; with `labels` the picker panel shows.
 
 ## Stack HP
 `hitStack` subtracts; **<= -1 countered, 0 resolves**. An Attack ignores it. Countered spell -> GY; countered ability token removed. (Stack objects have no statuses yet: `nodmg` is a field, Q33.)
 
-## Current cards (25; one of each per deck)
+## Current cards (28 main deck + 2 extra deck; one of each per deck)
 | Card | Effect |
 |---|---|
 | Heal / Zap / Bolt / Superbolt / GrainFall | As before: +3 life / 1 damage / 3 damage to the stack object below / 20 damage to any target / mill 10 |
@@ -117,8 +122,13 @@ Optional fields: `hp`, `zone`, `cond`. `fire()` collects all matches, turn playe
 | Quick Intuition | Quick, HP 4: `drawUntil(7)`, optional target creature/spell gets `noDamage`. GY, Fast, when the foe attacks: exile this; `cancelAttack` |
 | Ambush of the Night | Slow, HP 0: you draw 2, return <=2 GY cards, put <=2 creatures/enchantments from hand into play; then the foe returns <=2, puts <=2 from their GY into play, draws 2 |
 | Ward, Charm, Heaven and Sun | Enchantments (see card text) |
-| War Drum (ench., Flash, HP 0) | Passive `aura('foe',-1,-1)`. Enter: `placeToken('drummer')` (3/3 with `aura('own',1,1)`). Optional extra cost (major action): enter also puts a creature from your GY into play and it attacks at once |
+| War Drum (ench., Flash, HP 0) | Passive `aura('foe',-1,-1)`. Enter: `placeToken('drummer')` (3/3 with `aura('own',1,1)`). Optional extra cost (an action point, any turn): enter also puts a creature from your GY into play and it attacks at once |
 | Archer, Scout, Red Hummingbird, King Eye, The Vine, Avatar of Rabies, Black Hawk, Bolt Master | As before (Black Hawk: five `atkMul` statuses) |
+| Underworld Fusion (Quick, HP 10) | `req fusionOK`. Fusion from the GY: reveal an extra deck creature whose conditions are met, exile its materials from the GY, summon it. GY, Fast, HP 1: exile this; `pickCard('myGYEx','returnEx')`. |
+| Depth Sea Fusion (Quick, HP 7) | Fusion: materials from field / hand / deck go to the GY; summoned if the conditions are met, ignored when only hand and field cards were used. Deck or GY, Fast, HP 1: cost `spendAP`; add this card to your hand. |
+| Biology Cultivator (4/9) | Enter, HP 1: reveal an extra deck creature; if its conditions are met, its materials go from your deck to your hand. |
+| Widow Maker (ex, 6/7) | Conditions: a player has lost life. Materials: 2 creatures with the same power or HP. Enter / attack, HP 1: `sendAdjacentPair`. When a card the opponent controls enters next to another one of theirs (HP 0): a creature you control attacks. |
+| L4: The Librarian (ex, 10/10) | Conditions: both players drew more than 7 cards. Materials: a creature and an enchantment. Enter, if summoned using Heaven and Sun (HP 5): `reorderTop('foe', 3)`. Enter (HP 10): `declareName`. Your turn start: draw 1. |
 | Deep Sea Shark (6/4) | Enter: may pay 3 life, foe gets `skipCombat`. After your first combat phase: foe draws 5 (cost), second combat phase |
 | Creeping Parasite (0/0, Flash) | Enter: mode by foe creature count (every unlocked mode selectable) |
 | Shieldguard (5/15, Retaliate) | Hand ability Swap In: Fast, `attackedCol` (reads the Attack on the stack) |
@@ -126,7 +136,7 @@ Optional fields: `hp`, `zone`, `cond`. `fire()` collects all matches, turn playe
 Test-only fixtures (not in decks): Soldier 2/3, Knight 4/5, Giant 6/8, Guard 1/6, Wolf 3/3, Barrier, Aura, Banner, Trap, Mend, Fireball, Rally, Blast, **Rage** (Quick, HP 2, `req attackOnStack`: `addAttackDamage(4)`).
 
 ## Tests
-`tests/selftest.js` (`node tests/run.js`, or `cardGame.selfTest()` in the console; headless, no THREE/DOM): 343 checks. Added: status order and folds, removal on leaving the board (kept in the list), `keep`, zone-bound statuses, expiry, aura enter/leave/return, linked ability status, player list folds, `nogain`, Heaven and Sun vault, `revealed`, and the Attack bonus (resolves, stays after the attacker leaves, defender can boost). Not yet covered: Creeping Parasite modes other than 0, Shark's second-combat edge cases with statuses.
+`tests/selftest.js` (`node tests/run.js`, or `cardGame.selfTest()` in the console; headless, no THREE/DOM): 428 checks. Added: status order and folds, removal on leaving the board (kept in the list), `keep`, zone-bound statuses, expiry, aura enter/leave/return, linked ability status, player list folds, `nogain`, Heaven and Sun vault, `revealed`, and the Attack bonus (resolves, stays after the attacker leaves, defender can boost). Not yet covered: Creeping Parasite modes other than 0, Shark's second-combat edge cases with statuses.
 
 ## Not implemented
 - Base/Current stat layers and equipment (only the status fold exists), durations other than `turnEnd`, Maximum Damage.

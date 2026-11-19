@@ -32,7 +32,7 @@ Settle **before the card pool grows**; record decisions in `RULES.md`.
 ## Statuses (new)
 - [ ] 32. **Pruning removed statuses.** They stay forever (even across several lives of a card, and for tokens). Cap per card? Drop when the card changes zone for the Nth time? Needed before long headless runs and for undo snapshot size.
 - [ ] 33. **Statuses on stack objects.** `nodamage` on a stack spell and the Attack `bonus` are plain fields on the stack object. Should stack objects have `statuses[]` too (then "damage added to an Attack" is a status)?
-- [ ] 34. **Derived vs stored.** King Eye clouds, `unusable` zones, `majorUsed`, `combats` are not statuses. Which should become statuses (zone statuses with Q3/Q4)?
+- [ ] 34. **Derived vs stored.** King Eye clouds, `unusable` zones, action points (`players[p].ap`), `combats` are not statuses. Which should become statuses (zone statuses with Q3/Q4)?
 - [ ] 35. **Re-applied auras.** A card leaving and re-entering an aura's columns gets a new status (the old one stays greyed). OK, or should the old one be revived?
 - [ ] 36. **Aura order.** Auras are added oldest source first; a source that leaves and returns is "newest". Matters only for non-commutative folds (x2 vs +n).
 - [ ] 37. **Order of mixed `mod` and `atkMul`.** Folded in list order, so a x2 applied before an aura +1 gives a different result than after. Intended, or should auras apply last?
@@ -52,6 +52,16 @@ Settle **before the card pool grows**; record decisions in `RULES.md`.
 - [ ] 49. **Stops are for the non-turn player only.** Should the turn player get a window too (e.g. after the stack empties)? Should turn 1 start have a stop?
 - [ ] 50. **Which stops are on.** All five extra stops are on in real games; a per-player setting (Arena style) is open.
 
+## Action points and the extra deck (new)
+- [ ] 51. **Action point supply.** Proto: one at the start of each own turn (the first player at game start), no cap, unspent ones stay. Cap? Does the first player get one on turn 1?
+- [ ] 52. **Do opening hands count as "drawn"?** Proto: no, `s.drawn` counts only cards drawn after the game started (L4's condition).
+- [ ] 53. **Revealing from the extra deck.** Proto: a `revealed` status (to the foe) while the card stays in the extra deck, an event in the log. The extra deck list of either player can be opened in play (like the decks); a real Observation layer should hide it.
+- [ ] 54. **Fusion gamble.** Depth Sea Fusion and Biology Cultivator may reveal an extra deck creature whose conditions are not met: Depth Sea spends the materials without a summon, Cultivator only reveals. Intended?
+- [ ] 55. **Fast / Slow of the new abilities.** Underworld Fusion's and Depth Sea Fusion's GY / deck abilities are Fast (Depth Sea pays an action point as a cost). Deck-zone abilities appear in `actionsOf`, so a player with a point always "has an action" while Depth Sea Fusion is in the deck (automation in "normal" mode stops more often).
+- [ ] 56. **Temporary control (L4).** `owner` doubles as controller; `home` remembers the real owner. Only permanents and untargeted spells can be played; targeted spells need a target choice. Do enter triggers, statuses and "your cards" effects treat the card as yours? (Proto: yes.) Does a Vine-like token created by it belong to the controller? (Proto: yes.)
+- [ ] 57. **Adjacency across the middle.** Opp Front and Player Front are adjacent rows (Widow Maker pairs and the foeEnter condition). Cards a player owns standing on the other side count as theirs.
+- [ ] 58. **Materials: current or printed stats.** "Same power / same HP" compares current values (`atkOf` / `hpOf`, no damage). Printed instead?
+
 ## Timing and ordering
 - [ ] 6. Simultaneous trigger order? (Proto: turn player's first on the stack, other player's resolve first; within a player, creation order.)
 - [ ] 7. Mandatory vs optional trigger order? (Players cannot yet order their own triggers.)
@@ -59,7 +69,7 @@ Settle **before the card pool grows**; record decisions in `RULES.md`.
 - [ ] 11. When does a multi-turn effect expire? ("next three turns", *Maximum Damage*) The status model has `expires:'turnEnd'`; a turn counter (`expires:{turns:n}`) is the likely extension.
 - [ ] 12. Temporary effects when the host changes zones? (Proto: statuses go with the card unless `keep`.)
 - [ ] 17. What exactly ends an effect? (Proto: leave zone, requirement fails, link ends, clears itself, expires, removed by an effect.)
-- [ ] 19. **Do Slow abilities spend the major action?** Design: free. Proto: they spend it on activation.
+- [ ] 19. **Do Slow abilities spend an action point?** Design: free. Proto: they spend one on activation.
 - [ ] 21. Should combat end the turn (original) or only the attack phase (proto)? Is entering the attack phase with no attack a legal "pass"? (End turn during combat ends the combat phase first: proto.)
 - [x] 22. Win/loss: a player loses at life <= -1 (0 is alive); both at once = a draw; the first decision stands. See `RULES.md` (Victory).
 
@@ -88,4 +98,8 @@ Settle **before the card pool grows**; record decisions in `RULES.md`.
 | War Drum | Extra cost only on your turn; the returned creature's attack happens outside the attack phase; the -1/-1 aura can kill a creature whose damage equals HP when it enters range. |
 | Deep Sea Shark | The skip is a status on the foe: what if the foe also has a Shark? (Proto: their second-combat ability consumes it.) |
 | Quick Intuition | "Damage denied" lasts until end of turn, including damage to the creature from a later turn's cards? (Proto: expires at the end of the turn it was cast.) |
+| Underworld Fusion | Materials returned from exile: only the ones still in exile; the exiled Underworld Fusion itself is the cost. |
+| Depth Sea Fusion | Q54, Q55. |
+| Widow Maker | Q57; with only one targetable card of the pair left, it is sent without a choice. |
+| L4: The Librarian | Q52, Q56. "Summoned using Heaven and Sun" = Heaven and Sun is among the materials. The effect repeats only after playing the card. |
 | Ambush of the Night | Order and "up to" choices; the spell itself is not a legal pick (Q40). |

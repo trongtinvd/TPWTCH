@@ -115,7 +115,10 @@ function project(x, y, z) {
 function screenOf(c) {
   // where a card is on screen (its mesh, else its pile)
   const m = meshes.get(c.iid),
-    p = m ? m.position : sideZones[c.owner + (c.loc === 'deck' || c.loc === 'hand' ? 'deck' : 'gy')].position;
+    p = m
+      ? m.position
+      : sideZones[c.owner + (c.loc === 'extra' ? 'extra' : c.loc === 'deck' || c.loc === 'hand' ? 'deck' : 'gy')]
+          .position;
   return project(p.x, p.y || 0.11, p.z);
 }
 function setLink(src) {
@@ -571,7 +574,10 @@ function sync() {
         meshes.delete(id);
         continue;
       } // !c: the card no longer exists (undo removed a generated token)   // the showcase animation carries it to the stack instead
-      const z = sideZones[c.owner + (c.loc === 'gy' ? 'gy' : c.loc === 'exile' ? 'exile' : 'deck')];
+      const z =
+        sideZones[
+          c.owner + (c.loc === 'gy' ? 'gy' : c.loc === 'exile' ? 'exile' : c.loc === 'extra' ? 'extra' : 'deck')
+        ];
       Object.assign(m.userData, { tx: z.position.x, tz: z.position.z, ty: 0.11, dying: true, card: null });
       setGlow(m, false);
     }
@@ -579,6 +585,7 @@ function sync() {
     sideZones[p + 'deck'].userData.relabel(game.piles[p].deck.length + ' cards');
     sideZones[p + 'gy'].userData.relabel(game.piles[p].gy.length + ' cards');
     sideZones[p + 'exile'].userData.relabel(game.piles[p].exile.length + ' cards');
+    sideZones[p + 'extra'].userData.relabel(game.piles[p].extra.length + ' cards');
   }
   const CM = Sim.cloudMap(game);
   for (const k in clouds) {
@@ -680,7 +687,11 @@ function sync() {
               : NAME[game.active] +
                 '\u2019s turn' +
                 (game.attackPhase ? ' (attack phase)' : '') +
-                (game.majorUsed ? ' (major action used)' : '') +
+                (' (' +
+                  Sim.apCount(game, game.active) +
+                  ' action point' +
+                  (Sim.apCount(game, game.active) === 1 ? '' : 's') +
+                  ')') +
                 ' \u00b7 ' +
                 (ui.note ? ui.note + ' \u00b7 ' : '') +
                 (game.stack.length
@@ -704,6 +715,28 @@ function sync() {
         !!(game.choice && !foeChoice() && !game.choice.labels && game.choice.options.includes('P:' + p))
     );
     row.querySelector('b').textContent = L;
+    // action points: one four-point star per unspent point; a click opens its inspection panel
+    const open = Sim.apOpen(game, p),
+      key = open.map(a => a.id).join(),
+      box = row.querySelector('.aps');
+    if (box.dataset.k !== key) {
+      box.dataset.k = key;
+      box.replaceChildren(
+        ...open.map(a => {
+          const b = document.createElement('button');
+          b.className = 'apstar';
+          b.innerHTML =
+            '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0L10 6L16 8L10 10L8 16L6 10L0 8L6 6Z"/></svg>';
+          b.title = 'Action point (click to inspect)';
+          b.setAttribute('aria-label', 'Action point');
+          b.onclick = e => {
+            e.stopPropagation();
+            showAP(p, a.id, true);
+          };
+          return b;
+        })
+      );
+    }
   }
   const pk = document.getElementById('pick'),
     pkc = game.choice && game.choice.labels && !foeChoice() ? game.choice : null;
@@ -711,7 +744,7 @@ function sync() {
   pk.hidden = !pkc && !ui.extraAsk;
   if (ui.extraAsk && !pkc) {
     pk.innerHTML = '<div class="mt"></div>';
-    pk.firstChild.textContent = ui.extraAsk.c.def.name + ': also spend your major action (additional cost)?';
+    pk.firstChild.textContent = ui.extraAsk.c.def.name + ': also spend an action point (additional cost)?';
     [
       ['Pay the additional cost', true],
       ['Do not pay', false],

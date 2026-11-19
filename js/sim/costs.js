@@ -3,6 +3,7 @@ Sim.def('costs', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
   let PL, addStatus, has, syncLife; // statuses
   let destroy; // state
+  let hasAP, spendAP; // ap
   const COSTS = {
     // check -> reason|null; pay mutates (never refunded if countered)
     PayLife: {
@@ -34,14 +35,18 @@ Sim.def('costs', function (K) {
         ev.push({ t: 'CardExiled', iid: c.iid });
       },
     },
+    SpendAP: {
+      check: (s, c) => (hasAP(s, c.owner) ? null : 'Cost: no action point left'),
+      pay: (s, c, k, ev) => spendAP(s, c.owner, c.def.name + ' (cost)', ev),
+    },
     SacrificeSelf: { check: () => null, pay: (s, c, k, ev) => destroy(s, c, ev) },
   };
   const payCost = (s, c, k, ev) => COSTS[k.op].pay(s, c, k, ev);
   return {
     exports: { COSTS, payCost },
-    needs: ['PL', 'addStatus', 'destroy', 'has', 'syncLife'],
+    needs: ['PL', 'addStatus', 'destroy', 'has', 'hasAP', 'spendAP', 'syncLife'],
     link: () => {
-      ({ PL, addStatus, destroy, has, syncLife } = K);
+      ({ PL, addStatus, destroy, has, hasAP, spendAP, syncLife } = K);
     },
   };
 });

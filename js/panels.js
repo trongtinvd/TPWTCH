@@ -81,7 +81,7 @@ function buildList() {
   const st = deckPanel.scrollTop,
     { owner, kind } = ui.openList,
     cards = listCards(ui.openList),
-    gy = kind !== 'deck',
+    gy = kind === 'gy' || kind === 'exile',
     rowActs = new Set(
       !rp.on && !game.choice && game.phase === 'play'
         ? Sim.actionsOf(game, ui.view)
@@ -95,7 +95,7 @@ function buildList() {
   deckPanel.innerHTML =
     '<div class="phead"><b>' +
     NAME[owner] +
-    ({ gy: ' Graveyard', exile: ' Exile' }[kind] || ' Deck') +
+    ({ gy: ' Graveyard', exile: ' Exile', extra: ' Extra Deck' }[kind] || ' Deck') +
     ' (' +
     cards.length +
     ')</b><button class="xbtn" data-close="list" aria-label="Close list">\u00d7</button></div>' +
@@ -106,7 +106,7 @@ function buildList() {
     '</span><i></i><span>' +
     (gy ? 'Oldest' : 'Bottom') +
     '</span></div>';
-  if (!gy && (game.phase === 'deck' || ui.deckEdit))
+  if (kind === 'deck' && (game.phase === 'deck' || ui.deckEdit))
     deckPanel.insertAdjacentHTML(
       'beforeend',
       '<div class="note">' +
@@ -190,7 +190,7 @@ const partOn = (c, p, def) => {
     const t = def.triggers[p.i];
     return t.on === 'enter' ? c.loc !== 'board' : c.loc === (t.zone || 'board'); // a permanent cannot enter the board from the board
   }
-  if (p.list === 'abilities') return c.loc === (def.abilities[p.i].zone || 'board');
+  if (p.list === 'abilities') return [].concat(def.abilities[p.i].zone || 'board').includes(c.loc);
   return true; // keywords and the text of a spell
 };
 function cardParts(c, H) {
@@ -200,7 +200,7 @@ function cardParts(c, H) {
     swapped = eff.id !== base.id;
   const add = (out, def, off, onlyAb) => {
     for (const p of textParts(def)) {
-      const ab = p.list !== 'kw' && p.list !== 'body';
+      const ab = !['kw', 'body', 'conditions', 'materials'].includes(p.list);
       if (onlyAb && !ab) continue;
       const hit = !!H && def.id === H.from && p.list === H.list && p.i === H.i;
       out.push({
@@ -239,6 +239,7 @@ function showCard(c, pin = true, hl = null) {
   if (pin) {
     ui.selected = c;
     ui.selP = null;
+    ui.selAP = null;
     ui.selHl = hl;
   }
   const H = c === ui.selected ? ui.selHl : null, // a selected stack ability: its text is highlighted, the rest greyed out
@@ -257,15 +258,16 @@ function showCard(c, pin = true, hl = null) {
     deck: 'Position in deck: ' + (idx + 1) + ' of ' + (pile || []).length + (idx === 0 ? ' (top)' : ''),
     gy: 'Graveyard: ' + (idx + 1) + ' of ' + (pile || []).length + (idx === 0 ? ' (most recent)' : ''),
     exile: 'In exile (' + NAME[c.owner] + ')',
+    extra: 'In the extra deck (' + NAME[c.owner] + ')',
     hand: 'In ' + NAME[c.owner] + '\u2019s hand',
     board: 'On the board (' + NAME[c.owner] + ')',
     stack: 'On the stack (' + NAME[c.owner] + ')',
   }[c.loc];
   const gyActs =
-    !rp.on && (c.loc === 'gy' || c.loc === 'hand')
+    !rp.on && (c.loc === 'gy' || c.loc === 'hand' || c.loc === 'deck')
       ? (Sim.abDef(c).abilities || [])
           .map((a, i) => ({ a, i, why: c.owner !== ui.view ? 'Not your card' : Sim.canActivate(game, c, i) }))
-          .filter(x => x.a.zone === c.loc)
+          .filter(x => [].concat(x.a.zone || 'board').includes(c.loc))
       : [];
   const key =
     c.iid +
@@ -327,6 +329,7 @@ function showPlayer(p, pin) {
   if (pin) {
     ui.selP = p;
     ui.selected = null;
+    ui.selAP = null;
   }
   const s = game,
     P = s.piles[p],
@@ -369,6 +372,41 @@ function showPlayer(p, pin) {
   }
   inspect.hidden = false;
 }
+function showAP(p, id, pin) {
+  // the inspection panel of one action point: whose it is, when it was gained, and (if spent) when and on what
+  const a = Sim.apList(game, p).find(x => x.id === id);
+  if (!a) {
+    inspect.hidden = true;
+    return;
+  }
+  ui.inspLast = { ap: { p, id } };
+  if (pin) {
+    ui.selAP = { p, id };
+    ui.selected = null;
+    ui.selP = null;
+    ui.inspHold = false;
+  }
+  const key = 'AP|' + p + '|' + id + '|' + (a.spent ? a.spent.turn + a.spent.why : '');
+  if (inspect.hidden || inspect.dataset.key !== key) {
+    inspect.dataset.key = key;
+    inspect.innerHTML =
+      '<div class="phead"><b>Inspect</b><span><button class="xbtn" data-close="inspect" aria-label="Close inspection panel">\u00d7</button></span></div>' +
+      '<div class="art"></div><div class="pbody"><h3>Action point</h3><div class="meta"></div><div class="stats"></div><p></p><div class="where"></div></div>';
+    inspect.style.setProperty('--tc', 'var(--ap-color)');
+    inspect.querySelector('.art').textContent = '\u2726';
+    inspect.querySelector('.meta').textContent = NAME[p];
+    inspect.querySelector('.stats').innerHTML = [a.spent ? 'Spent' : 'Available']
+      .map(x => '<span class="stat">' + x + '</span>')
+      .join('');
+    inspect.querySelector('p').textContent =
+      'Spend one to draw, enter the attack phase, summon a permanent, play a Slow spell or use a Slow ability. A player gains one at the start of their own turn; unspent points stay.';
+    inspect.querySelector('.where').textContent =
+      'Gained on turn ' +
+      a.turn +
+      (a.spent ? ' \u00b7 spent on turn ' + a.spent.turn + ': ' + a.spent.why : ' \u00b7 not spent yet');
+  }
+  inspect.hidden = false;
+}
 function actionsFor(c) {
   const acts = [];
   if (c.loc === 'deck' && debugOk())
@@ -380,10 +418,10 @@ function actionsFor(c) {
       why: c.owner !== ui.view ? 'Not your creature' : Sim.canAttack(game, c),
       run: () => send({ type: 'Attack', iid: c.iid }),
     });
-  if (c.loc === 'board' || c.loc === 'hand' || c.loc === 'gy')
+  if (c.loc === 'board' || c.loc === 'hand' || c.loc === 'gy' || c.loc === 'deck')
     (Sim.abDef(c).abilities || []).forEach(
       (a, i) =>
-        (a.zone || 'board') === c.loc &&
+        [].concat(a.zone || 'board').includes(c.loc) &&
         acts.push({
           t: a.speed + ': ' + a.name,
           why: c.owner !== ui.view ? 'Not your card' : Sim.canActivate(game, c, i),
@@ -428,16 +466,19 @@ function openMenu(c, x, y) {
 function refreshInspect() {
   // hovered card wins; otherwise the pinned (clicked) one; otherwise hidden
   const c = ui.inspHold ? null : ui.preview || (ui.hoverP ? null : ui.selected),
-    p = ui.inspHold || c ? null : ui.hoverP || ui.selP;
+    p = ui.inspHold || c ? null : ui.hoverP || ui.selP,
+    a = ui.inspHold || c || p ? null : ui.selAP;
   if (c && !(c.loc === 'hand' && c.owner !== ui.view && !Sim.isRevealed(c, ui.view)) && !seenHidden(c))
     showCard(c, false);
   else if (p) showPlayer(p);
+  else if (a) showAP(a.p, a.id, false);
   else inspect.hidden = true;
 }
 function hideInspect() {
   inspect.hidden = true;
   ui.selected = null;
   ui.selP = null;
+  ui.selAP = null;
   deckPanel.querySelectorAll('.row.sel').forEach(r => r.classList.remove('sel'));
   sync();
 }
@@ -459,6 +500,7 @@ document.addEventListener('click', e => {
     inspect.dataset.key = '';
     if (ui.inspLast && ui.inspLast.c) showCard(ui.inspLast.c, false);
     else if (ui.inspLast && ui.inspLast.p) showPlayer(ui.inspLast.p, false);
+    else if (ui.inspLast && ui.inspLast.ap) showAP(ui.inspLast.ap.p, ui.inspLast.ap.id, false);
     return;
   }
   const b = e.target.closest && e.target.closest('[data-close]');

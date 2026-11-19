@@ -42,10 +42,11 @@ Everything that changes a card or a player after it was printed/started is a **s
 | `ability` {to, link} | card | Ability layer (Avatar). The newest active one decides; `link` = the damage status that caused it. |
 | `nodamage` | card | Damage denied; expires at end of turn. |
 | `attacked` | card | Already attacked this phase; expires at end of turn or at a new combat phase. |
-| `revealed` {to} | card in hand | Revealed to that player while it stays in hand. |
+| `revealed` {to, zone} | card in hand / extra deck | Revealed to that player while it stays in that zone (hand: Parasite; extra deck: Fusion cards). |
 | `vault` {card} | card | A card exiled by it (Heaven and Sun); removed when it leaves, or when taken. |
 | `extraPaid` | card | The optional additional cost was paid (War Drum). |
 | `entered` {n} | card | Board entry order (orders aura sources). |
+| `mats` {cards} | extra deck creature | The materials it was summoned with (`keep`: survives leaving the board). Read by "return the materials used" and by `cond:'usedMat'`. Removed when the materials are returned. |
 | `nogain` | player | Cannot gain life (Spirit of the Sand). |
 | `skipCombat` | player | Next combat becomes End turn; removed when used (Deep Sea Shark). |
 
@@ -54,13 +55,20 @@ King Eye clouds are **derived from the board** (a passive), not stored statuses;
 ## Logs (one per card and per player, next to statuses) [proto]
 `card.logs[]` / `players[p].logs[]`: append-only history since the duel began. **statuses[] rebuilds the current state; logs[] rebuilds the whole story.** Entries: `start` (position in the shuffled deck), `locked` (position when the deck was locked), `zone` (from -> to and **how**: drawn, milled, entered the board, shifted, destroyed, destroyed by the rules, exiled, returned to hand, put on the stack, resolved, countered), `status+` (applied, with id) and `status-` (removed, with id and reason). The inspector toggles between Statuses and Log; both list the newest on top. Ability tokens have no log. Own counter (`s.lseq`), so status ids do not change.
 
+## Extra deck [proto]
+- Each player has an **extra deck**: extra deck creatures (purple cards, `extra:true`, still `type:'creature'`). They are never drawn; they enter only through effects (the Fusion cards), into a front-row zone. Zones: board zone "Extra Deck" (click: list), pile `piles[p].extra`, `loc:'extra'`.
+- An extra deck creature has two fields, **`materials`** and **`conditions`**. They do nothing by themselves; effects read them. `materials`: `[{type:'creature'|'enchantment'|'any', n, same?:['atk','hp']}]` (`same`: the n cards share at least one of those stats; current values). `conditions`: `[{op}]` naming an `EXCOND` entry: `LostLife` (a player has lost life at some point, removed damage still counts), `BothDrewMoreThan` (n: each player drew more than n cards since the game started; the opening hand does not count).
+- **Fusion effect** (`fusion({from, pay, summon, pick, cond})`): reveal an extra deck creature (`pick`: `conditions` = conditions met and materials available, `fusable` = materials available, `any`), choose its materials among the `from` zones (`board`, `hand`, `deck`, `gy`; a blue-shielded card cannot be used; a choice with one option is made by itself), pay them (`pay`: `gy`, `exile`, `hand`), and if `summon`, summon it (the controller picks the zone). `cond`: `must` (conditions must be met), `ignoreHB` (ignored when every material comes from hand or field), `none`. The materials are spent even if the conditions end up unmet. A revealed card gets a `revealed` status (to the opponent) while it stays in the extra deck.
+- The materials used are remembered on the summoned creature (`mats`, kept for good) whichever card summoned it.
+- **Temporary control** (L4: The Librarian plays the opponent's top card): the card's `owner` becomes the player who plays it and `home` remembers the real owner; when it leaves the board or the stack it goes to its owner's graveyard / hand / exile and is the owner's again. Only permanents and spells that need no target can be played this way (targeted spells: not yet).
+
 ## Keywords
-- **Flash** (Creeping Parasite, War Drum): the permanent can be played like a Quick spell: whenever its owner holds priority, including the opponent's turn and the battle phase, even with objects on the stack. It does **not** use the major action. It still needs a free zone in the right row. It opens the "permanent entered" window only when the turn player played it. [proto]
+- **Flash** (Creeping Parasite, War Drum): the permanent can be played like a Quick spell: whenever its owner holds priority, including the opponent's turn and the battle phase, even with objects on the stack. It does **not** spend an action point. It still needs a free zone in the right row. It opens the "permanent entered" window only when the turn player played it. [proto]
 - **Retaliate** (Shieldguard): whenever the card takes damage (combat or effect) it deals damage equal to its *current* power back to the source: the creature that dealt it, or, if the source was a spell, the spell's controller. Power is read before the card is destroyed. Retaliation damage has type `retaliate` and never retaliates again. [proto]
 - **Fast** (abilities): usable whenever the owner holds priority. **Slow** abilities: see "Turn".
 
 ## Setup [proto]
-- Decks are **singleton** (one copy of each card, currently 25 cards), shuffled from a seed.
+- Decks are **singleton** (one copy of each card): a main deck (10 to 100 cards, currently 28 in the pool) shuffled from a seed, and an **extra deck** (0 to 20 extra deck creatures, never shuffled).
 - **Deck-building phase:** each player reorders their own deck, then presses Start. Decks lock when a player is ready. When both are ready each gets an opening hand of 5 and Player 1's turn starts.
 - Life: 20 each. A player at life -1 or less has lost (see Victory).
 
@@ -70,14 +78,16 @@ King Eye clouds are **derived from the board** (a passive), not stored statuses;
 - `Surrender` ends the game at once (the other player wins) and is allowed at any time, even during a choice. `Leave` is the same with the reason "left" (a player walking away from a running game).
 - The result is recorded **once** in `state.result = {winner, why, turn}` and never changes (`why`: life, surrender, left, effect). Play is not stopped by the Sim: the host shows the result dialog, and **Continue** (both players) just goes on with the same game, result unchanged. **Rematch** (both players) starts a new game at once. **Leave** returns to the menu; the other side's dialog disappears and its Exit button pulses.
 
-## Turn: one major action
-1. Draw two (one if only one card is left; illegal on an empty deck), OR 2. Summon one permanent / play one Slow spell, OR 3. Enter the attack phase.
-Free: Fast abilities, legal Quick spells, **Flash permanents**, inspecting piles. No draw at turn start.
-- **[proto]** Entering the attack phase spends the major action. The phase can be toggled off but the action stays spent.
-- **[proto]** **Slow abilities** also spend the major action, on activation (Q19).
-- **[proto]** The turn does not end after combat. The turn player presses End turn (stack empty); the opponent gets an end-step window and the turn changes when they pass. **End turn during combat ends the combat phase first** (so "after combat" triggers still fire; if they use the stack, the turn is not over yet).
-- **[proto]** Deep Sea Shark: while a `skipCombat` status is on a player, pressing combat becomes End turn and the status is removed. The skipped player's own Shark second-combat ability also uses it up instead of starting a combat.
-- `RULES.oneMajor = false` (console) lifts the limit for sandboxing.
+## Turn and action points [proto]
+Each player holds **action points** (shown as four-point stars under the life bar; click one for its inspection panel). A player gains **one at the start of their own turn** (the first player when the game starts). **Unspent points stay**, so a player can hold several. Spending one is how the old "major action" works:
+1. **Draw** two (one if only one card is left; illegal on an empty deck), costs one point, OR 2. **Summon** one permanent / play one **Slow** spell / use one **Slow** ability, costs one point, OR 3. **Enter the attack phase**, costs one point.
+- All of these still need an **open game state** (empty stack, no open window) and **the controller's own turn**; a point alone is not enough. Free: Fast abilities, legal Quick spells, **Flash permanents**, inspecting piles. No draw at turn start.
+- Cards can spend a point themselves, **also on the opponent's turn** when the player has one: War Drum's optional additional cost (`extraCost:{ap:true}`), the `spendAP` cost (Depth Sea Fusion's ability).
+- Entering the attack phase spends a point; the phase can be toggled off but entering it again costs another.
+- A spent point stays in the player's list (`players[p].ap`: `{id, turn, spent:{why, turn}}`) and is written to the game log (`ActionPointSpent`); clicking that log line opens the point's inspection panel (gained on turn N, spent on turn M by what).
+- The turn does not end after combat. The turn player presses End turn (stack empty); the opponent gets an end-step window and the turn changes when they pass. **End turn during combat ends the combat phase first** (so "after combat" triggers still fire; if they use the stack, the turn is not over yet).
+- Deep Sea Shark: while a `skipCombat` status is on a player, pressing combat becomes End turn and the status is removed. The point is not spent. The skipped player's own Shark second-combat ability also uses it up instead of starting a combat.
+- `RULES.apLimit = false` (console) lifts the limit for sandboxing (no point is needed or spent).
 
 ## Turn order (Distance/Speed/Acceleration) [not built]
 - Start: Distance = Initial Distance. Player farthest ahead takes the turn; ties: coin toss.
@@ -88,7 +98,7 @@ Free: Fast abilities, legal Quick spells, **Flash permanents**, inspecting piles
 ## Stack
 Add object -> priority/responses -> both pass -> top resolves -> triggers -> priority resumes. Objects: Quick/Slow spells, activated and triggered abilities, **Attacks**. Stack HP = resistance to counter. **HP <= -1 countered; HP 0 resolves.**
 - **[proto] Priority:** a player must hold priority to play a spell or activate an ability. After a spell/ability goes on the stack the **opponent** gets priority first. The top object resolves after **two consecutive passes**, then priority returns to the turn player (or the non-turn player in an open window).
-- **[proto]** Quick spells: any time the holder has priority. Slow spells and non-Flash permanents: turn player, own priority, empty stack, major action unused, not in the attack phase. In the attack phase only Quick spells, Flash permanents and Fast abilities.
+- **[proto]** Quick spells: any time the holder has priority. Slow spells and non-Flash permanents: turn player, own priority, empty stack, an action point available, not in the attack phase. In the attack phase only Quick spells, Flash permanents and Fast abilities.
 - **[proto] Triggers:** all triggers from one event are pushed together, turn player's first (so the other player's resolve first); priority goes to the turn player's opponent. Order within one player: card creation order (placeholder).
 - **[proto] Enter triggers are queued before the state-based check.** A permanent that dies the moment it enters (War Drum answered by War Drum: each one's -1/-1 aura kills the other) still has its enter triggers on the stack, and they resolve.
 - **[proto] Response windows** (empty-stack priority for the non-turn player): *enter* and *end* always; and, when the host turns them on (`state.stops`: on in real games, off in the rules tests), five more **stops**: turn started, combat started, combat ended, cards drawn, stack emptied (each gives the non-turn player priority on an empty stack; the Pass button names it). **The old "attack" window is gone**: the Attack is a stack object, so the defender simply gets priority on it (Q30 resolved).
@@ -97,7 +107,7 @@ Add object -> priority/responses -> both pass -> top resolves -> triggers -> pri
 - **[proto] Choices:** an effect that needs a decision sets a pending *choice*; only `Choose` is accepted. A multi-step effect (Ambush of the Night, Parasite) suspends the rest of its effect list as a continuation and resumes after each answer. The resolving spell is never a legal pick for its own effect.
 
 ## Combat
-Enter the combat phase (major action). Then the turn player's creatures attack one at a time, each at most once per phase. Combat does not end the turn.
+Enter the combat phase (an action point). Then the turn player's creatures attack one at a time, each at most once per phase. Combat does not end the turn.
 - **An Attack is a stack object.** `Attack` (turn player, attack phase, **empty stack**, no open window, not yet attacked) puts an Attack object on the stack and marks the attacker `attacked`. Its attack triggers go **above** it as separate objects (so they resolve and can be answered first). The **defender gets priority first**.
 - **An Attack has no HP and no snapshot.** Damage dealt to it (Bolt) does nothing. It reads the attacker when it resolves: the attacker's *current* power if it is still on the board, plus the Attack's own **bonus** (damage added by effects, e.g. `addAttackDamage`). If the attacker left the board the attacker's power is 0, but the bonus still lands, down the column it stood in.
 - **Cancel Attack** removes the Attack object (no damage; its triggers stay).

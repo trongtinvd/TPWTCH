@@ -1,10 +1,11 @@
 // dispatch.js - the command interpreter and hasAction
 Sim.def('dispatch', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
-  let canPayExtra, isPerm, majorUsed, other, slowish; // util
+  let canPayExtra, isPerm, other, slowish; // util
+  let gainAP, hasAP, spendAP; // ap
   let lg; // logs
   let PL, abDef, addStatus, dmgs, has, live, removeStatus; // statuses
-  let declareWinner, freeSlots, recalc, sweepUnusable; // state
+  let declareWinner, freeSlots, recalc, release, sweepUnusable; // state
   let findTarget, targetColumns, targetZones; // targeting
   let payCost; // costs
   let askCounters, resume; // fx
@@ -46,6 +47,7 @@ Sim.def('dispatch', function (K) {
             });
           }
           ev.push({ t: 'GameStarted' });
+          gainAP(s, s.active, ev); // the first turn's action point
         }
         break;
       }
@@ -56,18 +58,20 @@ Sim.def('dispatch', function (K) {
         if (s.attackPhase) return fail('Not during the battle phase');
         if (cmd.player !== s.active) return fail('Only the turn player can draw');
         if (!d.length) return fail('Deck is empty');
-        if (majorUsed(s)) return fail('Major action already used this turn');
-        s.majorUsed = true;
+        if (!hasAP(s, cmd.player)) return fail('No action point left');
+        spendAP(s, cmd.player, 'Draw', ev);
         if (d.length > 1) {
           const x = d.shift();
           x.loc = 'hand';
           s.piles[x.owner].hand.push(x);
           ev.push({ t: 'CardDrawn', iid: x.iid, player: x.owner });
+          s.drawn[x.owner]++;
         } // draw two
         const c = d.shift();
         c.loc = 'hand';
         s.piles[c.owner].hand.push(c);
         ev.push({ t: 'CardDrawn', iid: c.iid, player: c.owner });
+        s.drawn[c.owner]++;
         stopAt(s, ev, 'draw'); // stop: cards drawn
         break;
       }
@@ -92,8 +96,8 @@ Sim.def('dispatch', function (K) {
         const h = s.piles[c.owner].hand;
         h.splice(h.indexOf(c), 1);
         const paid = !!(cmd.extra && c.def.extraCost);
-        if (paid) s.majorUsed = true;
-        if (slowish(c)) s.majorUsed = true;
+        if (paid) spendAP(s, c.owner, c.def.name + ' (additional cost)', ev);
+        if (slowish(c)) spendAP(s, c.owner, (isPerm(c) ? 'Summon ' : 'Cast ') + c.def.name, ev);
         if (isPerm(c)) {
           s.slots[cmd.slot] = c.iid;
           c.slot = cmd.slot;
@@ -143,6 +147,7 @@ Sim.def('dispatch', function (K) {
             dead = o.hp <= -1;
           if (dead) ev.push({ t: 'StackObjectCountered', sid: o.sid, iid: o.iid });
           else resolveObj(s, o, ev);
+          if (o.kind === 'spell') release(c); // a spell played under temporary control ends up with its owner
           if (o.kind === 'attack') {
           } else if (o.kind === 'spell') {
             if (o.toHand) {
@@ -171,7 +176,7 @@ Sim.def('dispatch', function (K) {
         if (cmd.player !== s.priority) return fail('Not this player\u2019s priority');
         if (s.stack.length) return fail('Stack is not empty');
         if (cmd.on && !s.attackPhase) {
-          if (majorUsed(s)) return fail('Major action already used this turn');
+          if (!hasAP(s, cmd.player)) return fail('No action point left');
           {
             const sk = live(PL(s, cmd.player)).find(y => y.kind === 'skipCombat');
             if (sk) {
@@ -182,7 +187,7 @@ Sim.def('dispatch', function (K) {
               break;
             }
           } // Deep Sea Shark: pressing combat becomes End turn
-          s.majorUsed = true;
+          spendAP(s, cmd.player, 'Enter the attack phase', ev);
         }
         const was = s.attackPhase;
         s.attackPhase = !!cmd.on;
@@ -244,7 +249,7 @@ Sim.def('dispatch', function (K) {
         const a = abDef(c).abilities[cmd.ab],
           tgt = findTarget(s, c, a);
         for (const k of a.cost || []) payCost(s, c, k, ev); // costs are paid on activation
-        if (a.speed === 'Slow') s.majorUsed = true; // Slow consumes the major action now, not on resolution
+        if (a.speed === 'Slow') spendAP(s, c.owner, c.def.name + ': ' + a.name, ev); // Slow spends an action point now, not on resolution
         pushObj(s, c, 'abilities', cmd.ab, ev, tgt ? tgt.iid : null);
         s.priority = other(c.owner); // the opponent gets priority first
         ev.push({ t: 'AbilityActivated', iid: c.iid, ab: cmd.ab, speed: a.speed });
@@ -266,7 +271,7 @@ Sim.def('dispatch', function (K) {
         ev.push({ t: 'EndStepEntered' });
         break; // the turn really ends when the opponent passes
       case 'DebugToHand': {
-        // debug tool (Vs Self / Vs Bot): a card of a deck goes to its owner's hand. No rules, no major action. Recorded like any command, so replays keep it
+        // debug tool (Vs Self / Vs Bot): a card of a deck goes to its owner's hand. No rules, no action point. Recorded like any command, so replays keep it
         const c = s.cards[cmd.iid];
         if (!cmd.debug || !c || c.loc !== 'deck') return fail('Debug: the card must be in a deck');
         const P = s.piles[c.owner];
@@ -300,7 +305,7 @@ Sim.def('dispatch', function (K) {
     const P = s.piles[p],
       mine = Object.values(s.cards).filter(c => c.owner === p && (c.loc === 'board' || c.loc === 'gy')),
       turn = p === s.active && !s.stack.length;
-    if (turn && !s.attackPhase && !majorUsed(s) && P.deck.length) out.push({ kind: 'draw' });
+    if (turn && !s.attackPhase && hasAP(s, p) && P.deck.length) out.push({ kind: 'draw' });
     P.hand.forEach(c => {
       if (!canPlay(s, c)) out.push({ kind: 'play', iid: c.iid });
     });
@@ -308,13 +313,18 @@ Sim.def('dispatch', function (K) {
       mine.forEach(c => {
         if (!canAttack(s, c)) out.push({ kind: 'attack', iid: c.iid });
       });
-    else if (turn && !majorUsed(s) && mine.some(c => c.loc === 'board' && c.def.type === 'creature'))
+    else if (turn && hasAP(s, p) && mine.some(c => c.loc === 'board' && c.def.type === 'creature'))
       out.push({ kind: 'battle' });
-    mine.concat(P.hand).forEach(c =>
-      (abDef(c).abilities || []).forEach((a, i) => {
-        if (!canActivate(s, c, i)) out.push({ kind: 'ability', iid: c.iid, ab: i });
-      })
-    );
+    mine
+      .concat(
+        P.hand,
+        P.deck.filter(c => (abDef(c).abilities || []).some(a => [].concat(a.zone || 'board').includes('deck')))
+      )
+      .forEach(c =>
+        (abDef(c).abilities || []).forEach((a, i) => {
+          if (!canActivate(s, c, i)) out.push({ kind: 'ability', iid: c.iid, ab: i });
+        })
+      );
     return out;
   }
   const hasAction = (s, p) => actionsOf(s, p).length > 0; // is there anything legal for p right now?
@@ -338,20 +348,23 @@ Sim.def('dispatch', function (K) {
       'findTarget',
       'fire',
       'freeSlots',
+      'gainAP',
       'has',
+      'hasAP',
       'isPerm',
       'lg',
       'live',
-      'majorUsed',
       'openRespond',
       'other',
       'payCost',
       'pushObj',
       'recalc',
+      'release',
       'removeStatus',
       'resolveObj',
       'resume',
       'slowish',
+      'spendAP',
       'stopAt',
       'sweepUnusable',
       'targetColumns',
@@ -376,20 +389,23 @@ Sim.def('dispatch', function (K) {
         findTarget,
         fire,
         freeSlots,
+        gainAP,
         has,
+        hasAP,
         isPerm,
         lg,
         live,
-        majorUsed,
         openRespond,
         other,
         payCost,
         pushObj,
         recalc,
+        release,
         removeStatus,
         resolveObj,
         resume,
         slowish,
+        spendAP,
         stopAt,
         sweepUnusable,
         targetColumns,

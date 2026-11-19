@@ -6,6 +6,7 @@ Sim.def('reqs', function (K) {
   let cloudMap; // state
   let TARGETS, findTarget, pendingAtk; // targeting
   let COND; // cond
+  let fusionPossible; // fusion
   const REQS = {
     // -> reason string, or null if satisfied
     front: (s, c) => ((c.slot || '').includes('|front|') ? null : 'Requirement: must be in a front-row zone'),
@@ -16,6 +17,16 @@ Sim.def('reqs', function (K) {
       (a.target === 'opposingFront' && c.slot && cloudMap(s)[other(c.owner) + '|front|' + c.slot.split('|')[2]])
         ? null
         : 'Requirement: no legal target', // an enemy cloud counts as a target; an empty one fizzles
+    fusionOK: (s, c, a) =>
+      fusionPossible(
+        s,
+        c.owner,
+        (a.effects || []).find(e => e.op === 'Fusion')
+      )
+        ? null
+        : 'Requirement: no extra deck creature can be summoned', // reads the Fusion effect of the card / ability
+    exInGY: (s, c) =>
+      s.piles[c.owner].gy.some(x => x.def.extra) ? null : 'Requirement: no extra deck creature in your graveyard',
     stack: s => (s.stack.length ? null : 'Requirement: there must be a stack object to target'),
     attackOnStack: s => (s.stack.some(o => o.kind === 'attack') ? null : 'Requirement: an Attack must be on the stack'),
     attackedCol: (s, c) => {
@@ -28,9 +39,9 @@ Sim.def('reqs', function (K) {
   };
   return {
     exports: { REQS },
-    needs: ['COND', 'TARGETS', 'cloudMap', 'findTarget', 'hurt', 'other', 'pendingAtk'],
+    needs: ['COND', 'TARGETS', 'cloudMap', 'findTarget', 'fusionPossible', 'hurt', 'other', 'pendingAtk'],
     link: () => {
-      ({ COND, TARGETS, cloudMap, findTarget, hurt, other, pendingAtk } = K);
+      ({ COND, TARGETS, cloudMap, findTarget, fusionPossible, hurt, other, pendingAtk } = K);
     },
   };
 });

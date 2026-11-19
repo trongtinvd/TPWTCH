@@ -1,7 +1,8 @@
 // stack.js - playing cards, activating abilities, the stack, triggers (fire), response windows, end of turn
 Sim.def('stack', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
-  let byId, isPerm, majorUsed, other, slotRow, slowish; // util
+  let byId, isPerm, other, slotRow, slowish; // util
+  let gainAP, hasAP; // ap
   let PL, abDef, clearAttacked, has, live, removeStatus; // statuses
   let freeSlots; // state
   let COLTARGETS, targetColumns, targetZones; // targeting
@@ -18,7 +19,7 @@ Sim.def('stack', function (K) {
     if (s.attackPhase && !c.def.flash && (isPerm(c) || c.def.timing !== 'Quick'))
       return 'Only Quick spells during the battle phase';
     if (slowish(c) && c.owner !== s.active) return 'Slow cards: turn player only';
-    if (slowish(c) && majorUsed(s)) return 'Major action already used this turn';
+    if (slowish(c) && !hasAP(s, c.owner)) return 'No action point left';
     if (isPerm(c)) {
       if (s.stack.length && !c.def.flash) return 'Only when the stack is empty';
       if (!freeSlots(s, c).length) return 'No free ' + slotRow(c) + ' zone';
@@ -38,9 +39,14 @@ Sim.def('stack', function (K) {
     // reason string, or null. Order: 1 requirements, 2 timing, 3 costs
     const a = c && abDef(c).abilities && abDef(c).abilities[i];
     if (!a) return 'No such ability';
-    const zone = a.zone || 'board';
-    if (c.loc !== zone)
-      return 'Requirement: must be ' + ({ gy: 'in the graveyard', hand: 'in hand' }[zone] || 'on the board');
+    const zones = [].concat(a.zone || 'board'); // one zone or a list (Depth Sea Fusion: deck or GY)
+    if (!zones.includes(c.loc))
+      return (
+        'Requirement: must be ' +
+        zones
+          .map(z => ({ gy: 'in the graveyard', hand: 'in hand', deck: 'in the deck' })[z] || 'on the board')
+          .join(' or ')
+      );
     for (const r of a.req || []) {
       const why = REQS[r] && REQS[r](s, c, a);
       if (why) return why;
@@ -50,7 +56,7 @@ Sim.def('stack', function (K) {
       if (c.owner !== s.active) return 'Timing: Slow abilities only on your turn';
       if (s.stack.length) return 'Timing: Slow abilities need an empty stack';
       if (s.attackPhase) return 'Timing: not during the battle phase';
-      if (majorUsed(s)) return 'Timing: major action already used';
+      if (!hasAP(s, c.owner)) return 'Timing: no action point left';
     }
     for (const k of a.cost || []) {
       const why = COSTS[k.op].check(s, c, k);
@@ -113,7 +119,7 @@ Sim.def('stack', function (K) {
       if (c.loc === 'stack' || c.loc === 'gone') continue;
       (abDef(c).triggers || []).forEach((t, i) => {
         if (t.on !== on || (t.zone || 'board') !== c.loc) return;
-        if (t.cond && !(COND[t.cond] && COND[t.cond](s, c, subject))) return; // an unknown condition fails closed (validate.js reports it at load)
+        if (t.cond && !(COND[t.cond] && COND[t.cond](s, c, subject, t))) return; // an unknown condition fails closed (validate.js reports it at load)
         if (TRIGGERS[on] && !TRIGGERS[on](s, c, t, subject)) return;
         hits.push({ c, i });
       });
@@ -169,11 +175,11 @@ Sim.def('stack', function (K) {
     s.active = other(s.active);
     s.attackPhase = false;
     s.turn++;
-    s.majorUsed = false;
     s.combats = 0;
     s.priority = s.active;
     s.passes = 0;
     ev.push({ t: 'TurnChanged', active: s.active });
+    gainAP(s, s.active, ev); // one action point at the start of each turn; unspent ones stay
     fire(s, ev, 'turnStart', null);
     stopAt(s, ev, 'turnStart');
   }
@@ -190,10 +196,11 @@ Sim.def('stack', function (K) {
       'byId',
       'clearAttacked',
       'freeSlots',
+      'gainAP',
       'has',
+      'hasAP',
       'isPerm',
       'live',
-      'majorUsed',
       'other',
       'removeStatus',
       'resolveAttack',
@@ -215,10 +222,11 @@ Sim.def('stack', function (K) {
         byId,
         clearAttacked,
         freeSlots,
+        gainAP,
         has,
+        hasAP,
         isPerm,
         live,
-        majorUsed,
         other,
         removeStatus,
         resolveAttack,

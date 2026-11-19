@@ -312,6 +312,7 @@ const Replays = (function () {
     clearTimeout(ui.stepTimer);
     sim = Sim.create(rec.n, DEFS, {
       decks: { Player: rec.d1, Opponent: rec.d2 },
+      extra: { Player: rec.x1 || [], Opponent: rec.x2 || [] }, // older replays had no extra deck
       shuffle: rec.sh,
       autoStart: true,
       stops: rec.stops,
@@ -351,6 +352,7 @@ const Replays = (function () {
     if (from === 'start') {
       sim = Sim.create(rec.n, DEFS, {
         decks: { Player: rec.d1, Opponent: rec.d2 },
+        extra: { Player: rec.x1 || [], Opponent: rec.x2 || [] }, // older replays had no extra deck
         shuffle: rec.sh,
         autoStart: true,
         stops: rec.stops,
@@ -377,6 +379,8 @@ const Replays = (function () {
       n: rec.n,
       d1: rec.d1.slice(),
       d2: rec.d2.slice(),
+      x1: (rec.x1 || []).slice(),
+      x2: (rec.x2 || []).slice(),
       sh: !!rec.sh,
       stops: rec.stops || null,
       mode: ui.mode,

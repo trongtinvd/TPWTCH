@@ -47,13 +47,14 @@ function selfTest() {
     // move a named card out of its pile into hand / gy / a board slot
     const c = Object.values(s.cards).find(x => x.owner === o && x.def.id === id),
       P = s.piles[o];
-    for (const k of ['deck', 'hand', 'gy']) {
+    for (const k of ['deck', 'hand', 'gy', 'extra', 'exile']) {
       const i = P[k].indexOf(c);
       if (i >= 0) P[k].splice(i, 1);
     }
     c.loc = loc;
     if (loc === 'hand') P.hand.push(c);
     else if (loc === 'gy') P.gy.push(c);
+    else if (loc === 'exile') P.exile.push(c);
     else {
       s.slots[slot] = c.iid;
       c.slot = slot;
@@ -97,6 +98,7 @@ function selfTest() {
     s.life[p] = Sim.lifeOf(s, p);
   };
   const shield = (s, c, color) => Sim.addStatus(s, c, { kind: 'shield', color, srcName: 'test' });
+  const ap = (s, p) => Sim.apCount(s, p || s.active); // unspent action points (default: the turn player)
   const kinds = (c, k) => Sim.live(c).filter(x => x.kind === k);
   const owners = st => st.stack.map(o => st.cards[o.src].owner);
   const tokens = st => Object.values(st.cards).filter(x => x.def.id === 'vine-token' && x.loc === 'board');
@@ -157,7 +159,7 @@ function selfTest() {
     rej('Start after the game began is rejected', s, { type: 'Start', player: 'Player' }, 'already started');
   }
 
-  // ================= draw / major action =================
+  // ================= draw / action point =================
   {
     let s = start(10);
     const P = s.piles.Player,
@@ -171,15 +173,10 @@ function selfTest() {
       top
     );
     check(
-      'Draw: deck shrinks by exactly 2, drawn cards are in hand, major action used',
-      P.deck.length === d0 - 2 && P.hand.slice(h0).every(c => c.loc === 'hand') && s.majorUsed
+      'Draw: deck shrinks by exactly 2, drawn cards are in hand, action point used',
+      P.deck.length === d0 - 2 && P.hand.slice(h0).every(c => c.loc === 'hand') && !ap(s)
     );
-    rej(
-      'a second major action in the same turn is rejected',
-      s,
-      { type: 'Draw', player: 'Player' },
-      'Major action already used'
-    );
+    rej('a second action point in the same turn is rejected', s, { type: 'Draw', player: 'Player' }, 'No action point');
     s = start(11);
     s.piles.Player.deck.splice(1);
     const last = s.piles.Player.deck[0],
@@ -189,7 +186,7 @@ function selfTest() {
       'with one card left, Draw takes just that card',
       s.piles.Player.hand.length === hh + 1 && s.piles.Player.hand[hh] === last && !s.piles.Player.deck.length
     );
-    s.majorUsed = false;
+    Sim.gainAP(s, 'Player', []);
     rej('Draw with an empty deck is rejected', s, { type: 'Draw', player: 'Player' }, 'Deck is empty');
     s = start(12);
     const zz = take(s, 'Player', 'zap', 'hand');
@@ -202,14 +199,83 @@ function selfTest() {
     s = start(14);
     D(s, { type: 'EndTurn', player: 'Player' });
     rej(
-      'the non-turn player cannot Draw (a major action) in the end-step window; nothing changes',
+      'the non-turn player cannot Draw (a action point) in the end-step window; nothing changes',
       s,
       { type: 'Draw', player: 'Opponent' },
       'turn player'
     );
   }
 
-  // ================= placement and the one-major-action rule =================
+  // ================= action points =================
+  {
+    let s = start(15);
+    eq('start: the first player holds one action point, the other none', [ap(s, 'Player'), ap(s, 'Opponent')], [1, 0]);
+    endTurnFlow(s);
+    eq('the next turn gives its player one point; the unspent one stays', [ap(s, 'Player'), ap(s, 'Opponent')], [1, 1]);
+    endTurnFlow(s);
+    eq('unspent points pile up: a player can hold several', [ap(s, 'Player'), ap(s, 'Opponent')], [2, 1]);
+    const r = D(s, { type: 'Draw', player: 'Player' }),
+      sp = r.events.find(e => e.t === 'ActionPointSpent');
+    eq(
+      'spending one is an event naming the player and the reason; the oldest point goes first',
+      [sp && sp.player, sp && sp.why, sp && sp.id, ap(s, 'Player')],
+      ['Player', 'Draw', 1, 1]
+    );
+    check(
+      'a spent point stays in the list, with when and why',
+      Sim.apList(s, 'Player').length === 2 &&
+        Sim.apList(s, 'Player')[0].spent.why === 'Draw' &&
+        Sim.apList(s, 'Player')[0].spent.turn === 3
+    );
+    eq('with a second point the same turn can take a second action', D(s, { type: 'Draw', player: 'Player' }).ok, true);
+    rej('...and a third is refused', s, { type: 'Draw', player: 'Player' }, 'No action point');
+    s = start(16);
+    const wd = take(s, 'Opponent', 'wardrum', 'hand');
+    endTurnFlow(s);
+    endTurnFlow(s);
+    s.priority = 'Opponent';
+    eq(
+      'setup: Player 1\u2019s turn again, Player 2 kept its unspent point',
+      [s.active, ap(s, 'Opponent')],
+      ['Player', 1]
+    );
+    check('War Drum: the additional cost can be paid on the opponent\u2019s turn', Sim.canPayExtra(s, wd));
+    const r2 = D(s, { type: 'PlayCard', iid: wd.iid, slot: 'Opponent|back|1', extra: true });
+    eq(
+      'War Drum paid off-turn: one of the opponent\u2019s points is spent, the turn player\u2019s is untouched',
+      [r2.ok, ap(s, 'Opponent'), ap(s, 'Player'), r2.events.find(e => e.t === 'ActionPointSpent').why],
+      [true, 0, 2, 'War Drum (additional cost)']
+    );
+    s = start(17);
+    const sb = take(s, 'Opponent', 'superbolt', 'hand');
+    Sim.gainAP(s, 'Opponent', []);
+    s.priority = 'Opponent';
+    rej(
+      'Slow spells still need the controller\u2019s own turn, whatever points they hold',
+      s,
+      { type: 'PlayCard', iid: sb.iid, tplayer: 'Player' },
+      'turn player only'
+    );
+    s = start(18);
+    D(s, { type: 'Draw', player: 'Player' });
+    rej('no point, no Draw', s, { type: 'Draw', player: 'Player' }, 'No action point');
+    Sim.RULES.apLimit = false;
+    const free = D(s, { type: 'Draw', player: 'Player' });
+    Sim.RULES.apLimit = true;
+    eq(
+      'RULES.apLimit = false lifts the limit and spends nothing',
+      [free.ok, free.events.some(e => e.t === 'ActionPointSpent')],
+      [true, false]
+    );
+    s = start(19);
+    D(s, { type: 'EndTurn', player: 'Player' });
+    const tc = D(s, { type: 'Pass', player: 'Opponent' });
+    check(
+      'the new turn\u2019s point is announced by an event',
+      tc.events.some(e => e.t === 'ActionPointGained' && e.player === 'Opponent')
+    );
+  }
+  // ================= placement and the one-action-point rule =================
   {
     let s = start(20);
     const sd = take(s, 'Player', 'soldier', 'hand'),
@@ -234,13 +300,13 @@ function selfTest() {
     );
     const r = D(s, { type: 'PlayCard', iid: sd.iid, slot: 'Player|front|0' });
     check(
-      'summon: creature stands on the chosen zone, left the hand, major action used',
+      'summon: creature stands on the chosen zone, left the hand, action point used',
       r.ok &&
         sd.loc === 'board' &&
         sd.slot === 'Player|front|0' &&
         s.slots['Player|front|0'] === sd.iid &&
         !s.piles.Player.hand.includes(sd) &&
-        s.majorUsed
+        !ap(s)
     );
     check(
       'summon opens an enter-response window for the opponent and puts nothing on the stack',
@@ -251,16 +317,16 @@ function selfTest() {
     const sb = take(s, 'Player', 'superbolt', 'hand'),
       he = take(s, 'Player', 'heal', 'hand');
     rej(
-      'after a summon a second permanent is rejected (major action used)',
+      'after a summon a second permanent is rejected (action point used)',
       s,
       { type: 'PlayCard', iid: bar.iid, slot: 'Player|back|0' },
-      'Major action already used'
+      'No action point'
     );
     rej(
-      'after a summon a Slow spell is rejected (major action used)',
+      'after a summon a Slow spell is rejected (action point used)',
       s,
       { type: 'PlayCard', iid: sb.iid, tplayer: 'Opponent' },
-      'Major action already used'
+      'No action point'
     );
     check('after a summon a Quick spell is still legal (free action)', Sim.canPlay(s, he) === null);
     s = start(21);
@@ -440,21 +506,21 @@ function selfTest() {
       'turn player'
     );
     D(s, { type: 'SetAttackPhase', player: 'Player', on: true });
-    check('entering the battle phase uses the major action', s.attackPhase && s.majorUsed);
+    check('entering the battle phase uses the action point', s.attackPhase && !ap(s));
     D(s, { type: 'SetAttackPhase', player: 'Player', on: false });
     rej(
-      'leaving and re-entering the battle phase is not a second major action',
+      'leaving and re-entering the battle phase is not a second action point',
       s,
       { type: 'SetAttackPhase', player: 'Player', on: true },
-      'Major action already used'
+      'No action point'
     );
     s = start(42);
     D(s, { type: 'Draw', player: 'Player' });
     rej(
-      'after another major action the battle phase is unavailable',
+      'after another action point the battle phase is unavailable',
       s,
       { type: 'SetAttackPhase', player: 'Player', on: true },
-      'Major action already used'
+      'No action point'
     );
   }
   {
@@ -860,12 +926,9 @@ function selfTest() {
     s = start(87);
     const sb2 = take(s, 'Player', 'superbolt', 'hand');
     D(s, { type: 'PlayCard', iid: sb2.iid, tplayer: 'Opponent' });
-    check(
-      'a Slow spell consumes the major action when cast, not when it resolves',
-      s.majorUsed && s.stack.length === 1
-    );
+    check('a Slow spell consumes the action point when cast, not when it resolves', !ap(s) && s.stack.length === 1);
     pass2(s);
-    rej('...so no Draw afterwards', s, { type: 'Draw', player: 'Player' }, 'Major action already used');
+    rej('...so no Draw afterwards', s, { type: 'Draw', player: 'Player' }, 'No action point');
   }
   {
     let s = start(88);
@@ -926,8 +989,8 @@ function selfTest() {
     const ar = take(s, 'Player', 'archer', 'board', 'Player|front|0');
     D(s, { type: 'Activate', iid: ar.iid, ab: 0 });
     eq(
-      'Volley: 1 life is paid on activation, major action used, effect pending',
-      [s.life.Player, s.life.Opponent, s.majorUsed, s.stack.length],
+      'Volley: 1 life is paid on activation, action point used, effect pending',
+      [s.life.Player, s.life.Opponent, !ap(s), s.stack.length],
       [19, 20, true, 1]
     );
     pass2(s);
@@ -952,10 +1015,10 @@ function selfTest() {
     const a4 = take(s, 'Player', 'archer', 'board', 'Player|front|0');
     D(s, { type: 'Draw', player: 'Player' });
     rej(
-      'Volley (Slow) after the major action was used',
+      'Volley (Slow) after the action point was used',
       s,
       { type: 'Activate', iid: a4.iid, ab: 0 },
-      'major action already used'
+      'no action point'
     );
     s = start(95);
     const a5 = take(s, 'Player', 'archer', 'board', 'Player|front|0'),
@@ -987,8 +1050,8 @@ function selfTest() {
       h0 = s.piles.Player.hand.length;
     D(s, { type: 'Activate', iid: ch.iid, ab: 0 });
     check(
-      'Recall: the OLDEST graveyard card is exiled on activation, the newest stays; major action used',
-      oldest.loc === 'exile' && newest.loc === 'gy' && s.piles.Player.gy.length === 1 && s.majorUsed
+      'Recall: the OLDEST graveyard card is exiled on activation, the newest stays; action point used',
+      oldest.loc === 'exile' && newest.loc === 'gy' && s.piles.Player.gy.length === 1 && !ap(s)
     );
     pass2(s);
     check(
@@ -1457,10 +1520,10 @@ function selfTest() {
     D(s, { type: 'Pass', player: 'Opponent' });
     eq(
       'passing in the window ends the turn and resets per-turn state',
-      [s.active, s.turn, s.attackPhase, s.majorUsed, Sim.attackedIds(s).length, s.priority, s.respond],
+      [s.active, s.turn, s.attackPhase, ap(s) === 0, Sim.attackedIds(s).length, s.priority, s.respond],
       ['Opponent', 2, false, false, 0, 'Opponent', null]
     );
-    check('the new turn player can take a major action', D(s, { type: 'Draw', player: 'Opponent' }).ok);
+    check('the new turn player can take a action point', D(s, { type: 'Draw', player: 'Opponent' }).ok);
     s = start(151);
     const z = take(s, 'Player', 'zap', 'hand');
     D(s, { type: 'PlayCard', iid: z.iid });
@@ -1483,9 +1546,10 @@ function selfTest() {
     const s = start(180),
       p = take(s, 'Opponent', 'parasite', 'hand');
     s.priority = 'Opponent';
+    Sim.gainAP(s, 'Opponent', []);
     check('Flash: the non-turn player can play a Flash creature while holding priority', Sim.canPlay(s, p) === null);
     D(s, { type: 'PlayCard', iid: p.iid, slot: 'Opponent|front|0' });
-    check('Flash creature entered without using the major action', p.loc === 'board' && !s.majorUsed);
+    check('Flash creature entered without spending an action point', p.loc === 'board' && ap(s, 'Opponent') === 1);
   }
   {
     const s = start(181),
@@ -1593,10 +1657,7 @@ function selfTest() {
     drain(s);
     D(s, { type: 'Choose', player: 'Player', option: 'Player|front|1' });
     drain(s);
-    check(
-      'War Drum paid: major action spent, creature picker is open',
-      s.majorUsed && s.choice && s.choice.kind === 'pick'
-    );
+    check('War Drum paid: action point spent, creature picker is open', !ap(s) && s.choice && s.choice.kind === 'pick');
     D(s, { type: 'Choose', player: 'Player', option: g.iid });
     D(s, { type: 'Choose', player: 'Player', option: 'Player|front|0' });
     drain(s);
@@ -1609,7 +1670,7 @@ function selfTest() {
     const w3 = take(s, 'Player', 'wardrum', 'hand');
     D(s, { type: 'Draw', player: 'Player' });
     rej(
-      'additional cost cannot be paid once the major action is used',
+      'additional cost cannot be paid once the action point is used',
       s,
       { type: 'PlayCard', iid: w3.iid, slot: 'Player|back|1', extra: true },
       'additional cost'
@@ -1630,8 +1691,13 @@ function selfTest() {
     endTurnFlow(s);
     D(s, { type: 'SetAttackPhase', player: 'Opponent', on: true });
     eq(
-      'opponent presses combat: it becomes End turn, flag consumed, major action untouched',
-      [s.attackPhase, s.respond && s.respond.kind, s.majorUsed, Sim.hasSt(s.players.Opponent, 'skipCombat')],
+      'opponent presses combat: it becomes End turn, flag consumed, action point untouched',
+      [
+        s.attackPhase,
+        s.respond && s.respond.kind,
+        ap(s, 'Opponent') === 0,
+        Sim.hasSt(s.players.Opponent, 'skipCombat'),
+      ],
       [false, 'end', false, false]
     );
     s = start(204);
@@ -1790,8 +1856,8 @@ function selfTest() {
     let n = 0;
     while (s.choice && n++ < 5) D(s, { type: 'Choose', player: s.choice.player, option: 'done' });
     eq(
-      'Ambush finishes in one resolution: opponent drew 2, major action spent, spell in GY',
-      [s.piles.Opponent.hand.length, s.majorUsed, am.loc],
+      'Ambush finishes in one resolution: opponent drew 2, action point spent, spell in GY',
+      [s.piles.Opponent.hand.length, !ap(s), am.loc],
       [oh + 2, true, 'gy']
     );
   }
@@ -2026,7 +2092,7 @@ function selfTest() {
       [['paid'], [['damage', 2]], 19, 18]
     );
     const sp2 = take(s, 'Player', 'spirit', 'hand');
-    s.majorUsed = false;
+    Sim.gainAP(s, 'Player', []);
     D(s, { type: 'PlayCard', iid: sp2.iid });
     pass2(s);
     D(s, { type: 'Choose', player: 'Player', option: '0' });
@@ -2240,7 +2306,7 @@ function selfTest() {
   }
   // ================= decks, card search, Sim.create options, bot =================
   {
-    const ids = DEFS.map(d => d.id),
+    const ids = DEFS.filter(d => !d.extra).map(d => d.id),
       al = DEFS.slice().sort((a, b) => a.name.localeCompare(b.name));
     check(
       'default decks: two or more, unique names, every one valid (10-100 singleton known cards)',
@@ -2333,13 +2399,13 @@ function selfTest() {
       ['zap', 'heal']
     );
     eq(
-      'Sim.create without options is unchanged: deck phase, full pool for both',
+      'Sim.create without options: deck phase, the whole pool (extra deck creatures go to the extra deck)',
       [
         Sim.create(503, DEFS).phase,
         Sim.create(503, DEFS).piles.Player.deck.length,
-        Sim.create(503, DEFS).piles.Opponent.deck.length,
+        Sim.create(503, DEFS).piles.Opponent.extra.length,
       ],
-      ['deck', DEFS.length, DEFS.length]
+      ['deck', DEFS.filter(d => !d.extra).length, DEFS.filter(d => d.extra).length]
     );
     s = Sim.create(502, all, { decks: { Player: A, Opponent: A }, shuffle: false, autoStart: true });
     const top = s.piles.Player.deck.map(c => c.iid);
@@ -2773,6 +2839,568 @@ function selfTest() {
       'bot vs bot with every stop on: every command legal, never stuck, turns keep passing',
       !bad && !stuck && g.turn > 3,
       'bad=' + bad + ' stuck=' + stuck + ' turn=' + g.turn
+    );
+  }
+  // ================= extra deck: materials, conditions, Fusion cards, Widow Maker, L4 =================
+  {
+    const s0 = start(1000),
+      xs = DEFS.filter(d => d.extra).map(d => d.id);
+    eq(
+      'the pool\u2019s extra deck creatures start in the extra deck, never in the main deck',
+      [
+        s0.piles.Player.extra.map(c => c.def.id),
+        s0.piles.Player.deck.some(c => c.def.extra),
+        s0.piles.Player.extra.every(c => c.loc === 'extra'),
+      ],
+      [xs, false, true]
+    );
+    check(
+      'materials and conditions are plain data on the card (they do nothing by themselves): the creature cannot be played from the extra deck',
+      !!DEFS.find(d => d.id === 'widowmaker').materials && Sim.canPlay(s0, s0.piles.Player.extra[0]) === 'Not in hand'
+    );
+    check(
+      'extra deck creatures are purple, the card text lists conditions and materials',
+      cardColor(DEFS.find(d => d.id === 'widowmaker')) === EXTRA_COLOR &&
+        /Conditions: a player has lost life/.test(DEFS.find(d => d.id === 'widowmaker').text) &&
+        /Materials: 2 creatures with the same power or the same HP/.test(DEFS.find(d => d.id === 'widowmaker').text) &&
+        /Materials: a creature, an enchantment/.test(DEFS.find(d => d.id === 'librarian').text)
+    );
+    check(
+      'logs: an extra deck card starts with its extra deck position',
+      /extra deck/.test(Sim.logLines(s0.piles.Player.extra[0])[0].text)
+    );
+    const only = Sim.create(1001, DEFS, {
+      decks: { Player: ['zap', 'widowmaker', 'heal'], Opponent: ['zap'] },
+      extra: { Player: ['librarian', 'zap'], Opponent: [] },
+      shuffle: false,
+    });
+    eq(
+      'Sim.create: an extra deck list holds only extra deck creatures, the main deck none',
+      [
+        only.piles.Player.deck.map(c => c.def.id),
+        only.piles.Player.extra.map(c => c.def.id),
+        only.piles.Opponent.extra.length,
+      ],
+      [['zap', 'heal'], ['librarian'], 0]
+    );
+    const s1 = start(1002);
+    D(s1, { type: 'Draw', player: 'Player' });
+    eq(
+      'cards drawn are counted per player (the opening hand does not count)',
+      [s1.drawn.Player, s1.drawn.Opponent],
+      [2, 0]
+    );
+  }
+  {
+    // Underworld Fusion
+    let s = start(1010);
+    const uf = take(s, 'Player', 'underworldfusion', 'hand'),
+      so = take(s, 'Player', 'soldier', 'gy'),
+      wf = take(s, 'Player', 'wolf', 'gy');
+    check(
+      'Underworld Fusion needs a creature whose conditions are met: none yet',
+      Sim.canPlay(s, uf) === 'Requirement: no extra deck creature can be summoned'
+    );
+    setLife(s, 'Opponent', 15);
+    check('...a lost life makes the conditions of Widow Maker true: now it can be played', Sim.canPlay(s, uf) === null);
+    D(s, { type: 'PlayCard', iid: uf.iid });
+    pass2(s);
+    const wm = s.piles.Player.extra.find(c => c.def.id === 'widowmaker');
+    eq(
+      'it reveals only creatures whose conditions are met and whose materials are in the GY',
+      [s.choice.kind, s.choice.options],
+      ['fusepick', [wm.iid]]
+    );
+    D(s, { type: 'Choose', player: 'Player', option: wm.iid });
+    check(
+      'the revealed card gets a revealed status (to the opponent) that lives while it stays in the extra deck',
+      Sim.isRevealed(wm, 'Opponent') && Sim.live(wm).some(x => x.kind === 'revealed' && x.zone === 'extra')
+    );
+    eq(
+      'Widow Maker needs 2 creatures with the same power or HP: every fitting GY card is offered for the first one',
+      [s.choice.kind, s.choice.options.sort()],
+      ['fusemat', [so.iid, wf.iid].sort()]
+    );
+    D(s, { type: 'Choose', player: 'Player', option: so.iid });
+    eq(
+      'the second material is the only one left: chosen by itself, then the summon zone is asked',
+      [s.choice.kind, so.loc, wf.loc],
+      ['place', 'exile', 'exile']
+    );
+    D(s, { type: 'Choose', player: 'Player', option: 'Player|front|2' });
+    check(
+      'the materials are exiled, the creature is summoned; the extra deck is one smaller; the spell is in the GY',
+      wm.loc === 'board' &&
+        wm.slot === 'Player|front|2' &&
+        s.piles.Player.extra.length === 1 &&
+        uf.loc === 'gy' &&
+        s.piles.Player.exile.includes(so)
+    );
+    eq(
+      'the materials used are remembered on the summoned creature',
+      Sim.live(wm)
+        .filter(x => x.kind === 'mats')
+        .map(x => x.cards.map(m => m.id).sort()),
+      [['soldier', 'wolf']]
+    );
+    // the GY ability returns it and the exiled materials
+    s.slots['Player|front|2'] = null;
+    wm.slot = null;
+    wm.loc = 'gy';
+    s.piles.Player.gy.unshift(wm);
+    Sim.recalc(s, []);
+    check(
+      'the memory of the materials survives the card leaving the board',
+      Sim.live(wm).some(x => x.kind === 'mats')
+    );
+    drain(s);
+    D(s, { type: 'Activate', iid: uf.iid, ab: 0 });
+    check('Underworld Fusion\u2019s GY ability: exiled by its cost', uf.loc === 'exile' && s.stack.length === 1);
+    pass2(s);
+    eq('...then an extra deck creature in the GY is picked', [s.choice.kind, s.choice.options], ['pick', [wm.iid]]);
+    D(s, { type: 'Choose', player: 'Player', option: wm.iid });
+    check(
+      'the creature goes back to the extra deck and the materials come back from exile to the hand',
+      wm.loc === 'extra' &&
+        s.piles.Player.extra.includes(wm) &&
+        so.loc === 'hand' &&
+        wf.loc === 'hand' &&
+        s.piles.Player.hand.includes(so) &&
+        !Sim.live(wm).some(x => x.kind === 'mats')
+    );
+    // works for a creature summoned by another card too (its materials are not in exile: only the creature returns)
+    s = start(1011);
+    const w2 = take(s, 'Player', 'widowmaker', 'gy'),
+      ufx = take(s, 'Player', 'underworldfusion', 'gy'),
+      mt = take(s, 'Player', 'soldier', 'exile');
+    Sim.addStatus(s, w2, {
+      kind: 'mats',
+      cards: [
+        { iid: mt.iid, id: 'soldier', name: 'Soldier' },
+        { iid: 'gone-1', id: 'wolf', name: 'Wolf' },
+      ],
+      keep: true,
+      srcName: 'Depth Sea Fusion',
+    });
+    D(s, { type: 'Activate', iid: ufx.iid, ab: 0 });
+    pass2(s);
+    D(s, { type: 'Choose', player: 'Player', option: w2.iid });
+    check(
+      'only the materials that are in exile return; a creature summoned by another card works the same',
+      w2.loc === 'extra' && mt.loc === 'hand'
+    );
+    s = start(1012);
+    const u2 = take(s, 'Player', 'underworldfusion', 'gy');
+    rej(
+      'the GY ability needs an extra deck creature in the GY',
+      s,
+      { type: 'Activate', iid: u2.iid, ab: 0 },
+      'extra deck creature in your graveyard'
+    );
+  }
+  {
+    // Depth Sea Fusion
+    let s = start(1020);
+    const df = take(s, 'Player', 'depthfusion', 'hand'),
+      so = take(s, 'Player', 'soldier', 'hand'),
+      wf = take(s, 'Player', 'wolf', 'board', 'Player|front|0');
+    D(s, { type: 'PlayCard', iid: df.iid });
+    pass2(s);
+    const wm = s.piles.Player.extra.find(c => c.def.id === 'widowmaker');
+    check(
+      'materials may come from the field, hand or deck: the extra deck creatures that can be paid are offered',
+      s.choice.kind === 'fusepick' && s.choice.options.includes(wm.iid)
+    );
+    D(s, { type: 'Choose', player: 'Player', option: wm.iid });
+    D(s, { type: 'Choose', player: 'Player', option: so.iid });
+    check(
+      'the second material can come from another zone: the offer lists it with its zone',
+      s.choice.kind === 'fusemat' && s.choice.options.includes(wf.iid) && /board/.test(s.choice.labels[wf.iid])
+    );
+    D(s, { type: 'Choose', player: 'Player', option: wf.iid });
+    D(s, { type: 'Choose', player: 'Player', option: 'Player|front|1' });
+    check(
+      'only hand and field cards used: the conditions are ignored (nobody lost life) and the creature is summoned; the materials are in the GY',
+      wm.loc === 'board' && so.loc === 'gy' && wf.loc === 'gy' && s.life.Player === 20 && s.life.Opponent === 20
+    );
+    // a deck material: the conditions matter
+    s = start(1021);
+    const d2 = take(s, 'Player', 'depthfusion', 'hand'),
+      a = toDeck(s, 'Player', 'soldier'),
+      b = toDeck(s, 'Player', 'wolf'),
+      w3 = s.piles.Player.extra.find(c => c.def.id === 'widowmaker');
+    D(s, { type: 'PlayCard', iid: d2.iid });
+    pass2(s);
+    D(s, { type: 'Choose', player: 'Player', option: w3.iid });
+    D(s, { type: 'Choose', player: 'Player', option: a.iid });
+    D(s, { type: 'Choose', player: 'Player', option: b.iid });
+    check(
+      'a material from the deck: the conditions are checked (unmet): materials are sent to the GY, nothing is summoned',
+      a.loc === 'gy' && b.loc === 'gy' && w3.loc === 'extra' && !s.choice
+    );
+    s = start(1022);
+    const d3 = take(s, 'Player', 'depthfusion', 'hand'),
+      a3 = toDeck(s, 'Player', 'soldier'),
+      b3 = toDeck(s, 'Player', 'wolf'),
+      w4 = s.piles.Player.extra.find(c => c.def.id === 'widowmaker');
+    setLife(s, 'Opponent', 19);
+    D(s, { type: 'PlayCard', iid: d3.iid });
+    pass2(s);
+    D(s, { type: 'Choose', player: 'Player', option: w4.iid });
+    D(s, { type: 'Choose', player: 'Player', option: a3.iid });
+    D(s, { type: 'Choose', player: 'Player', option: b3.iid });
+    D(s, { type: 'Choose', player: 'Player', option: 'Player|front|2' });
+    check('...with the conditions met the deck materials summon it', w4.loc === 'board' && a3.loc === 'gy');
+    // its GY / deck ability
+    s = start(1023);
+    const d4 = toDeck(s, 'Player', 'depthfusion'),
+      h0 = s.piles.Player.hand.length;
+    check(
+      'actionsOf lists the deck ability',
+      Sim.actionsOf(s, 'Player').some(x => x.kind === 'ability' && x.iid === d4.iid)
+    );
+    D(s, { type: 'Activate', iid: d4.iid, ab: 0 });
+    check('the ability costs an action point (spent on activation)', ap(s) === 0 && s.stack.length === 1);
+    pass2(s);
+    eq('from the deck: this card is added to the hand', [d4.loc, s.piles.Player.hand.length], ['hand', h0 + 1]);
+    s = start(1024);
+    const d5 = take(s, 'Player', 'depthfusion', 'gy');
+    D(s, { type: 'Draw', player: 'Player' });
+    rej('no action point, no ability', s, { type: 'Activate', iid: d5.iid, ab: 0 }, 'no action point');
+    endTurnFlow(s);
+    endTurnFlow(s);
+    D(s, { type: 'Activate', iid: d5.iid, ab: 0 });
+    pass2(s);
+    check('from the GY too, on any turn the player has an action point', d5.loc === 'hand');
+    s = start(1025);
+    const d6 = take(s, 'Player', 'depthfusion', 'hand');
+    check('Depth Sea Fusion needs something to summon', Sim.canPlay(s, d6) === null);
+    for (const c of s.piles.Player.extra.slice()) {
+      s.piles.Player.extra.splice(s.piles.Player.extra.indexOf(c), 1);
+      c.loc = 'gone';
+    }
+    check(
+      '...with an empty extra deck it cannot be played',
+      Sim.canPlay(s, d6) === 'Requirement: no extra deck creature can be summoned'
+    );
+  }
+  {
+    // Biology Cultivator
+    let s = start(1030);
+    const bc = take(s, 'Player', 'cultivator', 'hand'),
+      wm = s.piles.Player.extra.find(c => c.def.id === 'widowmaker');
+    D(s, { type: 'PlayCard', iid: bc.iid, slot: 'Player|front|2' });
+    pass2(s);
+    check(
+      'Cultivator: the trigger asks which extra deck creature to reveal',
+      s.choice.kind === 'fusepick' && s.choice.options.includes(wm.iid)
+    );
+    D(s, { type: 'Choose', player: 'Player', option: wm.iid });
+    check(
+      'conditions not met: only the reveal happens',
+      !s.choice && Sim.isRevealed(wm, 'Opponent') && wm.loc === 'extra'
+    );
+    s = start(1031);
+    const b2 = take(s, 'Player', 'cultivator', 'hand'),
+      a = toDeck(s, 'Player', 'soldier'),
+      b = toDeck(s, 'Player', 'wolf'),
+      w2 = s.piles.Player.extra.find(c => c.def.id === 'widowmaker');
+    setLife(s, 'Opponent', 18);
+    D(s, { type: 'PlayCard', iid: b2.iid, slot: 'Player|front|2' });
+    pass2(s);
+    D(s, { type: 'Choose', player: 'Player', option: w2.iid });
+    D(s, { type: 'Choose', player: 'Player', option: a.iid });
+    D(s, { type: 'Choose', player: 'Player', option: b.iid });
+    check(
+      'conditions met: the materials go from the deck to the hand, the creature stays in the extra deck',
+      a.loc === 'hand' && b.loc === 'hand' && w2.loc === 'extra' && !Sim.live(w2).some(x => x.kind === 'mats')
+    );
+  }
+  {
+    // Widow Maker
+    let s = start(1040);
+    const wm = take(s, 'Player', 'widowmaker', 'board', 'Player|front|2'),
+      so = take(s, 'Opponent', 'soldier', 'board', 'Opponent|front|1'),
+      wf = take(s, 'Opponent', 'wolf', 'board', 'Opponent|back|1');
+    take(s, 'Opponent', 'guard', 'board', 'Opponent|front|4');
+    s.attackPhase = true;
+    D(s, { type: 'Attack', iid: wm.iid });
+    pass2(s);
+    check(
+      'Widow Maker attacks: the only adjacent pair is chosen at once and the opponent is asked',
+      s.choice &&
+        s.choice.kind === 'pairsend' &&
+        s.choice.player === 'Opponent' &&
+        s.choice.options.sort().join() === [so.iid, wf.iid].sort().join()
+    );
+    D(s, { type: 'Choose', player: 'Opponent', option: wf.iid });
+    check('the opponent chooses which of the two goes to the GY', wf.loc === 'gy' && so.loc === 'board');
+    s = start(1041);
+    const w2 = take(s, 'Player', 'widowmaker', 'board', 'Player|front|2'),
+      s1 = take(s, 'Opponent', 'soldier', 'board', 'Opponent|front|1'),
+      s2 = take(s, 'Opponent', 'wolf', 'board', 'Opponent|back|1'),
+      s3 = take(s, 'Opponent', 'guard', 'board', 'Opponent|front|2');
+    s.attackPhase = true;
+    D(s, { type: 'Attack', iid: w2.iid });
+    pass2(s);
+    eq(
+      'several adjacent pairs: the controller picks one (column neighbours and row neighbours)',
+      [s.choice.kind, s.choice.player, s.choice.options.length],
+      ['pair', 'Player', 2]
+    );
+    const o = s.choice.options.find(x => x.includes('front|1') && x.includes('front|2'));
+    D(s, { type: 'Choose', player: 'Player', option: o });
+    eq(
+      '...and the foe is asked about exactly those two',
+      [s.choice.kind, s.choice.player, s.choice.options.sort()],
+      ['pairsend', 'Opponent', [s1.iid, s3.iid].sort()]
+    );
+    s = start(1042);
+    const w3 = take(s, 'Player', 'widowmaker', 'board', 'Player|front|2'),
+      r1 = take(s, 'Opponent', 'soldier', 'board', 'Opponent|front|1'),
+      r2 = take(s, 'Opponent', 'wolf', 'board', 'Opponent|back|1');
+    shield(s, r2, 'red');
+    s.attackPhase = true;
+    D(s, { type: 'Attack', iid: w3.iid });
+    pass2(s);
+    check(
+      'a red-shielded card cannot be targeted: no pair, nothing happens',
+      !s.choice && r1.loc === 'board' && r2.loc === 'board'
+    );
+    // the 0 HP trigger
+    s = start(1043);
+    const w4 = take(s, 'Player', 'widowmaker', 'board', 'Player|front|2'),
+      f1 = take(s, 'Opponent', 'soldier', 'board', 'Opponent|front|1'),
+      nw = take(s, 'Opponent', 'wolf', 'hand');
+    endTurnFlow(s);
+    D(s, { type: 'PlayCard', iid: nw.iid, slot: 'Opponent|front|2' });
+    eq(
+      'a foe card enters next to another foe card: Widow Maker\u2019s 0 HP trigger goes on the stack',
+      [owners(s), s.stack[s.stack.length - 1].hp],
+      [['Player'], 0]
+    );
+    pass2(s);
+    eq(
+      'it asks the controller for a creature to attack with',
+      [s.choice.kind, s.choice.player, s.choice.options],
+      ['pick', 'Player', [w4.iid]]
+    );
+    D(s, { type: 'Choose', player: 'Player', option: w4.iid });
+    check(
+      'the chosen creature attacks at once (an extra Attack object on the stack)',
+      s.stack.some(x => x.kind === 'attack' && x.iid === w4.iid)
+    );
+    s = start(1044);
+    take(s, 'Player', 'widowmaker', 'board', 'Player|front|2');
+    const lone = take(s, 'Opponent', 'wolf', 'hand');
+    endTurnFlow(s);
+    D(s, { type: 'PlayCard', iid: lone.iid, slot: 'Opponent|front|2' });
+    eq('a foe card entering next to MY card only (no other card of theirs): no trigger', s.stack.length, 0);
+    s = start(1045);
+    take(s, 'Player', 'widowmaker', 'board', 'Player|front|2');
+    take(s, 'Player', 'soldier', 'board', 'Player|front|1');
+    const mine = take(s, 'Player', 'knight', 'hand');
+    D(s, { type: 'PlayCard', iid: mine.iid, slot: 'Player|front|0' });
+    eq('a card I control entering does not trigger it', s.stack.length, 0);
+  }
+  {
+    // L4: The Librarian
+    const ready = seed => {
+      const s = start(seed),
+        li = s.piles.Player.extra.find(c => c.def.id === 'librarian'),
+        u = take(s, 'Player', 'underworldfusion', 'hand');
+      s.drawn.Player = 8;
+      s.drawn.Opponent = 8;
+      return { s, li, u };
+    };
+    {
+      const { s, li, u } = ready(1050);
+      const so = take(s, 'Player', 'soldier', 'gy'),
+        ba = take(s, 'Player', 'barrier', 'gy');
+      D(s, { type: 'PlayCard', iid: u.iid });
+      pass2(s);
+      check(
+        'both players drew more than 7 cards: the conditions are met and L4 is offered',
+        s.choice.options.includes(li.iid)
+      );
+      D(s, { type: 'Choose', player: 'Player', option: li.iid });
+      D(s, { type: 'Choose', player: 'Player', option: 'Player|front|2' });
+      check(
+        'materials: a creature and an enchantment from the GY',
+        li.loc === 'board' && so.loc === 'exile' && ba.loc === 'exile'
+      );
+      eq(
+        'summoned without Heaven and Sun: only the declare trigger (10 HP) and no reorder trigger',
+        s.stack.map(o => o.hp),
+        [10]
+      );
+    }
+    {
+      const { s, u } = ready(1051);
+      take(s, 'Player', 'soldier', 'gy');
+      take(s, 'Player', 'barrier', 'gy');
+      check(
+        'with both players over the threshold L4 can be summoned (a creature and an enchantment are in the GY)',
+        Sim.canPlay(s, u) === null
+      );
+      s.drawn.Opponent = 7;
+      check(
+        '7 cards is not more than 7: one player short of it, nothing can be summoned',
+        Sim.canPlay(s, u) === 'Requirement: no extra deck creature can be summoned'
+      );
+    }
+    {
+      const { s, li, u } = ready(1052);
+      const so = take(s, 'Player', 'soldier', 'gy'),
+        hv = take(s, 'Player', 'heavensun', 'gy'),
+        zp = toDeck(s, 'Opponent', 'zap');
+      s.piles.Opponent.deck.unshift(s.piles.Opponent.deck.pop());
+      const top3 = s.piles.Opponent.deck.slice(0, 3).map(c => c.iid);
+      D(s, { type: 'PlayCard', iid: u.iid });
+      pass2(s);
+      D(s, { type: 'Choose', player: 'Player', option: li.iid });
+      D(s, { type: 'Choose', player: 'Player', option: 'Player|front|2' });
+      eq(
+        'summoned using Heaven and Sun: both enter triggers are on the stack (5 HP below, 10 HP above)',
+        s.stack.map(o => o.hp),
+        [5, 10]
+      );
+      pass2(s);
+      eq(
+        'declare: every card name can be declared',
+        [s.choice.kind, s.choice.options.length >= DEFS.length],
+        ['declare', true]
+      );
+      D(s, { type: 'Choose', player: 'Player', option: 'zap' });
+      eq('the top card is Zap: it may be played', [s.choice.kind, /Zap/.test(s.choice.prompt)], ['libplay', true]);
+      D(s, { type: 'Choose', player: 'Player', option: 'play' });
+      check(
+        'played Zap is on the stack under MY control; its real owner is remembered',
+        s.stack.length === 2 &&
+          zp.loc === 'stack' &&
+          zp.owner === 'Player' &&
+          zp.home === 'Opponent' &&
+          s.stack[s.stack.length - 1].controller === 'Player'
+      );
+      eq('the effect repeats: declare again', s.choice.kind, 'declare');
+      D(s, { type: 'Choose', player: 'Player', option: 'giant' });
+      eq(
+        'the new top card is not a Giant: you only look at it',
+        [s.choice.kind, /not Giant/.test(s.choice.prompt)],
+        ['libseen', true]
+      );
+      D(s, { type: 'Choose', player: 'Player', option: 'ok' });
+      check('the repetition ends there', !s.choice);
+      pass2(s);
+      eq(
+        'Zap resolves for its controller (1 damage to the Opponent) and goes to its OWNER\u2019s graveyard',
+        [s.life.Opponent, zp.loc, zp.owner, s.piles.Opponent.gy.includes(zp), s.piles.Player.gy.includes(zp)],
+        [19, 'gy', 'Opponent', true, false]
+      );
+      pass2(s);
+      eq(
+        'the reorder trigger: pick the top card of the new order first',
+        [s.choice.kind, s.choice.options.length],
+        ['reorder', 3]
+      );
+      const t = s.piles.Opponent.deck.slice(0, 3).map(c => c.iid);
+      D(s, { type: 'Choose', player: 'Player', option: t[2] });
+      D(s, { type: 'Choose', player: 'Player', option: t[0] });
+      eq(
+        '...the last card is placed by itself: the deck now starts in the chosen order',
+        s.piles.Opponent.deck.slice(0, 3).map(c => c.iid),
+        [t[2], t[0], t[1]]
+      );
+      check(
+        'the opponent\u2019s top 3 were really the cards that were looked at',
+        t.length === 3 && so && hv && top3.length === 3
+      );
+    }
+    {
+      const s = start(1053),
+        l4 = take(s, 'Player', 'librarian', 'board', 'Player|front|2');
+      endTurnFlow(s);
+      eq('L4: no trigger at the opponent\u2019s turn start', s.stack.length, 0);
+      endTurnFlow(s);
+      eq(
+        'L4: at the start of its controller\u2019s turn a draw trigger is on the stack',
+        [s.stack.length, s.stack[0].hp, s.stack[0].src],
+        [1, 1, l4.iid]
+      );
+      const h0 = s.piles.Player.hand.length;
+      pass2(s);
+      eq('...it draws a card', s.piles.Player.hand.length, h0 + 1);
+    }
+  }
+  {
+    // L4 plays a permanent of the opponent
+    const s = start(1060),
+      l4 = s.piles.Player.extra.find(c => c.def.id === 'librarian'),
+      w = toDeck(s, 'Opponent', 'wolf');
+    s.piles.Opponent.deck.unshift(s.piles.Opponent.deck.pop());
+    s.drawn.Player = 8;
+    s.drawn.Opponent = 8;
+    take(s, 'Player', 'soldier', 'gy');
+    take(s, 'Player', 'barrier', 'gy');
+    const u = take(s, 'Player', 'underworldfusion', 'hand');
+    D(s, { type: 'PlayCard', iid: u.iid });
+    pass2(s);
+    D(s, { type: 'Choose', player: 'Player', option: l4.iid });
+    D(s, { type: 'Choose', player: 'Player', option: 'Player|front|2' });
+    pass2(s);
+    D(s, { type: 'Choose', player: 'Player', option: 'wolf' });
+    D(s, { type: 'Choose', player: 'Player', option: 'play' });
+    eq(
+      'a permanent: its controller picks the zone on their own side',
+      [s.choice.kind, s.choice.options.every(k => k.startsWith('Player|front|'))],
+      ['place', true]
+    );
+    D(s, { type: 'Choose', player: 'Player', option: 'Player|front|0' });
+    check(
+      'the Wolf stands under my control (it belongs to the opponent)',
+      w.loc === 'board' && w.owner === 'Player' && w.home === 'Opponent' && w.slot === 'Player|front|0'
+    );
+    eq('...and the effect repeats', s.choice.kind, 'declare');
+    D(s, { type: 'Choose', player: 'Player', option: 'giant' });
+    D(s, { type: 'Choose', player: 'Player', option: 'ok' });
+    const sb = take(s, 'Player', 'superbolt', 'hand');
+    Sim.gainAP(s, 'Player', []);
+    D(s, { type: 'PlayCard', iid: sb.iid, zone: 'Player|front|0' });
+    drain(s);
+    eq(
+      'when it leaves the board it goes to its owner\u2019s graveyard and is the owner\u2019s again',
+      [w.loc, w.owner, w.home, s.piles.Opponent.gy.includes(w), s.piles.Player.gy.includes(w)],
+      ['gy', 'Opponent', undefined, true, false]
+    );
+  }
+  {
+    // decks with an extra deck
+    const ids = DEFS.filter(d => !d.extra).map(d => d.id),
+      xs = DEFS.filter(d => d.extra).map(d => d.id);
+    eq(
+      'deckProblem: a valid extra deck, an unknown or non-extra card in it, a duplicate, an extra creature in the main deck',
+      [
+        deckProblem(ids, xs),
+        !!deckProblem(ids, ['zap']),
+        !!deckProblem(ids, [xs[0], xs[0]]),
+        !!deckProblem(ids.concat(xs[0])),
+      ],
+      [null, true, true, true]
+    );
+    check(
+      'the default decks all have an extra deck list (the full pool has every extra creature)',
+      BUILTIN_DECKS.every(d => Array.isArray(d.extra)) && BUILTIN_DECKS[0].extra.join() === xs.join()
+    );
+    DeckStore.save('zz xdeck', ids.slice(0, 10), xs);
+    const back = DeckStore.find('zz xdeck');
+    DeckStore.save('zz plain', ids.slice(0, 10));
+    const plain = DeckStore.find('zz plain');
+    DeckStore.remove('zz xdeck');
+    DeckStore.remove('zz plain');
+    eq(
+      'DeckStore keeps the extra deck; decks saved without one load with an empty one',
+      [back.cards.length, back.extra, plain.extra],
+      [10, xs, []]
     );
   }
   out.push(

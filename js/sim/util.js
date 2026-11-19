@@ -2,6 +2,7 @@
 Sim.def('util', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
   let create; // state
+  let hasAP; // ap
   const other = p => (p === 'Player' ? 'Opponent' : 'Player');
   const byId = {}; // def id -> definition (filled by create)
   const isPerm = c => c.def.type !== 'spell' && c.def.type !== 'ability';
@@ -28,9 +29,8 @@ Sim.def('util', function (K) {
   const cname = (s, i) => s.cards[i].def.name;
   const colKeys = col => ['Opponent|back|', 'Opponent|front|', 'Player|front|', 'Player|back|'].map(p => p + col); // the 4 zones of a column
   // ---- Abilities & stack objects ------------------------------------------------
-  const RULES = { oneMajor: true }; // console: cardGame.Sim.RULES.oneMajor = false to sandbox freely
-  const majorUsed = s => RULES.oneMajor && s.majorUsed;
-  const canPayExtra = (s, c) => !!(c.def.extraCost && c.def.extraCost.major) && c.owner === s.active && !majorUsed(s); // the optional additional cost 'spend the major action': own turn only for now
+  const RULES = { apLimit: true }; // console: cardGame.Sim.RULES.apLimit = false to sandbox freely (no action point is ever needed)
+  const canPayExtra = (s, c) => !!(c.def.extraCost && c.def.extraCost.ap) && hasAP(s, c.owner); // the optional additional cost 'spend an action point': whenever its owner has one (also on the opponent's turn)
   return {
     exports: {
       RULES,
@@ -39,7 +39,6 @@ Sim.def('util', function (K) {
       cname,
       colKeys,
       isPerm,
-      majorUsed,
       mulberry32,
       other,
       slotRow,
@@ -47,9 +46,9 @@ Sim.def('util', function (K) {
       zoneDist,
       zoneGrid,
     },
-    needs: ['create'],
+    needs: ['create', 'hasAP'],
     link: () => {
-      ({ create } = K);
+      ({ create, hasAP } = K);
     },
   };
 });

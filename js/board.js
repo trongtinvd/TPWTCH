@@ -120,7 +120,19 @@ function side(who, back, front, sign, color) {
   );
   gyMesh.userData.gyOf = who;
   sideZones[who + 'gy'] = gyMesh;
-  makeZone(who + ' Extra Deck', 'Extra Deck', TILE_W, TILE_D, color, -sign * SX, zRow(back), null, rot);
+  const exMesh = makeZone(
+    who + ' Extra Deck',
+    'Extra Deck',
+    TILE_W,
+    TILE_D,
+    color,
+    -sign * SX,
+    zRow(back),
+    '0 cards',
+    rot
+  );
+  exMesh.userData.extraOf = who;
+  sideZones[who + 'extra'] = exMesh;
   sideZones[who + 'exile'] = makeZone(
     who + ' Exile',
     'Exile',

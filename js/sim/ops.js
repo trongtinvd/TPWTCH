@@ -3,7 +3,9 @@ Sim.def('ops', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
   let cname, colKeys, zoneDist; // util
   let PL, addStatus, clearAttacked, clearStatuses, has, hasSt, hurt, isRevealed, live, removeStatus, syncLife; // statuses
-  let cloudMap, declareWinner, destroy, freeSlots, makeToken, recalc; // state
+  let cloudMap, declareWinner, destroy, freeSlots, makeToken, recalc, release; // state
+  let fusionStart; // fusion
+  let declareAsk, pairStart, reorderStart; // choices
   let pendingAtk; // targeting
   let ask, askCounters, askDeck, foeCreatures, runFx, suspend, upToAsk; // fx
   let CH; // ch
@@ -152,6 +154,7 @@ Sim.def('ops', function (K) {
         if (has(c, 'blue')) continue;
         x.s.slots[k] = null;
         c.slot = null;
+        release(c);
         clearStatuses(x.s, c, 'left the board');
         if (c.token) c.loc = 'gone';
         else {
@@ -234,17 +237,25 @@ Sim.def('ops', function (K) {
             ? boardPicks(x, true)
             : e.from === 'anyTarget'
               ? boardPicks(x, false).concat(['P:Player', 'P:Opponent'])
-              : e.from === 'myGYCreatures'
-                ? cs
-                    .filter(
-                      c => mine(c) && c.def.type === 'creature' && !c.token && c.loc === 'gy' && freeSlots(s, c).length
-                    )
-                    .map(c => c.iid)
-                : cs
-                    .filter(
-                      c => mine(c) && c.def.type === 'creature' && !c.token && ['hand', 'gy', 'exile'].includes(c.loc)
-                    )
-                    .map(c => c.iid);
+              : e.from === 'myGYEx'
+                ? cs.filter(c => mine(c) && c.def.extra && c.loc === 'gy').map(c => c.iid)
+                : e.from === 'myBoardCreatures'
+                  ? cs
+                      .filter(c => mine(c) && c.loc === 'board' && c.def.type === 'creature' && !has(c, 'red'))
+                      .map(c => c.iid)
+                  : e.from === 'myGYCreatures'
+                    ? cs
+                        .filter(
+                          c =>
+                            mine(c) && c.def.type === 'creature' && !c.token && c.loc === 'gy' && freeSlots(s, c).length
+                        )
+                        .map(c => c.iid)
+                    : cs
+                        .filter(
+                          c =>
+                            mine(c) && c.def.type === 'creature' && !c.token && ['hand', 'gy', 'exile'].includes(c.loc)
+                        )
+                        .map(c => c.iid);
       if (ids.length)
         ask(
           s,
@@ -252,7 +263,9 @@ Sim.def('ops', function (K) {
           x.src,
           'pick',
           ids,
-          e.from === 'myGYCreatures' || (e.from === 'myCreatures' && ids.some(i => s.cards[i].loc !== 'hand'))
+          e.from === 'myGYCreatures' ||
+            e.from === 'myGYEx' ||
+            (e.from === 'myCreatures' && ids.some(i => s.cards[i].loc !== 'hand'))
             ? i => cname(s, i) + ' (' + s.cards[i].loc + ')'
             : null,
           x.src.def.name +
@@ -261,11 +274,29 @@ Sim.def('ops', function (K) {
               ? 'click a revealed card to discard it.'
               : e.from === 'myCreatures' || e.from === 'myGYCreatures'
                 ? 'pick a creature to put into play.'
-                : 'click a card or a life bar.'),
+                : e.from === 'myGYEx'
+                  ? 'pick an extra deck creature to return to the extra deck.'
+                  : e.from === 'myBoardCreatures'
+                    ? 'click a creature you control: it attacks.'
+                    : 'click a card or a life bar.'),
           { then: e.then, amount: e.amount || 0 },
           x.ev
         );
     },
+    Fusion: (x, e) => fusionStart(x, e),
+    SelfToHand: x => {
+      // this card (resolving ability's source) goes from the deck or the GY to its owner's hand
+      const c = x.src,
+        P = x.s.piles[c.owner];
+      if (c.loc !== 'deck' && c.loc !== 'gy') return;
+      P[c.loc].splice(P[c.loc].indexOf(c), 1);
+      c.loc = 'hand';
+      P.hand.push(c);
+      x.ev.push({ t: 'CardAdded', iid: c.iid, player: c.owner });
+    },
+    SendAdjacentPair: x => pairStart(x),
+    ReorderTop: (x, e) => reorderStart(x, e),
+    DeclareName: x => declareAsk(x.s, x.who, x.src, x.ev),
     DestroyAll: x => {
       for (const c of Object.values(x.s.cards)) if (c.loc === 'board' && !has(c, 'blue')) destroy(x.s, c, x.ev);
     },
@@ -405,10 +436,12 @@ Sim.def('ops', function (K) {
       'colKeys',
       'dealDamage',
       'declareWinner',
+      'declareAsk',
       'destroy',
       'fire',
       'foeCreatures',
       'freeSlots',
+      'fusionStart',
       'has',
       'hasSt',
       'hitStack',
@@ -416,9 +449,12 @@ Sim.def('ops', function (K) {
       'isRevealed',
       'live',
       'makeToken',
+      'pairStart',
       'pendingAtk',
       'recalc',
+      'release',
       'removeStatus',
+      'reorderStart',
       'runFx',
       'suspend',
       'syncLife',
@@ -440,10 +476,12 @@ Sim.def('ops', function (K) {
         colKeys,
         dealDamage,
         declareWinner,
+        declareAsk,
         destroy,
         fire,
         foeCreatures,
         freeSlots,
+        fusionStart,
         has,
         hasSt,
         hitStack,
@@ -451,9 +489,12 @@ Sim.def('ops', function (K) {
         isRevealed,
         live,
         makeToken,
+        pairStart,
         pendingAtk,
         recalc,
+        release,
         removeStatus,
+        reorderStart,
         runFx,
         suspend,
         syncLife,

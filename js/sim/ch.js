@@ -3,9 +3,11 @@ Sim.def('ch', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
   let other; // util
   let addStatus, has, hurt, live, removeStatus; // statuses
-  let bounce, enterBoard, freeSlots, makeToken; // state
+  let bounce, destroy, enterBoard, freeSlots, makeToken; // state
   let ask, askDeck, runFx, upToAsk; // fx
   let THEN; // then
+  let fusionMat, fusionPicked; // fusion
+  let declareAsk, libLook, libPlay, pairPicked, reorderAsk; // choices
   let extraAttack; // combat
   const CH = {
     // answers to non-shift choices (Choose command)
@@ -31,6 +33,30 @@ Sim.def('ch', function (K) {
       enterBoard(s, s.cards[k.card], cmd.option, ev);
       if (k.atk) extraAttack(s, s.cards[k.card], ev);
       if (k.next) upToAsk(s, k.player, c, k.next.e, k.next.left, ev);
+      if (k.again) declareAsk(s, k.player, c, ev); // L4: repeat the effect after the played card entered
+    },
+    fusepick: (s, k, c, cmd, ev) => fusionPicked(s, k, c, cmd, ev),
+    fusemat: (s, k, c, cmd, ev) => fusionMat(s, k, c, cmd, ev),
+    pair: (s, k, c, cmd, ev) => pairPicked(s, k.player, c, cmd.option, ev),
+    pairsend: (s, k, c, cmd, ev) => {
+      const t = s.cards[cmd.option];
+      if (t.loc === 'board') destroy(s, t, ev);
+    },
+    reorder: (s, k, c, cmd, ev) =>
+      reorderAsk(
+        s,
+        k.player,
+        c,
+        k.owner,
+        k.options.filter(o => o !== cmd.option),
+        [...k.placed, cmd.option],
+        ev
+      ),
+    declare: (s, k, c, cmd, ev) => libLook(s, k.player, c, cmd.option, ev),
+    libseen: () => {},
+    libplay: (s, k, c, cmd, ev) => {
+      const top = s.piles[other(k.player)].deck[0];
+      if (cmd.option === 'play' && top) libPlay(s, k.player, c, top, ev);
     },
     upto: (s, k, c, cmd, ev) => {
       if (cmd.option === 'done') return;
@@ -101,15 +127,23 @@ Sim.def('ch', function (K) {
       'ask',
       'askDeck',
       'bounce',
+      'declareAsk',
+      'destroy',
       'enterBoard',
       'extraAttack',
       'freeSlots',
+      'fusionMat',
+      'fusionPicked',
       'has',
       'hurt',
+      'libLook',
+      'libPlay',
       'live',
       'makeToken',
       'other',
+      'pairPicked',
       'removeStatus',
+      'reorderAsk',
       'runFx',
       'upToAsk',
     ],
@@ -120,15 +154,23 @@ Sim.def('ch', function (K) {
         ask,
         askDeck,
         bounce,
+        declareAsk,
+        destroy,
         enterBoard,
         extraAttack,
         freeSlots,
+        fusionMat,
+        fusionPicked,
         has,
         hurt,
+        libLook,
+        libPlay,
         live,
         makeToken,
         other,
+        pairPicked,
         removeStatus,
+        reorderAsk,
         runFx,
         upToAsk,
       } = K);

@@ -15,6 +15,7 @@
   --btn-atk-on: #c0392b;
   --btn-exit: #d63a2f; /* Exit / Leave */
   --exit-glow: #ff5a4d; /* the pulsing Exit button */
+  --ap-color: #ffd34d; /* action points (the four-point star under each life bar) */
   --accent: #3fe07a; /* hover links, drop targets, selected highlight */
   --drop: #3fa66a;
   --splat: #b3121c;
@@ -33,6 +34,7 @@
   --type-spell: #d4524f;
   --type-slow: #8e5bd0; /* Slow spells */
   --type-ability: #b8892b;
+  --type-extra: #a63fd0; /* extra deck creatures */
 
   /* ---- 3D scene ---- */
   --scene-bg: #14161c;

@@ -64,6 +64,7 @@ const ui = {
   hoverP: null, // player inspection: hovered / pinned (click a life bar)
   stackLog: false, // the stack panel is flipped over: the game log is shown (js/gamelog.js)
   selP: null,
+  selAP: null, // the action point shown in the inspector: {p, id}
   inspLast: null, // what the inspector shows right now (the status toggle re-renders it)
   pickCards: [],
   pickList: null, // cached; rebuilt only after sync()
@@ -372,7 +373,7 @@ function autoStep() {
     if (game.attackPhase) {
       // the combat phase ends by itself when no attack is left (the next pass of automation then ends the turn if nothing else can be done)
       if (!acts.some(a => a.kind === 'attack')) cmd = { type: 'SetAttackPhase', player: p, on: false };
-    } else if (mode === 'off' ? Sim.majorUsed(game) : !acts.length) cmd = { type: 'EndTurn', player: p };
+    } else if (mode === 'off' ? !Sim.hasAP(game, p) : !acts.length) cmd = { type: 'EndTurn', player: p };
   }
   if (!cmd) return;
   if (ui.autoView && ui.camAngle !== ui.camGoal) {
@@ -532,9 +533,11 @@ function resetGame() {
   Result.reset();
   clearTimeout(ui.stepTimer);
   clearTimeout(ui.botTimer);
-  const deckOf = n => (DeckStore.find(n) || BUILTIN_DECKS[0]).cards;
+  const deckOf = n => (DeckStore.find(n) || BUILTIN_DECKS[0]).cards,
+    exOf = n => (DeckStore.find(n) || BUILTIN_DECKS[0]).extra || [];
   sim = Sim.create(newSeed(), DEFS, {
     decks: { Player: deckOf(c.p1), Opponent: deckOf(c.p2) },
+    extra: { Player: exOf(c.p1), Opponent: exOf(c.p2) },
     shuffle: c.shuffle,
     autoStart: true,
     stops: STOPS_ON,
@@ -553,6 +556,8 @@ function resetGame() {
     n: sim.n,
     d1: deckOf(c.p1).slice(),
     d2: deckOf(c.p2).slice(),
+    x1: exOf(c.p1).slice(),
+    x2: exOf(c.p2).slice(),
     sh: !!c.shuffle,
     stops: STOPS_ON,
     mode: c.mode,
@@ -603,7 +608,7 @@ const FN = [
       !game.respond &&
       ui.view === game.active &&
       !game.attackPhase &&
-      !Sim.majorUsed(game) &&
+      Sim.hasAP(game, ui.view) &&
       game.piles[ui.view].deck.length > 0,
     show: inPlay,
   },
@@ -626,7 +631,7 @@ const FN = [
       !game.stack.length &&
       !game.respond &&
       ui.view === game.active &&
-      (game.attackPhase || !Sim.majorUsed(game)),
+      (game.attackPhase || Sim.hasAP(game, ui.view)),
     show: inPlay,
   },
   {
