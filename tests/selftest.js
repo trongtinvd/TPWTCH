@@ -3142,14 +3142,19 @@ function selfTest() {
       s3 = take(s, 'Opponent', 'guard', 'board', 'Opponent|front|2');
     s.attackPhase = true;
     D(s, { type: 'Attack', iid: w2.iid });
-    pass2(s);
     eq(
-      'several adjacent pairs: the controller picks one (column neighbours and row neighbours)',
-      [s.choice.kind, s.choice.player, s.choice.options.length],
-      ['pair', 'Player', 2]
+      'several adjacent pairs: the targeting is part of the cost, so the controller picks one when the trigger is put on the stack',
+      [s.choice.kind, s.choice.player, s.choice.options.length, s.stack.length],
+      ['trigtarget', 'Player', 2, 1]
     );
     const o = s.choice.options.find(x => x.includes('front|1') && x.includes('front|2'));
     D(s, { type: 'Choose', player: 'Player', option: o });
+    eq(
+      '...the trigger now stands on the stack above the Attack, carrying its target',
+      [s.stack.length, s.stack[1].pick],
+      [2, o]
+    );
+    pass2(s);
     eq(
       '...and the foe is asked about exactly those two',
       [s.choice.kind, s.choice.player, s.choice.options.sort()],
@@ -3401,6 +3406,408 @@ function selfTest() {
       'DeckStore keeps the extra deck; decks saved without one load with an empty one',
       [back.cards.length, back.extra, plain.extra],
       [10, xs, []]
+    );
+  }
+  // ================= Patch 10: information and the per-player logs =================
+  {
+    const s = start(1100),
+      h = take(s, 'Opponent', 'zap', 'hand'),
+      g = take(s, 'Opponent', 'wolf', 'gy'),
+      d = s.piles.Opponent.deck[0],
+      b = take(s, 'Player', 'soldier', 'board', 'Player|front|0');
+    check(
+      'canSee: board, graveyard are public; the other player\u2019s hand, deck and extra deck are not',
+      Sim.canSee(s, 'Player', g) &&
+        Sim.canSee(s, 'Player', b) &&
+        !Sim.canSee(s, 'Player', h) &&
+        Sim.canSee(s, 'Opponent', h) &&
+        !Sim.canSee(s, 'Player', d) &&
+        !Sim.canSee(s, 'Opponent', d) &&
+        !Sim.canSee(s, 'Player', s.piles.Opponent.extra[0]) &&
+        Sim.canSee(s, 'Opponent', s.piles.Opponent.extra[0])
+    );
+    Sim.addStatus(s, h, { kind: 'revealed', to: 'Player', zone: 'hand', srcName: 't' });
+    check('canSee: a revealed card is known to the player it was revealed to', Sim.canSee(s, 'Player', h));
+    const k = take(s, 'Opponent', 'kingeye', 'board', 'Opponent|front|1'),
+      hid = take(s, 'Opponent', 'soldier', 'board', 'Opponent|front|0');
+    check(
+      'canSee: a card under a cloud is hidden from the other player only',
+      !Sim.canSee(s, 'Player', hid) && Sim.canSee(s, 'Opponent', hid) && Sim.canSee(s, 'Player', k)
+    );
+  }
+  {
+    const s = start(1101),
+      top = s.piles.Player.deck.slice(0, 2).map(c => c.def.name),
+      cmd = { type: 'Draw', player: 'Player' },
+      pre = structuredClone(s),
+      r = D(s, cmd),
+      mine = Narrate.story(pre, s, cmd, r.events, 'Player').map(x => x.text),
+      theirs = Narrate.story(pre, s, cmd, r.events, 'Opponent');
+    check(
+      'the drawer\u2019s log names the drawn cards, the other player\u2019s log says "a card" (coloured by its owner)',
+      top.every(n => mine.some(x => x === n + ': deck \u2192 hand (drawn)')) &&
+        theirs.filter(x => x.text === 'a card: deck \u2192 hand (drawn)').length === 2 &&
+        theirs.every(x => !top.some(n => x.text.includes(n))) &&
+        /\u0001P\u0003a card\u0002/.test(theirs.find(x => /a card/.test(x.text)).rich),
+      JSON.stringify(theirs.map(x => x.text))
+    );
+    check(
+      'a colour mark carries the owner of every card name',
+      Narrate.story(pre, s, cmd, r.events, 'Player')
+        .find(x => /deck/.test(x.text))
+        .rich.includes('\u0001P') &&
+        Narrate.parts('a \u0001Oabc\u0003Zap\u0002 b').some(x => x.o === 'O' && x.t === 'Zap')
+    );
+  }
+  {
+    // a target is named; a shift says where; Heaven and Sun lists what it exiled
+    const s = start(1102),
+      hb = take(s, 'Opponent', 'hummingbird', 'board', 'Opponent|front|1'),
+      g = take(s, 'Player', 'giant', 'board', 'Player|front|1');
+    s.attackPhase = true;
+    D(s, { type: 'Attack', iid: g.iid });
+    pass2(s);
+    const cmd = { type: 'Choose', player: 'Opponent', option: 'Opponent|front|0' },
+      pre = structuredClone(s),
+      r = D(s, cmd),
+      L = Narrate.story(pre, s, cmd, r.events, 'Player').map(x => x.text);
+    check(
+      'a shift says which card moved, from which zone and to which',
+      L.some(x => x === 'Player 2 shifts Red Hummingbird from Player 2 front 2 to Player 2 front 1') &&
+        L.some(x => x === 'Red Hummingbird shifts from Player 2 front 2 to Player 2 front 1'),
+      L.join(' | ')
+    );
+    const q = start(1103),
+      wm = take(q, 'Player', 'widowmaker', 'board', 'Player|front|2'),
+      a1 = take(q, 'Opponent', 'soldier', 'board', 'Opponent|front|1'),
+      a2 = take(q, 'Opponent', 'wolf', 'board', 'Opponent|back|1'),
+      a3 = take(q, 'Opponent', 'guard', 'board', 'Opponent|front|2');
+    q.attackPhase = true;
+    D(q, { type: 'Attack', iid: wm.iid });
+    const o = q.choice.options.find(x => x.includes('front|1') && x.includes('front|2')),
+      cmd2 = { type: 'Choose', player: 'Player', option: o },
+      pre2 = structuredClone(q),
+      r2 = D(q, cmd2),
+      L2 = Narrate.story(pre2, q, cmd2, r2.events, 'Opponent').map(x => x.text);
+    check(
+      'a target is named (the card and its zone), also in the other player\u2019s log, and so is the trigger on the stack',
+      L2.some(x => x === 'Player 1 targets Soldier (Player 2 front 2) + Guard (Player 2 front 3)') &&
+        L2.some(x =>
+          /^Widow Maker triggers: .*, targeting Soldier \(Player 2 front 2\) \+ Guard \(Player 2 front 3\)/.test(x)
+        ),
+      L2.join(' | ')
+    );
+    const h = start(1104),
+      hv = take(h, 'Player', 'heavensun', 'hand');
+    D(h, { type: 'PlayCard', iid: hv.iid, slot: 'Player|back|0' });
+    pass2(h);
+    const hcmd = { type: 'Choose', player: 'Player', option: h.choice.options[0] },
+      hpre = structuredClone(h),
+      hr = D(h, hcmd),
+      HL = Narrate.story(hpre, h, hcmd, hr.events, 'Opponent').map(x => x.text);
+    check(
+      'Heaven and Sun: the exiled card is public, so even the other player\u2019s log names it (and the vault status)',
+      HL.some(x => /: deck \u2192 exile \(exiled\)$/.test(x) && !/^a card/.test(x)) &&
+        HL.some(x => /Heaven and Sun: Exiled by it: /.test(x)),
+      HL.join(' | ')
+    );
+  }
+  {
+    // the leak test: the two decks share no card name, so a name of a card that is hidden from a player must never appear in THEIR log
+    const A = [
+        'bolt',
+        'boltmaster',
+        'superbolt',
+        'zap',
+        'heal',
+        'archer',
+        'scout',
+        'hummingbird',
+        'vine',
+        'avatar',
+        'blackhawk',
+        'shieldguard',
+        'parasite',
+        'spirit',
+      ],
+      B = DEFS.filter(d => !d.extra && !A.includes(d.id)).map(d => d.id),
+      STOPS = { turnStart: true, combatStart: true, combatEnd: true, draw: true, stack: true },
+      TXT = DEFS.flatMap(d => [...(d.triggers || []), ...(d.abilities || []), ...(d.passives || [])].map(x => x.text))
+        .filter(Boolean)
+        .sort((a, b) => b.length - a.length), // card text is public: names inside it are not a leak
+      names = { Player: new Set([...A, 'widowmaker']), Opponent: new Set([...B, 'librarian']) },
+      esc = t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    let leaks = [],
+      empty = 0,
+      cmds = 0;
+    for (const seed of [1, 2, 3]) {
+      const s = Sim.create(2000 + seed, DEFS, {
+          decks: { Player: A, Opponent: B },
+          extra: { Player: ['widowmaker'], Opponent: ['librarian'] },
+          shuffle: true,
+          autoStart: true,
+          stops: STOPS,
+          orderTriggers: true,
+        }),
+        rnd = botRng(seed),
+        mem = {};
+      for (const V of ['Player', 'Opponent'])
+        for (const l of Narrate.opening(s, V))
+          for (const n of names[other(V)]) {
+            const nm = DEFS.find(d => d.id === n).name;
+            if (new RegExp('(^|[^A-Za-z])' + esc(nm) + '([^A-Za-z]|$)').test(l.text))
+              leaks.push('opening ' + V + ': ' + nm);
+          }
+      for (let i = 0; i < 350 && !s.result; i++) {
+        const cmd = botChoose(s, botActor(s), rnd, mem);
+        if (!cmd) break;
+        const pre = structuredClone(s),
+          r = D(s, cmd);
+        if (!r.ok) continue;
+        cmds++;
+        const used = new Set(r.events.filter(e => e.t === 'AbilityActivated').map(e => e.iid)),
+          said = pre.choice && pre.choice.kind === 'declare' && cmd.type === 'Choose' ? cmd.option : null;
+        for (const V of ['Player', 'Opponent']) {
+          const L = Narrate.story(pre, s, cmd, r.events, V);
+          if (!L.length) empty++;
+          let text = L.map(x => x.text).join('\n');
+          for (const t of TXT) text = text.split(t).join('');
+          const chooser =
+            s.choice && s.choice.player === V && ['libplay', 'libseen', 'reorder', 'declare'].includes(s.choice.kind);
+          if (chooser) continue; // the prompt of your own choice may name a card you were allowed to look at
+          for (const c of Object.values(s.cards)) {
+            const w = other(V),
+              id =
+                c.iid.startsWith('tk-') || c.iid.startsWith('tok-')
+                  ? null
+                  : c.iid.startsWith(w.toLowerCase())
+                    ? w
+                    : null;
+            if (!id || used.has(c.iid) || c.def.id === said) continue;
+            if (Sim.canSee(pre, V, pre.cards[c.iid]) || Sim.canSee(s, V, c)) continue;
+            if (new RegExp('(^|[^A-Za-z])' + esc(c.def.name) + '([^A-Za-z]|$)').test(text))
+              leaks.push('cmd ' + cmd.type + ' ' + V + ' sees ' + c.def.name + ' (' + c.loc + ')');
+          }
+        }
+      }
+    }
+    check(
+      'no leak: a hidden card\u2019s name never appears in the log of a player who may not see it (3 bot games)',
+      !leaks.length && cmds > 300,
+      leaks.slice(0, 3).join('; ') + ' cmds=' + cmds
+    );
+    check('every accepted command produces lines in BOTH players\u2019 logs', empty === 0, 'empty=' + empty);
+  }
+  // ================= Patch 9: conditions of the extra deck =================
+  {
+    const s = start(1095),
+      wm = DEFS.find(d => d.id === 'widowmaker'),
+      l4 = DEFS.find(d => d.id === 'librarian');
+    eq(
+      'condOk: nobody lost life, nobody drew',
+      [Sim.condsMet(s, 'Player', wm), Sim.condsMet(s, 'Player', l4)],
+      [false, false]
+    );
+    setLife(s, 'Opponent', 18);
+    s.drawn.Player = 8;
+    s.drawn.Opponent = 7;
+    eq(
+      'condOk: a lost life lights Widow Maker; L4 needs BOTH players above 7 (8 and 7 is not enough)',
+      [Sim.condsMet(s, 'Player', wm), Sim.condsMet(s, 'Player', l4)],
+      [true, false]
+    );
+    s.drawn.Opponent = 8;
+    check(
+      'condOk: both above 7: L4 is lit',
+      Sim.condsMet(s, 'Player', l4) && Sim.condOk(s, 'Player', l4.conditions[0])
+    );
+  }
+  // ================= Patch 9: the story log =================
+  {
+    const s = start(1080),
+      hb = take(s, 'Player', 'hummingbird', 'hand'),
+      top = s.piles.Player.deck[0],
+      cmd = { type: 'PlayCard', iid: hb.iid, slot: 'Player|front|3' },
+      pre = structuredClone(s),
+      r = D(s, cmd),
+      L = Narrate.story(pre, s, cmd, r.events).map(x => x.text);
+    eq(
+      'story: the play line says who, what and the action point count',
+      L[0],
+      'Player 1 plays Red Hummingbird to Player 1 front 4 (ap 1\u21920)'
+    );
+    check(
+      'story: the trigger is listed with its text',
+      L.some(x => /^Red Hummingbird triggers: When this enters: draw a card/.test(x)),
+      L.join(' | ')
+    );
+    check(
+      'story: the zone change names both zones',
+      L.some(x => /^Red Hummingbird: \w+ \u2192 board \(Player 1 front 4\) \(entered the board\)$/.test(x)),
+      L.join(' | ')
+    );
+    const pre2 = structuredClone(s);
+    D(s, { type: 'Pass', player: 'Opponent' });
+    const c2 = { type: 'Pass', player: 'Player' },
+      pre3 = structuredClone(s),
+      r2 = D(s, c2),
+      L2 = Narrate.story(pre3, s, c2, r2.events).map(x => x.text);
+    check(
+      'story: a resolution shows what resolved and which card was drawn (deck to hand)',
+      L2.some(x => /resolves/.test(x)) && L2.some(x => x === top.def.name + ': deck \u2192 hand (drawn)'),
+      L2.join(' | ')
+    );
+    const q = start(1081);
+    take(q, 'Player', 'hummingbird', 'board', 'Player|front|0');
+    q.choice = {
+      player: 'Player',
+      iid: Object.values(q.cards)[0].iid,
+      kind: 'declare',
+      options: ['zap'],
+      labels: { zap: 'Zap' },
+      prompt: 'declare',
+    };
+    const D1 = Narrate.story(structuredClone(q), q, { type: 'Choose', player: 'Player', option: 'zap' }, []).map(
+      x => x.text
+    );
+    eq('story: the declared card name is in the log', D1, ['Player 1 declares Zap']);
+    const op = Narrate.opening(start(1082)).map(x => x.text);
+    check(
+      'story: the opening lists both starting hands and who goes first',
+      op.length === 6 &&
+        /^Player 1 starts with: .+/.test(op[1]) &&
+        /^Player 2 starts with 5 cards$/.test(op[2]) &&
+        /^Player 1 deck, top first/.test(op[3]) &&
+        op[5] === 'Player 1 goes first',
+      op.join(' | ')
+    );
+  }
+  // ================= Patch 9: trigger order, targeting as part of the cost =================
+  {
+    const mkO = seed => {
+        const s = Sim.create(seed, DEFS.concat(FIXTURES), { orderTriggers: true });
+        for (const p of ['Player', 'Opponent']) D(s, { type: 'Start', player: p });
+        return s;
+      },
+      s = mkO(1090);
+    take(s, 'Player', 'knight', 'gy');
+    const wd = take(s, 'Player', 'wardrum', 'hand');
+    D(s, { type: 'PlayCard', iid: wd.iid, slot: 'Player|back|1', extra: true });
+    eq(
+      'two triggers of one player at once: a trigorder choice (default: the last created resolves first), nothing is on the stack yet',
+      [s.choice.kind, s.choice.player, s.choice.options[0], s.choice.options.length, s.stack.length],
+      ['trigorder', 'Player', '1,0', 2, 0]
+    );
+    D(s, { type: 'Choose', player: 'Player', option: '0,1' });
+    eq(
+      'ordered 0,1: trigger 0 resolves first, so it is pushed last (on top)',
+      s.stack.map(o => o.ab),
+      [1, 0]
+    );
+    const t = start(1091),
+      wd2 = take(t, 'Player', 'wardrum', 'hand');
+    take(t, 'Player', 'knight', 'gy');
+    D(t, { type: 'PlayCard', iid: wd2.iid, slot: 'Player|back|1', extra: true });
+    eq(
+      'without the host option nothing is asked: creation order is pushed as before',
+      [t.choice, t.stack.map(o => o.ab)],
+      [null, [0, 1]]
+    );
+    const w = start(1092),
+      wm = take(w, 'Player', 'widowmaker', 'board', 'Player|front|2');
+    w.attackPhase = true;
+    D(w, { type: 'Attack', iid: wm.iid });
+    eq(
+      'Widow Maker with no pair to target: the trigger is not put on the stack at all',
+      w.stack.map(o => o.kind),
+      ['attack']
+    );
+    eq(
+      'the new exports: condOk reads one condition of an extra deck creature',
+      [
+        Sim.condOk(w, 'Player', { op: 'LostLife' }),
+        Sim.condsMet(
+          w,
+          'Player',
+          DEFS.find(d => d.id === 'widowmaker')
+        ),
+      ],
+      [false, false]
+    );
+  }
+  // ================= Patch 9: resolving spells, EffectFailed, the bot and Shark =================
+  {
+    const s = start(1070),
+      df = take(s, 'Player', 'depthfusion', 'hand'),
+      so = take(s, 'Player', 'soldier', 'hand'),
+      wf = take(s, 'Player', 'wolf', 'board', 'Player|front|0'),
+      wm = s.piles.Player.extra.find(c => c.def.id === 'widowmaker');
+    D(s, { type: 'PlayCard', iid: df.iid });
+    const r1 = pass2(s);
+    check(
+      'a spell whose effect opens a choice is still resolving: not in the GY, no Resolved / StackEmptied event yet',
+      df.loc === 'stack' &&
+        !!s.resolving &&
+        !!s.choice &&
+        !r1.events.some(e => e.t === 'StackObjectResolved' || e.t === 'StackEmptied')
+    );
+    for (const o of [wm.iid, so.iid, wf.iid]) D(s, { type: 'Choose', player: 'Player', option: o });
+    check(
+      'the materials are in the GY while the Fusion spell is still resolving',
+      so.loc === 'gy' && wf.loc === 'gy' && df.loc === 'stack' && s.choice && s.choice.kind === 'place'
+    );
+    const r2 = D(s, { type: 'Choose', player: 'Player', option: 'Player|front|1' }),
+      t = r2.events.map(e => e.t);
+    check(
+      'order: materials to the GY, the creature is summoned, THEN the spell goes to the GY (Resolved, StackEmptied)',
+      wm.loc === 'board' &&
+        df.loc === 'gy' &&
+        !s.resolving &&
+        t.includes('PermanentSummoned') &&
+        t.indexOf('PermanentSummoned') < t.indexOf('StackObjectResolved') &&
+        t.includes('StackEmptied') // Widow Maker’s enter trigger has no target (no foe cards): it is not put on the stack
+    );
+  }
+  {
+    const s = start(1071),
+      bc = take(s, 'Player', 'cultivator', 'hand'),
+      wm = s.piles.Player.extra.find(c => c.def.id === 'widowmaker');
+    D(s, { type: 'PlayCard', iid: bc.iid, slot: 'Player|front|2' });
+    pass2(s);
+    const f = D(s, { type: 'Choose', player: 'Player', option: wm.iid }).events.find(e => e.t === 'EffectFailed');
+    check(
+      'Biology Cultivator with unmet conditions says it failed (EffectFailed names the card and the reason)',
+      !!f && f.iid === bc.iid && /conditions/.test(f.why)
+    );
+    const q = start(1072),
+      d2 = take(q, 'Player', 'depthfusion', 'hand'),
+      a = toDeck(q, 'Player', 'soldier'),
+      b = toDeck(q, 'Player', 'wolf'),
+      w3 = q.piles.Player.extra.find(c => c.def.id === 'widowmaker');
+    D(q, { type: 'PlayCard', iid: d2.iid });
+    pass2(q);
+    for (const o of [w3.iid, a.iid]) D(q, { type: 'Choose', player: 'Player', option: o });
+    const g = D(q, { type: 'Choose', player: 'Player', option: b.iid }).events.find(e => e.t === 'EffectFailed');
+    check(
+      'a Fusion whose conditions end up unmet also says so (the materials stay spent)',
+      !!g && /conditions/.test(g.why) && a.loc === 'gy' && w3.loc === 'extra'
+    );
+  }
+  {
+    const s = start(1073);
+    take(s, 'Player', 'shark', 'board', 'Player|front|0');
+    const wf = take(s, 'Player', 'wolf', 'board', 'Player|front|1');
+    D(s, { type: 'SetAttackPhase', player: 'Player', on: true });
+    AT(s, wf.iid);
+    D(s, { type: 'SetAttackPhase', player: 'Player', on: false });
+    pass2(s);
+    const picks = new Set(),
+      rnd = botRng(5);
+    for (let i = 0; i < 40; i++) picks.add(botChoose(s, 'Player', rnd, {}).option); // one generator: seeds 1, 2, 3 give almost the same first number
+    check(
+      'the bot picks BOTH Shark second-combat options (draw 5 is chosen about half the time: not a bug)',
+      s.choice.options.length === 2 && picks.has('0') && picks.has('1'),
+      [...picks].join()
     );
   }
   out.push(

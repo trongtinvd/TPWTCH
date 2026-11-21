@@ -190,6 +190,27 @@ const MenuScene = (function () {
   };
 })();
 
+function settingsDialog() {
+  modal((box, close, cancel) => {
+    box.appendChild(mkEl('h2')).textContent = 'Settings';
+    const w = mkEl('label', 'mcheck'),
+      cb = mkEl('input');
+    cb.type = 'checkbox';
+    cb.checked = Settings.get('runHidden');
+    cb.onchange = () => Settings.set('runHidden', cb.checked);
+    w.append(cb, document.createTextNode(' Keep the game running when the browser tab is hidden'));
+    box.appendChild(w);
+    const note = mkEl('p', 'mmsg');
+    note.style.fontSize = '12px';
+    note.style.opacity = '0.7';
+    note.textContent =
+      'Browsers slow hidden tabs down: the bot and the automatic passes may act about once per second there.';
+    box.appendChild(note);
+    const row = mkEl('div', 'mrow');
+    row.appendChild(mkBtn('Close', cancel));
+    box.appendChild(row);
+  });
+}
 function startDialog(mode) {
   // mode: 'self' | 'bot'
   const decks = DeckStore.list(),
@@ -278,6 +299,7 @@ const MenuUI = {
         },
       ],
       ['Replays', () => Replays.open()],
+      ['Settings', () => settingsDialog()],
     ].forEach(([t, f]) => {
       const b = mkBtn(t, f, 'mbtn');
       bs.appendChild(b);

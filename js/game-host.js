@@ -68,6 +68,9 @@ const ui = {
   inspLast: null, // what the inspector shows right now (the status toggle re-renders it)
   pickCards: [],
   pickList: null, // cached; rebuilt only after sync()
+  pairFirst: null, // the first zone clicked in a 'two adjacent cards' choice
+  declareQ: '', // the search text of a 'declare a card name' choice
+  trigOrder: null, // the order being arranged in a 'trigorder' choice: {key, order}
   // hover links (stack entry <-> card arrows)
   linkSrc: null,
   linkKey: '',
@@ -115,6 +118,8 @@ const sleep = ms => new Promise(r => setTimeout(r, ms)),
 bannerEl.id = 'banner';
 bannerEl.hidden = true;
 document.body.appendChild(bannerEl);
+// a hidden tab gets no animation frames: with the setting on the tweens run on a timer instead, so the game does not wait for a frame that never comes
+const nextFrame = f => (document.hidden && Settings.get('runHidden') ? setTimeout(f, 50) : requestAnimationFrame(f));
 function tween(ms, fn) {
   return Promise.race([
     new Promise(res => {
@@ -123,7 +128,7 @@ function tween(ms, fn) {
         const t = Math.min(1, (performance.now() - t0) / ms);
         fn(t);
         ui.dirty = true;
-        t < 1 ? requestAnimationFrame(step) : res();
+        t < 1 ? nextFrame(step) : res();
       })();
     }),
     sleep(ms + 600),
@@ -265,12 +270,17 @@ function send(cmd, src) {
     if (undoStack.length > 200) undoStack.shift();
     if (!rp.on) cmdLog.push(JSON.parse(JSON.stringify(cmd)));
     eventLog.push(...r.events);
-    GameLog.add(pre.turn, cmd, r.events, src); // src: auto | bot | replay (a click is 'player')
+    GameLog.add(pre, cmd, r.events, src); // src: auto | bot | replay (a click is 'player')
     if (eventLog.length > 200) eventLog.splice(0, eventLog.length - 200);
     ui.placing = null;
     ui.selected = null;
     ui.inspHold = true; // any action closes the inspection panel
-    jobs = fxJobs(pre, sim);
+    jobs = r.events
+      .filter(e => e.t === 'CardRevealed' || e.t === 'EffectFailed')
+      .map(e => () => noticeJob(pre, e))
+      .concat(fxJobs(pre, sim)); // reveals and failures are shown first
+    const fail = r.events.find(e => e.t === 'EffectFailed');
+    if (fail) ui.note = sim.cards[fail.iid].def.name + ' fails: ' + fail.why;
     if (r.events.some(isCombatHit) || (attackResolved(pre, sim) && r.events.some(e => e.t === 'DamageDenied'))) {
       // order: attack animation -> damage numbers -> triggered abilities appear on the stack
       const A = new Set(pre.stack.map(o => o.sid)),
@@ -541,12 +551,14 @@ function resetGame() {
     shuffle: c.shuffle,
     autoStart: true,
     stops: STOPS_ON,
+    orderTriggers: true, // real games: a player with several triggers at once orders them
   });
   game = sim;
   fxReset();
   undoStack.length = 0;
   eventLog.length = 0;
   GameLog.clear();
+  GameLog.begin(sim);
   rp.on = false;
   rp.playing = false;
   clearTimeout(rp.timer);
@@ -560,6 +572,7 @@ function resetGame() {
     x2: exOf(c.p2).slice(),
     sh: !!c.shuffle,
     stops: STOPS_ON,
+    ot: true, // the replay needs the same options (the trigger order choices are part of the recorded commands)
     mode: c.mode,
     a: c.p1,
     b: c.p2,

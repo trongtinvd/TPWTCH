@@ -4,6 +4,7 @@ Sim.def('targeting', function (K) {
   let colKeys, other; // util
   let has; // statuses
   let cloudMap; // state
+  let pairLabel, pairOptions; // choices
   // third argument true = TARGETING (a cloud counts as a card/zone there); false = RESOLUTION (only what is really underneath)
   const COLTARGETS = {
     fullColumn: (s, col, clouds) => {
@@ -49,12 +50,20 @@ Sim.def('targeting', function (K) {
       return id && !has(s.cards[id], 'red') ? s.cards[id] : null;
     },
   };
+  // TARGETINGS: the targets a TRIGGER picks when it is put on the stack (Yu-Gi-Oh: condition : cost / targeting ; effect). An ability with a targeting that has no legal option is not put on the stack at all.
+  const TARGETINGS = {
+    adjacentPair: {
+      options: (s, c) => pairOptions(s, c.owner),
+      label: (s, c, o) => pairLabel(s, c.owner, o),
+      prompt: c => c.def.name + ': target two adjacent cards your opponent controls.',
+    },
+  };
   const findTarget = (s, c, a) => (a.target && TARGETS[a.target] ? TARGETS[a.target](s, c) : null);
   return {
-    exports: { COLTARGETS, TARGETS, ZONETARGETS, findTarget, pendingAtk, targetColumns, targetZones },
-    needs: ['cloudMap', 'colKeys', 'has', 'other'],
+    exports: { COLTARGETS, TARGETINGS, TARGETS, ZONETARGETS, findTarget, pendingAtk, targetColumns, targetZones },
+    needs: ['cloudMap', 'colKeys', 'has', 'other', 'pairLabel', 'pairOptions'],
     link: () => {
-      ({ cloudMap, colKeys, has, other } = K);
+      ({ cloudMap, colKeys, has, other, pairLabel, pairOptions } = K);
     },
   };
 });

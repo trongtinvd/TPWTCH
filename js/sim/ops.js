@@ -73,7 +73,12 @@ Sim.def('ops', function (K) {
         addStatus(x.s, PL(x.s, x.who), k);
         syncLife(x.s, x.who);
       }
-      x.ev.push({ t: 'LifeCounterAdded', amount: e.amount });
+      x.ev.push({
+        t: 'LifeCounterAdded',
+        amount: e.amount,
+        player: x.who,
+        target: e.to === 'target' && x.t ? x.t.iid : undefined,
+      });
     }, // life may exceed the starting value
     SacrificeSelf: x => {
       if (x.src.loc === 'board') destroy(x.s, x.src, x.ev);

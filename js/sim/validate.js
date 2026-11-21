@@ -23,6 +23,7 @@ const apiErrors = () => {
     if (d.colTarget && !A.colTargets.includes(d.colTarget)) bad.push(d.id + ': unknown column target ' + d.colTarget);
     (d.triggers || []).forEach(g => {
       A.triggers.includes(g.on) || bad.push(d.id + ': unknown trigger ' + g.on);
+      if (g.targeting && !A.targetings.includes(g.targeting)) bad.push(d.id + ': unknown targeting ' + g.targeting);
       if (g.cond && !A.conds.includes(g.cond)) bad.push(d.id + ': unknown condition ' + g.cond);
       walk(d.id, g.effects, 'effects');
     });
@@ -36,7 +37,13 @@ const apiErrors = () => {
   // Fx and Sim cannot drift: every Fx builder is called with no arguments and must name a published op / trigger,
   // and every named requirement / target / zone target / column target must exist
   const ops = new Set([...A.effects, ...A.costs, ...A.riders, ...A.passives, ...A.exConds]),
-    names = { req: 'requirements', target: 'targets', zoneTarget: 'zoneTargets', colTarget: 'colTargets' };
+    names = {
+      req: 'requirements',
+      target: 'targets',
+      zoneTarget: 'zoneTargets',
+      colTarget: 'colTargets',
+      targeting: 'targetings',
+    };
   const scan = (o, path) => {
     for (const [k, v] of Object.entries(o)) {
       if (typeof v === 'function') {

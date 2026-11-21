@@ -316,6 +316,7 @@ const Replays = (function () {
       shuffle: rec.sh,
       autoStart: true,
       stops: rec.stops,
+      orderTriggers: !!rec.ot,
     });
     game = sim;
     fxReset();
@@ -323,6 +324,7 @@ const Replays = (function () {
     cmdLog.length = 0;
     eventLog.length = 0;
     GameLog.clear();
+    GameLog.begin(sim);
     clearTable();
     applyView();
     showBar(true);
@@ -356,10 +358,12 @@ const Replays = (function () {
         shuffle: rec.sh,
         autoStart: true,
         stops: rec.stops,
+        orderTriggers: !!rec.ot,
       });
       undoStack.length = 0; // (from the current state the replay's snapshots stay: Undo goes back through the replayed moves too)
       eventLog.length = 0;
       GameLog.clear();
+      GameLog.begin(sim);
       cmdLog.length = 0;
     } else {
       cmdLog.length = 0;
@@ -383,6 +387,7 @@ const Replays = (function () {
       x2: (rec.x2 || []).slice(),
       sh: !!rec.sh,
       stops: rec.stops || null,
+      ot: !!rec.ot,
       mode: ui.mode,
       a: rec.a,
       b: rec.b,

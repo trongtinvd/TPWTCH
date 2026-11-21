@@ -9,6 +9,7 @@ Sim.def('ch', function (K) {
   let fusionMat, fusionPicked; // fusion
   let declareAsk, libLook, libPlay, pairPicked, reorderAsk; // choices
   let extraAttack; // combat
+  let advanceTrg; // stack
   const CH = {
     // answers to non-shift choices (Choose command)
     mode: (s, k, c, cmd, ev) =>
@@ -34,6 +35,14 @@ Sim.def('ch', function (K) {
       if (k.atk) extraAttack(s, s.cards[k.card], ev);
       if (k.next) upToAsk(s, k.player, c, k.next.e, k.next.left, ev);
       if (k.again) declareAsk(s, k.player, c, ev); // L4: repeat the effect after the played card entered
+    },
+    trigorder: (s, k, c, cmd, ev) => {
+      s.trg.R[k.p] = cmd.option.split(',').map(Number);
+      advanceTrg(s, ev);
+    },
+    trigtarget: (s, k, c, cmd, ev) => {
+      s.trg.items[k.tk].tgt = cmd.option;
+      advanceTrg(s, ev);
     },
     fusepick: (s, k, c, cmd, ev) => fusionPicked(s, k, c, cmd, ev),
     fusemat: (s, k, c, cmd, ev) => fusionMat(s, k, c, cmd, ev),
@@ -123,6 +132,7 @@ Sim.def('ch', function (K) {
     exports: { CH },
     needs: [
       'THEN',
+      'advanceTrg',
       'addStatus',
       'ask',
       'askDeck',
@@ -150,6 +160,7 @@ Sim.def('ch', function (K) {
     link: () => {
       ({
         THEN,
+        advanceTrg,
         addStatus,
         ask,
         askDeck,

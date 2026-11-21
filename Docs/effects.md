@@ -12,6 +12,7 @@ Card factory -> Fx builders -> plain {op:...} -> Sim.dispatch -> stack object ->
 | `COSTS` | Sim | `check` (payable?) and `pay` (mutates). |
 | `REQS` | Sim | Return reason string, or `null` if satisfied. |
 | `TARGETS` | Sim | Target finders. |
+| `TARGETINGS` | Sim | What a trigger targets when it is put on the stack (`adjacentPair`): `options`, `label`, `prompt`. A trigger field `targeting`. |
 | `COND` | Sim | Trigger conditions (`ownInAttackCol`, `extraPaid`, `firstCombat`, `foeAdjacent`, `usedMat`). |
 | `EXCOND` | Sim | Conditions of extra deck creatures (`LostLife`, `BothDrewMoreThan`); read by Fusion effects. |
 | `CH` / `THEN` | Sim | Answers to `Choose` and the "then" actions of `PickCard`. |
@@ -107,7 +108,7 @@ Optional fields: `hp`, `zone`, `cond`. `fire()` collects all matches, turn playe
 `declareAttack(s, c, ev, extra)` pushes `{kind:'attack', iid, controller, hp:null, slotAt, bonus:0}`, fires attack triggers above it, gives the defender priority. `resolveAttack`: damage = `atkOf(attacker)` if on board else 0, plus `bonus`, down the column (`slotAt` if the attacker left). Normal `Attack` command needs an empty stack; extra attacks come from effects.
 
 ## Choices
-`state.choice = {player, iid, kind, options, labels?, prompt, cont?}`; only `Choose` is accepted. Kinds: shift (no kind), `damage`, `counter` (options are `damage` status ids), `mode`, `pick`, `place`, `swap`, `vault`, `vaultpick`, `upto`, and for the extra deck cards `fusepick` (reveal), `fusemat` (a material), `pair` / `pairsend` (Widow Maker: the controller picks two adjacent cards, the opponent picks which one goes), `reorder`, `declare`, `libplay`, `libseen` (L4). Without `labels` it is answered by clicking the board; with `labels` the picker panel shows.
+`state.choice = {player, iid, kind, options, labels?, prompt, cont?}`; only `Choose` is accepted. Kinds: `trigorder` (order your simultaneous triggers; options are permutations "1,0"), `trigtarget` (a trigger's target, picked when it is put on the stack), shift (no kind), `damage`, `counter` (options are `damage` status ids), `mode`, `pick`, `place`, `swap`, `vault`, `vaultpick`, `upto`, and for the extra deck cards `fusepick` (reveal), `fusemat` (a material), `pair` / `pairsend` (Widow Maker: the controller picks two adjacent cards, the opponent picks which one goes), `reorder`, `declare`, `libplay`, `libseen` (L4). Without `labels` it is answered by clicking the board; with `labels` the picker panel shows.
 
 ## Stack HP
 `hitStack` subtracts; **<= -1 countered, 0 resolves**. An Attack ignores it. Countered spell -> GY; countered ability token removed. (Stack objects have no statuses yet: `nodmg` is a field, Q33.)

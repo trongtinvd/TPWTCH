@@ -39,6 +39,9 @@ Sim.boot(K => {
     colKeys,
     other,
     isPerm,
+    condOk,
+    condsMet,
+    canSee,
   } = K;
   const REGISTRIES = {
     effects: K.OPS,
@@ -47,6 +50,7 @@ Sim.boot(K => {
     targets: K.TARGETS,
     colTargets: K.COLTARGETS,
     zoneTargets: K.ZONETARGETS,
+    targetings: K.TARGETINGS,
     riders: K.RIDERS,
     triggers: K.TRIGGERS,
     passives: K.PASSIVES,
@@ -91,6 +95,9 @@ Sim.boot(K => {
     colKeys,
     other,
     isPerm,
+    condOk,
+    condsMet,
+    canSee,
     API: Object.fromEntries(Object.entries(REGISTRIES).map(([kind, reg]) => [kind, Object.keys(reg)])),
     create: K.createGame,
   };

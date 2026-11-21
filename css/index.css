@@ -937,6 +937,113 @@ canvas {
   padding: 0 4px;
   margin-right: 4px;
 }
+.lgs {
+  padding-left: 6px;
+  word-break: break-word;
+}
+.lgs .o1 {
+  color: var(--p1-color);
+  font-weight: 600;
+}
+.lgs .o2 {
+  color: var(--p2-color);
+  font-weight: 600;
+}
+.lgturn {
+  font-weight: 700;
+  margin-top: 6px;
+  border-top: 1px solid rgba(128, 128, 128, 0.4);
+  padding-top: 4px;
+}
+.lgs i.auto {
+  color: #6fb3ff;
+  font-style: normal;
+  font-size: 10px;
+}
+.lgs i.bot {
+  color: #ff9a6f;
+  font-style: normal;
+  font-size: 10px;
+}
+.lgs i.replay {
+  color: #c79bff;
+  font-style: normal;
+  font-size: 10px;
+}
+.pickres {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+#pick .dctl {
+  width: 100%;
+  box-sizing: border-box;
+}
+.row.trg {
+  cursor: grab;
+}
+.row.trg .nm {
+  display: flex;
+  flex-direction: column;
+}
+.row.trg small {
+  font-size: 10px;
+  opacity: 0.75;
+  white-space: normal;
+}
+.xbox {
+  margin: 6px 0;
+  padding: 6px 8px;
+  border-radius: 7px;
+  background: rgba(128, 128, 128, 0.18);
+  border-left: 4px solid var(--tc, transparent);
+}
+.xbox > b {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.8;
+  margin-bottom: 3px;
+}
+.xrow {
+  font-size: 12px;
+  line-height: 1.35;
+}
+.xrow small {
+  display: block;
+  font-size: 10px;
+  opacity: 0.75;
+}
+.xrow.met {
+  color: var(--accent);
+}
+.xrow.unmet {
+  opacity: 0.75;
+}
+.chip {
+  display: inline-block;
+  margin: 2px 4px 2px 0;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  background: rgba(128, 128, 128, 0.32);
+}
+.xbox.dim,
+.xbox.off {
+  opacity: 0.6;
+}
+.row.locked {
+  opacity: 0.55;
+}
+.row.ready {
+  box-shadow: 0 0 0 2px var(--accent) inset;
+}
+.cprog {
+  font-size: 10px;
+  opacity: 0.85;
+  white-space: nowrap;
+}
 .row.act {
   outline: 2px solid var(--accent);
   outline-offset: -2px;

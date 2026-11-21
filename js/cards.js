@@ -99,6 +99,7 @@ const Fx = {
     exInGY: 'exInGY', // an extra deck creature is in your graveyard
   },
   target: { opposingFront: 'opposingFront', attacker: 'attacker' },
+  targeting: { adjacentPair: 'adjacentPair' }, // trigger field: what it targets when it is put on the stack (the cost / targeting part: condition : cost / targeting ; effect)
   zoneTarget: { anyPermanent: 'anyPermanent', anyCreature: 'anyCreature' }, // spell target: a zone with a card (or a cloud) on it, chosen when the spell is played
   playerTarget: true, // spell flag: a player can be targeted (click a life bar)
   rider: { inheritAbilities: () => ({ op: 'InheritAbilities' }) }, // damage this card deals: the victim loses its abilities and gains this card's.
@@ -579,11 +580,11 @@ Cards.add(Fx => {
     triggers: [
       withText(
         'When this enters: target two adjacent cards your opponent controls; they send one of them to the GY.',
-        Object.assign(Fx.trigger.enter(strike), { hp: 1 })
+        Object.assign(Fx.trigger.enter(strike), { hp: 1, targeting: Fx.targeting.adjacentPair })
       ),
       withText(
         'When this attacks: target two adjacent cards your opponent controls; they send one of them to the GY.',
-        Object.assign(Fx.trigger.attack(['self'], strike), { hp: 1 })
+        Object.assign(Fx.trigger.attack(['self'], strike), { hp: 1, targeting: Fx.targeting.adjacentPair })
       ),
       withText(
         'When a card your opponent controls enters adjacent to another card they control: target a creature you control; it attacks.',

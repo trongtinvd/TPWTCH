@@ -5,11 +5,11 @@ Sim.def('stack', function (K) {
   let gainAP, hasAP; // ap
   let PL, abDef, clearAttacked, has, live, removeStatus; // statuses
   let freeSlots; // state
-  let COLTARGETS, targetColumns, targetZones; // targeting
+  let COLTARGETS, TARGETINGS, targetColumns, targetZones; // targeting
   let REQS; // reqs
   let COSTS; // costs
   let COND, TRIGGERS; // cond
-  let runFx; // fx
+  let runFx, ask; // fx
   let resolveAttack; // combat
   function canPlay(s, c) {
     // reason string, or null if legal
@@ -75,7 +75,7 @@ Sim.def('stack', function (K) {
     ev.push({ t: 'StackObjectDamaged', sid: u.sid, amount: n });
     // at HP <= -1 the object stays on the stack and is countered when it would resolve (see Pass)
   }
-  function pushObj(s, c, list, i, ev, target) {
+  function pushObj(s, c, list, i, ev, target, extra) {
     // abilities AND triggers share one path: a token card + a stack object with its own HP
     const a = abDef(c)[list][i],
       sid = ++s.sid,
@@ -94,21 +94,27 @@ Sim.def('stack', function (K) {
       loc: 'stack',
       slot: null,
       token: true,
+      src: c.iid, // the card it came from (the log hides it when the viewer may not see that card)
     };
     s.cards[tok.iid] = tok;
-    s.stack.push({
-      sid,
-      kind: 'ability',
-      iid: tok.iid,
-      src: c.iid,
-      list,
-      ab: i,
-      from: abDef(c).id,
-      controller: c.owner,
-      hp: tok.def.hp,
-      target: target || null,
-      name: tok.def.name,
-    });
+    s.stack.push(
+      Object.assign(
+        {
+          sid,
+          kind: 'ability',
+          iid: tok.iid,
+          src: c.iid,
+          list,
+          ab: i,
+          from: abDef(c).id,
+          controller: c.owner,
+          hp: tok.def.hp,
+          target: target || null,
+          name: tok.def.name,
+        },
+        extra || null // pick: what the trigger targeted when it was put on the stack
+      )
+    );
     s.passes = 0;
     ev.push({ t: 'StackObjectCreated', iid: c.iid });
   }
@@ -124,11 +130,73 @@ Sim.def('stack', function (K) {
         hits.push({ c, i });
       });
     }
-    // 2) turn player's triggers are put on the stack first, then the other player's (so the other player's resolve first).
-    //    Stable sort: within one player the order is card creation order (deterministic placeholder until players can order their own triggers).
-    hits.sort((a, b) => (b.c.owner === s.active) - (a.c.owner === s.active));
-    for (const h of hits) pushObj(s, h.c, 'triggers', h.i, ev);
-    if (hits.length) s.priority = other(s.active); // 3) only now does priority pass: the NON-turn player responds first
+    if (!hits.length) return;
+    // 2) the triggers wait in s.trg: each player with several of them may order them (a choice, non-turn player first; only when the host turned
+    //    it on), every trigger with a targeting picks its targets, then they go on the stack: turn player's first, so the other player's resolve first.
+    s.trg = { items: hits.map(h => ({ iid: h.c.iid, i: h.i, owner: h.c.owner })), R: {} };
+    advanceTrg(s, ev);
+  }
+  const permutations = a =>
+    a.length <= 1 ? [a] : a.flatMap((x, k) => permutations([...a.slice(0, k), ...a.slice(k + 1)]).map(r => [x, ...r]));
+  function advanceTrg(s, ev) {
+    const T = s.trg;
+    if (!T) return;
+    // R[p] = the indices of p's triggers in RESOLUTION order (first resolves first). Default: they are pushed in creation order, so the last one resolves first.
+    for (const p of [other(s.active), s.active]) {
+      if (T.R[p]) continue;
+      const mine = T.items.map((x, k) => k).filter(k => T.items[k].owner === p),
+        def = k => abDef(s.cards[T.items[k].iid]).triggers[T.items[k].i];
+      if (s.orderTriggers && mine.length > 1 && mine.length <= 6 && !s.choice) {
+        const nm = k => s.cards[T.items[k].iid].def.name,
+          perms = permutations(mine.slice().reverse()).map(a => a.join(','));
+        ask(
+          s,
+          p,
+          s.cards[T.items[mine[0]].iid],
+          'trigorder',
+          perms,
+          o =>
+            o
+              .split(',')
+              .map(k => nm(+k))
+              .join(' \u2192 '),
+          'Order your triggers (the top one resolves first).',
+          { p, items: mine.map(k => ({ k, name: nm(k), text: def(k).text || '' })) },
+          ev
+        );
+        return;
+      }
+      T.R[p] = mine.slice().reverse();
+    }
+    const pushOrder = [s.active, other(s.active)].flatMap(p => T.R[p].slice().reverse());
+    for (const k of pushOrder) {
+      const it = T.items[k];
+      if (it.tgt !== undefined) continue;
+      const c = s.cards[it.iid],
+        t = abDef(c).triggers[it.i];
+      if (!t.targeting || s.choice) {
+        it.tgt = null; // no targeting (or a choice of another effect is pending): nothing is picked now
+        continue;
+      }
+      const G = TARGETINGS[t.targeting],
+        opts = G.options(s, c);
+      if (!opts.length)
+        it.tgt = false; // no legal target: the trigger is not put on the stack
+      else if (opts.length === 1) it.tgt = opts[0];
+      else {
+        ask(s, it.owner, c, 'trigtarget', opts, o => G.label(s, c, o), G.prompt(c), { tk: k }, ev);
+        return;
+      }
+    }
+    let pushed = false;
+    for (const k of pushOrder) {
+      const it = T.items[k];
+      if (it.tgt === false) continue;
+      pushObj(s, s.cards[it.iid], 'triggers', it.i, ev, null, it.tgt ? { pick: it.tgt } : null);
+      pushed = true;
+    }
+    s.trg = null;
+    if (pushed) s.priority = other(s.active); // only now does priority pass: the NON-turn player responds first
   }
   function resolveObj(s, o, ev) {
     // the object is already popped
@@ -184,9 +252,11 @@ Sim.def('stack', function (K) {
     stopAt(s, ev, 'turnStart');
   }
   return {
-    exports: { canActivate, canPlay, endTurn, fire, hitStack, openRespond, pushObj, resolveObj, stopAt },
+    exports: { advanceTrg, canActivate, canPlay, endTurn, fire, hitStack, openRespond, pushObj, resolveObj, stopAt },
     needs: [
       'COLTARGETS',
+      'TARGETINGS',
+      'ask',
       'COND',
       'COSTS',
       'PL',
@@ -213,6 +283,8 @@ Sim.def('stack', function (K) {
     link: () => {
       ({
         COLTARGETS,
+        TARGETINGS,
+        ask,
         COND,
         COSTS,
         PL,

@@ -9,36 +9,45 @@ Sim.def('choices', function (K) {
   let REQS; // reqs
   // ---- Widow Maker: target two adjacent cards the opponent controls; THEY send one of them to the graveyard
   const slotText = k => k.split('|').slice(1).join(' ');
-  function pairStart(x) {
-    const s = x.s,
+  function pairOptions(s, who) {
+    // every pair of adjacent cards the opponent of `who` controls and `who` may target
+    const foe = other(who),
       m = cloudMap(s),
       at = k => s.slots[k] && s.cards[s.slots[k]],
       // a zone under the foe's own cloud is offered whatever is (or is not) under it; elsewhere only visible, targetable cards
       seen = Object.keys(s.slots).filter(
         k =>
-          !s.unusable[k] &&
-          ((m[k] && k.split('|')[0] === x.foe) || (at(k) && at(k).owner === x.foe && !has(at(k), 'red')))
+          !s.unusable[k] && ((m[k] && k.split('|')[0] === foe) || (at(k) && at(k).owner === foe && !has(at(k), 'red')))
       ),
       opts = [];
     for (let i = 0; i < seen.length; i++)
       for (let j = i + 1; j < seen.length; j++)
         if (zoneDist(seen[i], seen[j]) === 1) opts.push(seen[i] + '#' + seen[j]);
-    if (opts.length === 1) return pairPicked(s, x.who, x.src, opts[0], x.ev);
-    if (opts.length) {
-      const name = k =>
-        (m[k] && k.split('|')[0] === x.foe ? 'covered zone' : cname(s, s.slots[k])) + ' (' + slotText(k) + ')';
+    return opts;
+  }
+  function pairLabel(s, who, o) {
+    const m = cloudMap(s),
+      name = k =>
+        (m[k] && k.split('|')[0] === other(who) ? 'covered zone' : cname(s, s.slots[k])) + ' (' + slotText(k) + ')';
+    return o.split('#').map(name).join(' + ');
+  }
+  function pairStart(x) {
+    // the pair was normally chosen when the ability was put on the stack (x.o.pick: targeting is part of the cost); without one it is chosen now
+    if (x.o && x.o.pick) return pairPicked(x.s, x.who, x.src, x.o.pick, x.ev);
+    const opts = pairOptions(x.s, x.who);
+    if (opts.length === 1) return pairPicked(x.s, x.who, x.src, opts[0], x.ev);
+    if (opts.length)
       ask(
-        s,
+        x.s,
         x.who,
         x.src,
         'pair',
         opts,
-        o => o.split('#').map(name).join(' + '),
+        o => pairLabel(x.s, x.who, o),
         x.src.def.name + ': target two adjacent cards your opponent controls.',
         {},
         x.ev
       );
-    }
   }
   function pairPicked(s, who, c, opt, ev) {
     const foe = other(who),
@@ -181,7 +190,7 @@ Sim.def('choices', function (K) {
     declareAsk(s, me, c, ev); // repeat this effect
   }
   return {
-    exports: { declareAsk, libLook, libPlay, pairPicked, pairStart, reorderAsk, reorderStart },
+    exports: { declareAsk, libLook, libPlay, pairLabel, pairOptions, pairPicked, pairStart, reorderAsk, reorderStart },
     needs: [
       'REQS',
       'ask',

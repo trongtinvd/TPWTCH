@@ -12,6 +12,31 @@ Sim.def('dispatch', function (K) {
   let CH; // ch
   let canAttack, dealDamage, declareAttack; // combat
   let canActivate, canPlay, endTurn, fire, openRespond, pushObj, resolveObj, stopAt; // stack
+  function settle(s, ev) {
+    // the end of a resolution: a spell goes to the graveyard (or the hand), an ability token ceases to exist, then the stack-emptied stop.
+    // A spell whose effect asks for choices (Fusion: materials, summon) stays "resolving" until the last answer, so its effects happen BEFORE it leaves the stack.
+    const r = s.resolving;
+    s.resolving = null;
+    if (!r) return;
+    const c = s.cards[r.iid];
+    if (r.kind === 'spell') {
+      release(c); // a spell played under temporary control ends up with its owner
+      if (r.toHand) {
+        c.loc = 'hand';
+        s.piles[c.owner].hand.push(c);
+      } else {
+        c.loc = 'gy';
+        s.piles[c.owner].gy.unshift(c); // newest first
+      }
+    } else if (r.kind !== 'attack') c.loc = 'gone'; // ability tokens cease to exist
+    s.passes = 0;
+    s.priority = s.respond ? other(s.active) : s.active;
+    if (!r.dead) ev.push({ t: 'StackObjectResolved', iid: c.iid });
+    if (!s.stack.length) {
+      ev.push({ t: 'StackEmptied' });
+      stopAt(s, ev, 'stack'); // stop: stack emptied
+    }
+  }
   function dispatch(s, cmd) {
     // mutates s; returns {ok, why, events}
     const ev = [],
@@ -143,28 +168,11 @@ Sim.def('dispatch', function (K) {
         }
         if (++s.passes >= 2) {
           const o = s.stack.pop(),
-            c = s.cards[o.iid],
             dead = o.hp <= -1;
           if (dead) ev.push({ t: 'StackObjectCountered', sid: o.sid, iid: o.iid });
           else resolveObj(s, o, ev);
-          if (o.kind === 'spell') release(c); // a spell played under temporary control ends up with its owner
-          if (o.kind === 'attack') {
-          } else if (o.kind === 'spell') {
-            if (o.toHand) {
-              c.loc = 'hand';
-              s.piles[c.owner].hand.push(c);
-            } else {
-              c.loc = 'gy';
-              s.piles[c.owner].gy.unshift(c);
-            }
-          } else c.loc = 'gone'; // ability tokens cease to exist   // newest first
-          s.passes = 0;
-          s.priority = s.respond ? other(s.active) : s.active;
-          if (!dead) ev.push({ t: 'StackObjectResolved', iid: c.iid });
-          if (!s.stack.length) {
-            ev.push({ t: 'StackEmptied' });
-            stopAt(s, ev, 'stack'); // stop: stack emptied
-          }
+          s.resolving = { kind: o.kind, iid: o.iid, toHand: !!o.toHand, dead }; // the object is done only when none of its choices is pending
+          if (!s.choice) settle(s, ev);
         } else {
           s.priority = other(s.priority);
           ev.push({ t: 'PriorityPassed', to: s.priority });
@@ -240,6 +248,7 @@ Sim.def('dispatch', function (K) {
         }
         recalc(s, ev);
         ev.push({ t: 'ChoiceMade', player: k.player });
+        if (!s.choice && s.resolving) settle(s, ev);
         break;
       }
       case 'Activate': {

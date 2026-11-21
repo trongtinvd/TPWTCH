@@ -3,7 +3,7 @@ Sim.def('state', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
   let byId, mulberry32, other, slotRow; // util
   let lg, syncLogs; // logs
-  let abDef, addStatus, clearStatuses, hasSt, hpOf, live, removeStatus, syncLife, totalDamage; // statuses
+  let abDef, addStatus, clearStatuses, hasSt, hpOf, isRevealed, live, removeStatus, syncLife, totalDamage; // statuses
   let fire; // stack
   let dispatch; // dispatch
   function buildDeck(owner, seed, defs, shuffle = true, loc = 'deck') {
@@ -50,6 +50,7 @@ Sim.def('state', function (K) {
       choice: null,
       unusable: {},
       respond: null,
+      orderTriggers: !!opts.orderTriggers, // the host turns it on: a player with several triggers at once orders them (a 'trigorder' choice); off in the rules tests
       stops: opts.stops || null, // extra priority windows ("stops") that are on: {turnStart, combatStart, combatEnd, draw, stack}; null = none (the rules tests)
       result: null, // null | {winner:'Player'|'Opponent'|null (a draw), why:'life'|'surrender'|'left'|'effect', turn}: set once, never changed
     }; // respond: null | {kind:'enter'|'end'} = the non-turn player may respond before play continues
@@ -107,6 +108,16 @@ Sim.def('state', function (K) {
             if (k !== c.slot) m[k] = c.iid;
           }
     return m;
+  };
+  // INFORMATION: may player p know which card c is, right now? The board (unless covered by a cloud the owner controls), the graveyard, exile and the
+  // stack are public; a hand or the extra deck is known to its owner and to whoever it was revealed to; a deck is known to nobody (nobody knows the order).
+  // Logs, the table and every list ask THIS function, so a hidden card can never leak by accident.
+  const canSee = (s, p, c) => {
+    if (!c) return false;
+    if (c.loc === 'board') return !(c.owner !== p && cloudMap(s)[c.slot]);
+    if (c.loc === 'gy' || c.loc === 'exile' || c.loc === 'stack' || c.loc === 'gone') return true;
+    if (c.loc === 'hand' || c.loc === 'extra') return c.owner === p || isRevealed(c, p);
+    return false;
   };
   const AURAREQ = (s, c, st) => {
     const a = s.cards[st.src],
@@ -241,6 +252,7 @@ Sim.def('state', function (K) {
       AURAREQ,
       bounce,
       buildDeck,
+      canSee,
       cloudMap,
       create,
       createGame,
@@ -262,6 +274,7 @@ Sim.def('state', function (K) {
       'fire',
       'hasSt',
       'hpOf',
+      'isRevealed',
       'lg',
       'live',
       'mulberry32',
@@ -282,6 +295,7 @@ Sim.def('state', function (K) {
         fire,
         hasSt,
         hpOf,
+        isRevealed,
         lg,
         live,
         mulberry32,

@@ -21,7 +21,7 @@ function targets() {
         opp ? -HZ : HZ,
         0.1 + i * 0.02,
         opp ? Math.PI : 0,
-        p !== ui.view && !Sim.isRevealed(c, ui.view),
+        !Sim.canSee(game, ui.view, c), // a hand card is face down unless this seat may know it
         p
       )
     );
@@ -358,8 +358,22 @@ const subOf = (src, o) =>
     ? src.def.timing + ' spell'
     : ((src.def[o.list] || [])[o.ab] || {}).name || (o.kind === 'attack' ? 'Attack' : 'Trigger');
 const fxMs = o => (o.kind === 'attack' ? FX.attack : FX.stack); // an Attack is already shown by the sword: a shorter stack animation
+async function noticeJob(pre, e) {
+  // CardRevealed: the card flies from its pile to the middle, stays about a second and goes back. EffectFailed: a banner says why nothing happened
+  const c = pre.cards[e.iid] || sim.cards[e.iid];
+  if (!c) return;
+  if (e.t === 'EffectFailed') {
+    bannerEl.textContent = c.def.name + ' fails: ' + e.why;
+    bannerEl.hidden = false;
+    await sleep(2200);
+    bannerEl.hidden = true;
+    return;
+  }
+  const from = screenOf(c);
+  await fly(c.def, 'Revealed by ' + NAME[e.player], from, () => from, 0.45, 0.45, 2600);
+}
 async function enterJob(pre, o, i) {
-  const src = pre.cards[o.src || o.iid],
+  const src = pre.cards[o.src || o.iid] || sim.cards[o.src || o.iid],
     m = o.kind === 'spell' ? meshes.get(src.iid) : null,
     mk = maskOf(o, sim, pre);
   if (mk) {
@@ -374,7 +388,7 @@ async function enterJob(pre, o, i) {
   await fly(src.def, subOf(src, o), from, () => stackSlot(src.owner, i), 0.45, 0.32, fxMs(o));
 }
 async function leaveJob(pre, o) {
-  const src = pre.cards[o.src || o.iid],
+  const src = pre.cards[o.src || o.iid] || sim.cards[o.src || o.iid],
     el = stackEl.querySelector('[data-sid="' + o.sid + '"]'),
     b = (el || stackEl).getBoundingClientRect();
   hiddenSids.add(o.sid);
@@ -414,8 +428,10 @@ function fxJobs(pre, post) {
   });
   if (
     post.stack.some(o => {
-      const c = pre.cards[o.src || o.iid];
-      return !A.has(o.sid) && o.kind !== 'spell' && c && c.loc === 'hand' && post.cards[c.iid].loc === 'board';
+      const id = o.src || o.iid,
+        c = pre.cards[id],
+        d = post.cards[id]; // the card's trigger is new and the card was NOT on the board before (hand, extra deck, a token that did not exist): it must land first
+      return !A.has(o.sid) && o.kind !== 'spell' && !!d && d.loc === 'board' && !(c && c.loc === 'board');
     })
   )
     jobs.push(async () => {
@@ -451,6 +467,123 @@ async function fxRun(jobs, done) {
   bannerEl.hidden = true;
   done();
 }
+const isPairChoice = k =>
+    !!k && ['pair', 'trigtarget'].includes(k.kind) && k.options.length > 0 && k.options.every(o => o.includes('#')),
+  pairPartners = (k, z) =>
+    k.options
+      .map(o => o.split('#'))
+      .filter(p => p.includes(z))
+      .map(p => (p[0] === z ? p[1] : p[0]));
+function boardPick(k) {
+  // a choice whose options are ALL cards the player can see and click (on the board, not under a cloud, or in a visible hand): no list, click them
+  return !!(
+    k &&
+    k.labels &&
+    k.options.length &&
+    k.options.every(o => {
+      const m = meshes.get(o);
+      return !!(m && m.userData.card && m.visible);
+    })
+  );
+}
+function trigOrderUI(pk, k) {
+  const key = k.player + '|' + k.options[0];
+  if (!ui.trigOrder || ui.trigOrder.key !== key) ui.trigOrder = { key, order: k.options[0].split(',').map(Number) };
+  const T = ui.trigOrder,
+    info = Object.fromEntries(k.items.map(x => [x.k, x])),
+    note = document.createElement('div');
+  note.className = 'note';
+  note.style.margin = '0';
+  note.textContent = 'The top one resolves first. Drag a row (or use the arrows) to reorder, then confirm.';
+  pk.appendChild(note);
+  const move = (i, j) => {
+    if (j < 0 || j >= T.order.length || i === j) return;
+    T.order.splice(j, 0, T.order.splice(i, 1)[0]);
+    sync();
+  };
+  T.order.forEach((id, i) => {
+    const r = document.createElement('div'),
+      x = info[id];
+    r.className = 'row trg';
+    r.draggable = true;
+    r.innerHTML =
+      '<span class="pos">' + (i + 1) + '</span><span class="nm"><b></b><small></small></span><span class="mv"></span>';
+    r.querySelector('b').textContent = x.name;
+    r.querySelector('small').textContent = x.text;
+    r.addEventListener('dragstart', e => e.dataTransfer.setData('text/plain', String(i)));
+    r.addEventListener('dragover', e => e.preventDefault());
+    r.addEventListener('drop', e => {
+      e.preventDefault();
+      move(+e.dataTransfer.getData('text/plain'), i);
+    });
+    [
+      ['\u25b2', i - 1],
+      ['\u25bc', i + 1],
+    ].forEach(([g, to]) => {
+      const b = document.createElement('button');
+      b.className = 'xbtn';
+      b.textContent = g;
+      b.disabled = to < 0 || to >= T.order.length;
+      b.onclick = e => {
+        e.stopPropagation();
+        move(i, to);
+      };
+      r.querySelector('.mv').appendChild(b);
+    });
+    pk.appendChild(r);
+  });
+  const ok = document.createElement('button');
+  ok.className = 'abtn c-go';
+  ok.textContent = 'Confirm';
+  ok.onclick = () => {
+    ui.trigOrder = null;
+    send({ type: 'Choose', player: k.player, option: T.order.join(',') });
+  };
+  pk.appendChild(ok);
+}
+function declareUI(pk, k) {
+  // a search box: type a name, the matching cards appear below, click one (the whole card pool is never listed)
+  const inp = document.createElement('input'),
+    res = document.createElement('div'),
+    defs = k.options.map(o => DEFS.find(d => d.id === o)).filter(Boolean);
+  inp.className = 'dctl';
+  inp.placeholder = 'Type a card name\u2026';
+  inp.spellcheck = false;
+  inp.autocomplete = 'off';
+  inp.value = ui.declareQ || '';
+  res.className = 'pickres';
+  pk.append(inp, res);
+  const draw = () => {
+    ui.declareQ = inp.value;
+    res.replaceChildren();
+    const q = inp.value.trim(),
+      hits = q
+        ? rankCards(q, defs)
+            .filter(d => cardMatches(q, d))
+            .slice(0, 8)
+        : [];
+    if (!hits.length) {
+      const n = document.createElement('div');
+      n.className = 'note';
+      n.style.margin = '0';
+      n.textContent = q ? 'No card matches' : 'Start typing to search';
+      res.appendChild(n);
+    }
+    hits.forEach(d => {
+      const b = document.createElement('button');
+      b.className = 'abtn';
+      b.textContent = d.name;
+      b.onclick = () => {
+        ui.declareQ = '';
+        send({ type: 'Choose', player: k.player, option: d.id });
+      };
+      res.appendChild(b);
+    });
+  };
+  inp.oninput = draw;
+  draw();
+  setTimeout(() => inp.focus(), 0);
+}
 function buildStack() {
   // shared stack panel: your objects on the left, the opponent's on the right
   const atEnd = stackEl.scrollHeight - stackEl.scrollTop - stackEl.clientHeight < 40,
@@ -461,7 +594,9 @@ function buildStack() {
     (ui.stackLog ? 'Log' : 'Stack \u00b7 ' + (game.stack.length ? 'bottom resolves first' : 'empty')) +
     '</span><span class="shb">' +
     (ui.stackLog
-      ? '<button class="xbtn" data-logcopy style="font-size:11px" title="Copy the whole log">Copy</button>'
+      ? '<button class="xbtn" data-logmode style="font-size:11px" title="Switch between the story and every rule event">' +
+        GameLog.modeLabel() +
+        '</button><button class="xbtn" data-logcopy style="font-size:11px" title="Copy the whole log">Copy</button>'
       : '') +
     '<button class="xbtn" data-flip title="Flip the panel: stack / game log" aria-label="Flip the panel: stack or game log">\u21c4</button></span></div>';
   stackEl.classList.toggle('log', !!ui.stackLog);
@@ -601,17 +736,24 @@ function sync() {
         ? new Set(Sim.targetZones(game, held))
         : null,
     tcols = held && !isPerm(held) && held.def.colTarget ? Sim.targetColumns(game, held) : null;
+  if (!isPairChoice(game.choice)) ui.pairFirst = null;
   const ch = foeChoice() ? null : game.choice,
-    chCur = ch && !ch.kind ? game.cards[ch.iid].slot : null,
+    chCur = ch && !ch.kind ? game.cards[ch.iid].slot : isPairChoice(ch) ? ui.pairFirst : null,
     chSlots = !ch
       ? []
-      : ch.kind === 'place'
-        ? ch.options
-        : ['damage', 'pick', 'swap'].includes(ch.kind)
-          ? ch.options.map(i => (i.startsWith('Z:') ? i.slice(2) : game.cards[i] && game.cards[i].slot)).filter(Boolean)
-          : ch.kind
-            ? []
-            : ch.options; // shift choice: highlight left / right / current zone
+      : isPairChoice(ch)
+        ? ui.pairFirst
+          ? pairPartners(ch, ui.pairFirst)
+          : [...new Set(ch.options.flatMap(o => o.split('#')))]
+        : ch.kind === 'place'
+          ? ch.options
+          : ['damage', 'pick', 'swap'].includes(ch.kind)
+            ? ch.options
+                .map(i => (i.startsWith('Z:') ? i.slice(2) : game.cards[i] && game.cards[i].slot))
+                .filter(Boolean)
+            : ch.kind
+              ? []
+              : ch.options; // shift choice: highlight left / right / current zone
   const valid = ch
     ? zones.filter(z => chSlots.includes(z.userData.slotKey) || z.userData.slotKey === chCur)
     : !held
@@ -626,7 +768,8 @@ function sync() {
   const actZones = new Set(); // zones that hold something the viewer can use now: the graveyard when one of its cards has a usable ability
   if (!rp.on && !game.choice && game.phase === 'play')
     for (const a of Sim.actionsOf(game, ui.view))
-      if (a.kind === 'ability' && game.cards[a.iid].loc === 'gy') actZones.add(sideZones[ui.view + 'gy']);
+      if (a.kind === 'ability' && ['gy', 'deck'].includes(game.cards[a.iid].loc))
+        actZones.add(sideZones[ui.view + game.cards[a.iid].loc]); // the graveyard or the deck holds something usable
   zones.forEach(z => {
     const cur = ch && z.userData.slotKey === chCur;
     z.userData.baseEm = valid.includes(z)
@@ -667,11 +810,14 @@ function sync() {
             ? NAME[game.choice.player] +
               ': ' +
               game.choice.prompt +
-              (['damage', 'pick', 'swap', 'place'].includes(game.choice.kind) && !game.choice.labels
+              ((['damage', 'pick', 'swap', 'place'].includes(game.choice.kind) && !game.choice.labels) ||
+              boardPick(game.choice)
                 ? ' Click a highlighted card, zone or life bar.'
-                : game.choice.kind
-                  ? ' Pick an option in the list.'
-                  : ' Click a green zone to shift there, or the amber zone (or right click / double tap empty space) to stay.')
+                : isPairChoice(game.choice)
+                  ? ' Click two adjacent highlighted cards (click the first again to undo).'
+                  : game.choice.kind
+                    ? ' Pick an option in the list.'
+                    : ' Click a green zone to shift there, or the amber zone (or right click / double tap empty space) to stay.')
             : ui.placing
               ? ui.placing.def.zoneTarget || ui.placing.def.playerTarget
                 ? 'Targeting for ' +
@@ -739,7 +885,10 @@ function sync() {
     }
   }
   const pk = document.getElementById('pick'),
-    pkc = game.choice && game.choice.labels && !foeChoice() ? game.choice : null;
+    pkc =
+      game.choice && game.choice.labels && !foeChoice() && !boardPick(game.choice) && !isPairChoice(game.choice)
+        ? game.choice
+        : null;
   if (ui.extraAsk && !ui.placing) ui.extraAsk = null;
   pk.hidden = !pkc && !ui.extraAsk;
   if (ui.extraAsk && !pkc) {
@@ -763,13 +912,16 @@ function sync() {
   if (pkc) {
     pk.innerHTML = '<div class="mt"></div>';
     pk.firstChild.textContent = pkc.prompt;
-    pkc.options.forEach(o => {
-      const b = document.createElement('button');
-      b.className = 'abtn';
-      b.textContent = pkc.labels[o];
-      b.onclick = () => send({ type: 'Choose', player: pkc.player, option: o });
-      pk.appendChild(b);
-    });
+    if (pkc.kind === 'trigorder') trigOrderUI(pk, pkc);
+    else if (pkc.kind === 'declare') declareUI(pk, pkc);
+    else
+      pkc.options.forEach(o => {
+        const b = document.createElement('button');
+        b.className = 'abtn';
+        b.textContent = pkc.labels[o];
+        b.onclick = () => send({ type: 'Choose', player: pkc.player, option: o });
+        pk.appendChild(b);
+      });
   }
   if (ui.openList) buildList();
   if (ui.selected && ui.selected.loc === 'hand' && ui.selected.owner !== ui.view) ui.selected = null;

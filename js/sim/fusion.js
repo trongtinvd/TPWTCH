@@ -48,6 +48,7 @@ Sim.def('fusion', function (K) {
     const sl = slotsOf(def);
     return sl.length > 0 && solve(pool(s, p, zones), sl, []);
   };
+  const condOk = (s, p, e) => !!(EXCOND[e.op] && EXCOND[e.op](s, p, e)); // one condition (the UI shows each of them)
   const condsMet = (s, p, def) => (def.conditions || []).every(e => EXCOND[e.op] && EXCOND[e.op](s, p, e)); // an unknown condition fails closed
   // the extra deck creatures a Fusion effect may reveal: pick 'conditions' = conditions met and materials available, 'fusable' = materials available, 'any'
   const fusionCandidates = (s, p, e) =>
@@ -78,7 +79,15 @@ Sim.def('fusion', function (K) {
       ok =
         e.cond === 'must' ? condsMet(s, p, t.def) : e.cond === 'ignoreHB' ? handBoard || condsMet(s, p, t.def) : true;
     for (const m of cs) pay(s, m, e.pay, ev); // the materials are spent even when the conditions end up unmet
-    if (!e.summon || !ok) return;
+    if (!e.summon) return;
+    if (!ok) {
+      ev.push({
+        t: 'EffectFailed',
+        iid: c.iid,
+        why: 'the conditions of ' + t.def.name + ' are not met: it is not summoned',
+      });
+      return;
+    }
     addStatus(s, t, {
       kind: 'mats',
       cards: cs.map(m => ({ iid: m.iid, id: m.def.id, name: m.def.name })),
@@ -114,7 +123,8 @@ Sim.def('fusion', function (K) {
   }
   function fusionStart(x, e) {
     const ids = fusionCandidates(x.s, x.who, e).map(t => t.iid);
-    if (ids.length)
+    if (!ids.length) x.ev.push({ t: 'EffectFailed', iid: x.src.iid, why: 'there is no extra deck creature to reveal' });
+    else
       ask(
         x.s,
         x.who,
@@ -133,13 +143,23 @@ Sim.def('fusion', function (K) {
       e = k.fu.e;
     ev.push({ t: 'CardRevealed', iid: t.iid, player: p });
     addStatus(s, t, { kind: 'revealed', to: other(p), zone: 'extra', srcName: c.def.name });
-    if (!e.summon && !(condsMet(s, p, t.def) && fusable(s, p, t.def, e.from))) return; // a search that cannot be paid: the reveal is all that happens
+    if (!e.summon && !(condsMet(s, p, t.def) && fusable(s, p, t.def, e.from))) {
+      // a search that cannot be paid: the reveal is all that happens, and the player is told
+      ev.push({
+        t: 'EffectFailed',
+        iid: c.iid,
+        why: condsMet(s, p, t.def)
+          ? 'the materials of ' + t.def.name + ' are not available'
+          : 'the conditions of ' + t.def.name + ' are not met',
+      });
+      return;
+    }
     next(s, p, c, t, e, [], ev);
   }
   const fusionMat = (s, k, c, cmd, ev) =>
     next(s, k.player, c, s.cards[k.fu.ex], k.fu.e, [...k.fu.chosen, cmd.option], ev);
   return {
-    exports: { condsMet, fusionCandidates, fusionMat, fusionPicked, fusionPossible, fusionStart },
+    exports: { condOk, condsMet, fusionCandidates, fusionMat, fusionPicked, fusionPossible, fusionStart },
     needs: [
       'EXCOND',
       'ask',

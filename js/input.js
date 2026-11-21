@@ -147,6 +147,25 @@ addEventListener('pointerup', e => {
       if (passByRightClick()) return;
     } else ui.lastEmptyTap = now;
   } // phone: double tap on empty space = Pass   // (a right-drag pan moved > 6px and never gets here)
+  if (game.choice && !foeChoice() && isPairChoice(game.choice)) {
+    // two adjacent cards (Widow Maker): click the first, then the second; a click on the first again undoes it
+    const k = game.choice,
+      z = u.slotKey || (u.card && u.card.loc === 'board' && u.card.slot);
+    if (z && k.options.some(o => o.split('#').includes(z))) {
+      if (!ui.pairFirst) ui.pairFirst = z;
+      else if (z === ui.pairFirst) ui.pairFirst = null;
+      else {
+        const o = k.options.find(q => q.split('#').includes(ui.pairFirst) && q.split('#').includes(z));
+        if (o) {
+          ui.pairFirst = null;
+          send({ type: 'Choose', player: k.player, option: o });
+          return;
+        }
+      }
+      sync();
+      return;
+    }
+  }
   if (game.choice && !foeChoice()) {
     // shift choice answered on the board itself
     const k = game.choice,
@@ -157,7 +176,7 @@ addEventListener('pointerup', e => {
             ? u.slotKey
             : null
           : k.kind
-            ? ['damage', 'pick', 'swap'].includes(k.kind)
+            ? ['damage', 'pick', 'swap'].includes(k.kind) || boardPick(k)
               ? u.slotKey && k.options.includes('Z:' + u.slotKey)
                 ? 'Z:' + u.slotKey
                 : u.card

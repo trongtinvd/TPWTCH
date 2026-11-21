@@ -119,18 +119,30 @@ function buildList() {
     );
   if (!cards.length) deckPanel.insertAdjacentHTML('beforeend', '<div class="note">Empty</div>');
   cards.forEach((c, i) => {
-    const row = document.createElement('div');
+    // a card this seat may not know (the other player\u2019s deck or extra deck, an unrevealed hand) is listed but not named; your own deck stays readable (deck building)
+    const known = Sim.canSee(game, ui.view, c) || (owner === ui.view && kind === 'deck') || ui.deckEdit,
+      row = document.createElement('div');
     row.className = 'row' + (c === ui.selected ? ' sel' : '') + (rowActs.has(c.iid) ? ' act' : '');
     row.tabIndex = 0;
-    row.style.setProperty('--tc', cardColor(c.def));
+    row.style.setProperty('--tc', known ? cardColor(c.def) : '#666');
     row.style.background = posColor(i, cards.length, gy ? 275 : 42);
     row.innerHTML =
       '<span class="pos">' +
       (i + 1) +
       '</span><span class="nm"></span><span class="ty">' +
-      TYPES[c.def.type].label +
+      (known ? TYPES[c.def.type].label : '') +
       '</span>';
-    row.querySelector('.nm').textContent = c.def.name;
+    row.querySelector('.nm').textContent = known ? c.def.name : 'Hidden card';
+    if (kind === 'extra' && game.phase === 'play' && known) {
+      // an extra deck creature whose conditions are met is lit; the progress of its conditions is shown next to it
+      const ok = Sim.condsMet(game, owner, c.def),
+        pr = document.createElement('span');
+      row.classList.add(ok ? 'ready' : 'locked');
+      pr.className = 'cprog';
+      pr.textContent = (c.def.conditions || []).map(condNote).filter(Boolean).join(' \u00b7 ');
+      pr.title = pr.textContent;
+      if (pr.textContent) row.insertBefore(pr, row.querySelector('.ty'));
+    }
     if (canEdit) {
       row.draggable = true;
       row.addEventListener('dragstart', e => {
@@ -163,13 +175,14 @@ function buildList() {
       row.appendChild(mv);
     }
     row.addEventListener('click', e => {
+      if (!known) return;
       showCard(c);
       if (!rp.on) openMenu(c, e.clientX, e.clientY); // GY: its abilities; deck (debug, Vs Self / Vs Bot): add to hand. No trip across the scene
     });
     row.addEventListener('keydown', e => {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
-        showCard(c);
+        if (known) showCard(c);
       }
     });
     deckPanel.appendChild(row);
@@ -202,11 +215,10 @@ function cardParts(c, H) {
     for (const p of textParts(def)) {
       const ab = !['kw', 'body', 'conditions', 'materials'].includes(p.list);
       if (onlyAb && !ab) continue;
-      const hit = !!H && def.id === H.from && p.list === H.list && p.i === H.i;
-      out.push({
-        text: p.text,
-        cls: hit ? 'hl' : H ? 'dim' : off && ab ? 'off' : partOn(sc, p, def) ? '' : 'dim',
-      });
+      const hit = !!H && def.id === H.from && p.list === H.list && p.i === H.i,
+        cls = hit ? 'hl' : H ? 'dim' : off && ab ? 'off' : partOn(sc, p, def) ? '' : 'dim';
+      if (p.list === 'conditions' || p.list === 'materials') out.push({ box: p.list, def, cls, text: p.text });
+      else out.push({ text: p.text, cls });
     }
     return out;
   };
@@ -219,9 +231,55 @@ function cardParts(c, H) {
   }
   return out;
 }
-function partsInto(p, parts) {
+// what an extra deck creature's condition looks like right now: a note for the row (hover shows it too). UI only: it reads the game, it never changes it
+const COND_UI = {
+  LostLife: s => {
+    const who = ['Player', 'Opponent'].filter(q =>
+      s.players[q].statuses.some(x => x.kind === 'damage' || x.kind === 'paid')
+    );
+    return who.length ? 'life lost by: ' + who.map(q => NAME[q]).join(', ') : 'nobody has lost life yet';
+  },
+  BothDrewMoreThan: (s, e) =>
+    NAME.Player + ' ' + s.drawn.Player + '/' + e.n + ' \u00b7 ' + NAME.Opponent + ' ' + s.drawn.Opponent + '/' + e.n,
+};
+const condNote = e => (COND_UI[e.op] ? COND_UI[e.op](game, e) : '');
+function boxInto(p, x, c) {
+  // Conditions and Materials: each on its own lines, with a status mark per condition and a chip per material
+  const b = document.createElement('div'),
+    h = document.createElement('b');
+  b.className = 'xbox ' + x.box + (x.cls ? ' ' + x.cls : '');
+  h.textContent = x.box === 'conditions' ? 'Conditions' : 'Materials';
+  b.appendChild(h);
+  if (x.box === 'conditions')
+    x.def.conditions.forEach(e => {
+      const r = document.createElement('div'),
+        note = condNote(e),
+        live = game.phase === 'play' && c && c.def.extra;
+      r.className = 'xrow';
+      const ok = live ? Sim.condOk(game, c.owner, e) : null;
+      r.textContent = (ok === null ? '\u2022 ' : ok ? '\u2713 ' : '\u2717 ') + e.text;
+      if (ok !== null) r.classList.add(ok ? 'met' : 'unmet');
+      if (note) {
+        r.title = note;
+        const n = document.createElement('small');
+        n.textContent = note;
+        r.appendChild(n);
+      }
+      b.appendChild(r);
+    });
+  else
+    x.def.materials.forEach(m => {
+      const ch = document.createElement('span');
+      ch.className = 'chip';
+      ch.textContent = m.text;
+      b.appendChild(ch);
+    });
+  p.appendChild(b);
+}
+function partsInto(p, parts, c) {
   p.textContent = '';
   parts.forEach((x, i) => {
+    if (x.box) return boxInto(p, x, c);
     const s = document.createElement('span');
     s.className = 'seg' + (x.cls ? ' ' + x.cls : '');
     s.textContent = x.text;
@@ -303,7 +361,7 @@ function showCard(c, pin = true, hl = null) {
     inspect.querySelector('h3').textContent = d.name;
     inspect.querySelector('.meta').textContent = T.label + (d.type === 'spell' ? ' \u00b7 ' + d.timing : '');
     inspect.querySelector('.stats').innerHTML = stats.map(x => '<span class="stat">' + x + '</span>').join('');
-    partsInto(inspect.querySelector('p'), parts);
+    partsInto(inspect.querySelector('p'), parts, c);
     inspect.querySelector('.where').textContent = where;
     if (gyActs.length) {
       const bar = document.createElement('div');
@@ -468,7 +526,7 @@ function refreshInspect() {
   const c = ui.inspHold ? null : ui.preview || (ui.hoverP ? null : ui.selected),
     p = ui.inspHold || c ? null : ui.hoverP || ui.selP,
     a = ui.inspHold || c || p ? null : ui.selAP;
-  if (c && !(c.loc === 'hand' && c.owner !== ui.view && !Sim.isRevealed(c, ui.view)) && !seenHidden(c))
+  if (c && (Sim.canSee(game, ui.view, c) || (c.owner === ui.view && c.loc === 'deck')) && !seenHidden(c))
     showCard(c, false);
   else if (p) showPlayer(p);
   else if (a) showAP(a.p, a.id, false);

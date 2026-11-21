@@ -495,8 +495,7 @@ const canUse = c => !rp.on && canUseNow(c); // nothing glows in a replay
 const canUseNow = c =>
   (game.choice &&
     !foeChoice() &&
-    game.choice.kind === 'pick' &&
-    !game.choice.labels &&
+    ((game.choice.kind === 'pick' && !game.choice.labels) || boardPick(game.choice)) &&
     game.choice.options.includes(c.iid)) ||
   (c.owner === ui.view &&
     (c.loc === 'hand'
