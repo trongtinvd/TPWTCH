@@ -1,105 +1,124 @@
 # Open Questions
 
 Settle **before the card pool grows**; record decisions in `RULES.md`.
+Last pass: 2026-11-22 (the owner answered every numbered question). What is left open is at the top; everything decided is below, with the ruling.
+
+## Still open
+- [ ] 45. **Destroyed by a rule vs by an effect.** Zone-gone destruction is marked `by:'rule'`. Should "when destroyed by an effect" triggers (future) ignore it? Should it trigger "destroyed" abilities at all? (Not answered yet.)
+
+### Card-specific (numbered)
+| # | Card | Open point |
+|---|---|---|
+| C1 | Fracture Ground | Not implemented. "Each zone": permanent zones only, or deck/hand/GY/exile/stack too? |
+| C2 | The Seven Steves | Not implemented. Damage per creature unspecified. |
+| C3 | Parriable | Not implemented. Ownership/ordering of simultaneous input windows. |
+| C4 | Throwing Bandages | "Seven points or seven total?" The question was unclear to the owner; **kept as is** (points). Rephrase if it matters later. |
+| C5 | Deep Sea Shark | Resolved in meaning: another Shark's ability can skip the second combat phase. Wording of the original question was unclear; nothing to decide. |
+
+### Decided but not built yet
+These rulings differ from the prototype (or need new code). Each needs tests first, then code. Detail in `RULES.md` ("Rulings 2026-11-22").
+- Q19 Slow abilities are free unless the card says so (proto: they spend an action point).
+- Q21 Combat ends, then the turn ends (proto: combat ends, the turn goes on until End turn).
+- Q49 The turn player also gets a stop (after the non-turn player's).
+- Q50 Stops are a per-player setting, Arena style.
+- Q7 Mandatory triggers go on the stack first and are reorderable among themselves.
+- Q8 / Q37 Contradicting modifiers: list order, the later-entered effect wins (rule statuses `cannot` vs `can` still to build).
+- Q10 Zone HP: disabled by default, one shared bar for all effects.
+- Q11 Multi-turn effects declare which turns count (any / owner's / opponent's).
+- Q13 The sim emits a 1D event array; the view reads it in order.
+- Q33 / Q34 Stack objects (Attacks included) get `statuses[]`; clouds and unusable zones become statuses on zones; action points stay their own objects.
+- Q39 / Q44 Hidden information enforced as an anti-cheat layer; each player's logs show only what is public to them.
+- Q41 Effects that pick an Attack will ask the player to choose it.
+- Q43 Logs and statuses are capped at 200 MB; the game ends when the cap is reached.
+- Q56 Controller vs owner (proto: `owner` doubles as controller, `home` remembers the real owner).
+- Q1 Zone moves are described by from / to / how / why, not by keywords.
+- Q16 The Vine's text says it may create tokens in back-row zones (card text updated 2026-11-22).
 
 ## Resolved
-- [x] **30. Attack response window and hidden information.** Resolved: the window is gone. An Attack is a stack object and the defender always gets priority on it, so there is no pause to read.
+- [x] **30. Attack response window and hidden information.** The window is gone. An Attack is a stack object and the defender always gets priority on it.
 - [x] **Where do creatures / enchantments go?** Creatures front, enchantments back, unless a card says otherwise.
 - [x] **Normal attacks and the stack.** Need an empty stack unless a card says otherwise.
-- [x] **Statuses.** One ordered list per card and per player; state = fold, newest applied last; removed on leaving the board, on failing a requirement, on clearing themselves, on expiry; removed ones stay greyed (toggle). See `RULES.md`.
-- [x] **Enter triggers when a permanent dies on entering.** They are queued before the state-based check and still resolve (War Drum vs War Drum).
+- [x] **Statuses.** One ordered list per card and per player; state = fold, newest applied last; removed on leaving the board, on failing a requirement, on clearing themselves, on expiry; removed ones stay greyed (toggle).
+- [x] **Enter triggers when a permanent dies on entering.** Queued before the state-based check and still resolve (War Drum vs War Drum).
 - [x] **Hidden information and counts (King Eye).** Creatures under a cloud count as none for effects that count the foe's creatures; a cloud zone is a legal pick; an empty or red-shielded pick fizzles and reveals nothing.
+- [x] 22. Win/loss: lose at life <= -1; both at once = draw; first decision stands.
 
-## Rules definitions
-- [ ] 1. "Destroy" vs other ways of leaving play? (Proto: `destroy` = board -> GY; sacrifice the same; exile and bounce separate. All remove the card's statuses.)
-- [ ] 2. Which statuses persist through which zone transitions? (Proto: none, unless the status has `keep`. No card uses `keep` yet.)
-- [ ] 3. What does an *unusable zone* prevent?
-- [ ] 4. What does an *unusable column* prevent?
-- [ ] 5. What does "cannot discern" hide (existence, location, identity, type, stats, abilities, equipment)? New: does it also hide the **statuses** list? (Proto: clouds hide the card, so its statuses are hidden too.)
-- [ ] 9. "Damage counter": one point or an instance? (Proto: one `damage` status; Bandages can reduce one partly.)
-- [ ] 10. How do zone-HP effects stack?
-- [ ] 14. Exact legal targeting? (Proto: finders; red shield removes a card from targeting.)
-- [ ] 15. How are tokens represented? (Proto: ability stack tokens and creature tokens; tokens count as cards, vanish instead of going to the GY, and keep their greyed statuses.)
-- [ ] 16. Can effects create creatures in normally illegal zones? (*The Vine*) Proto: yes, any usable zone.
-- [ ] 23. **Flash and the stack:** a Flash permanent enters immediately, even with objects on the stack. Intended?
-- [ ] 24. **Retaliate:** any damage, reads power at damage time, hits the source or a spell's controller, blocked by blue shield, fires even if the retaliator dies. Keep?
-- [ ] 25. **Blue shield scope:** keyword effects and rule sweeps. (Proto: Retaliate and the Vine blocked; the unusable-zone sweep is a rule, so it is NOT blocked: a blue card on a zone that becomes unusable goes to the GY.)
-- [ ] 26. **Life statuses:** can they be removed (drain)? Do card life statuses survive bounce (proto: no, all board statuses go)?
-- [ ] 27. **Simultaneous vs sequential selection** (The Vine picks 4 times, re-evaluating).
-- [ ] 28. **Reveal:** proto: a `revealed` status lives while the card is in the hand; two players = two statuses. Revealed on another player's turn change? Is the revealed-to player told when it ends?
-- [ ] 29. **Creeping Parasite tiers:** any unlocked mode, or only the highest?
+### Rules definitions
+- [x] 1. "Destroy" and the other ways to leave the board (destroyed -> GY, bounced -> hand, spun -> deck, exiled -> exile) are only descriptions of what a card does, **not keywords**. The game cares about from where to where, how and why.
+- [x] 2. Statuses survive a zone change only with `keep`. **Kept.**
+- [x] 3. What an unusable zone prevents: **kept** as built.
+- [x] 4. What an unusable column prevents: **kept** as built.
+- [x] 5. What "cannot discern" hides: **kept** as built (a cloud hides the card, so its statuses too).
+- [x] 9. A damage counter is **one instance** (one `damage` status).
+- [x] 10. Zone HP: **disabled by default** until an effect gives a zone HP; one shared HP bar for all such effects.
+- [x] 14. Legal target = meets the requirement in the card text **and** is not blocked by an effect such as red shield.
+- [x] 15. Tokens: **kept** (ability tokens on the stack, creature tokens on the board).
+- [x] 16. Effects may create creatures in a normally illegal zone **if the card text says so** (The Vine's text updated).
+- [x] 23. Flash permanents enter immediately even with objects on the stack. **Kept.**
+- [x] 24. Retaliate is an **ability** that fires even if the retaliator dies. Kept as built.
+- [x] 25. Blue shield only protects against **spells and abilities**, never against attacks or rules.
+- [x] 26. Leaving the board ends all statuses on the card, unless the text says otherwise (so card life statuses do not survive bounce).
+- [x] 27. Repeated picks (The Vine) are sequential, re-evaluated each time. **Kept.**
+- [x] 28. A hand `revealed` status ends when the card leaves the hand.
+- [x] 29. Creeping Parasite: any unlocked mode. **Kept.**
 
-## Statuses (new)
-- [ ] 32. **Pruning removed statuses.** They stay forever (even across several lives of a card, and for tokens). Cap per card? Drop when the card changes zone for the Nth time? Needed before long headless runs and for undo snapshot size.
-- [ ] 33. **Statuses on stack objects.** `nodamage` on a stack spell and the Attack `bonus` are plain fields on the stack object. Should stack objects have `statuses[]` too (then "damage added to an Attack" is a status)?
-- [ ] 34. **Derived vs stored.** King Eye clouds, `unusable` zones, action points (`players[p].ap`), `combats` are not statuses. Which should become statuses (zone statuses with Q3/Q4)?
-- [ ] 35. **Re-applied auras.** A card leaving and re-entering an aura's columns gets a new status (the old one stays greyed). OK, or should the old one be revived?
-- [ ] 36. **Aura order.** Auras are added oldest source first; a source that leaves and returns is "newest". Matters only for non-commutative folds (x2 vs +n).
-- [ ] 37. **Order of mixed `mod` and `atkMul`.** Folded in list order, so a x2 applied before an aura +1 gives a different result than after. Intended, or should auras apply last?
-- [ ] 38. **`entered` status.** Real status, but noise in every list. Hide kinds without effect behind the toggle?
-- [ ] 39. **Status visibility.** A hidden card (hand, under a cloud) hides its statuses. Revealed ones show only to the revealer.
-- [ ] 40. **Resolving spell as a pick.** Proto: a resolving spell/ability source is never a legal pick of its own effects (Ambush of the Night could otherwise return itself). Keep as a generic rule? What about "from your GY" abilities of the same card?
-- [ ] 41. **`addAttackDamage` target.** Proto: the topmost Attack matching `whose`. With several Attacks on the stack (extra attacks) should the player choose?
-- [ ] 42. **Extra attacks and the empty-stack rule.** An effect (War Drum) declares an Attack while the stack is non-empty. Should the defender be able to respond before the creature's enter triggers resolve? (Proto: the Attack is above them.)
+### Statuses
+- [x] 32. Removed statuses stay forever. **Kept.** (Size is bounded by the 200 MB cap, Q43.)
+- [x] 33. Stack objects also use `statuses[]`.
+- [x] 34. Clouds and unusable zones are statuses on the zones. Action points are their own objects. Attacks are unique stack objects (not cards) with `statuses[]`.
+- [x] 35. A card re-entering an aura's range gets a **new** status.
+- [x] 36. Aura order: **kept** (oldest source first).
+- [x] 37. Mixed `mod` and `atkMul`: follow the `statuses[]` order.
+- [x] 38. `entered` stays visible (kept on).
+- [x] 39. Visibility: cards on the board, in GYs and in exile are public. Cards in decks, extra decks and hands are visible only to their owner. A card can change this (King Eye hides, Parasite reveals). Enforced as an anti-cheat feature.
+- [x] 40. A resolving spell stays on the stack (or in `resolving`) until all its effects are done; it **may** be a legal pick of its own effect when the text implies it. (Today's proto rule, "never a legal pick", is to be revisited with tests: Ambush of the Night does not imply itself.)
+- [x] 41. Effects that pick an Attack ask the player to choose it. Not implemented yet.
+- [x] 42. Extra attack: the effect that put the card in play resolves and goes away, then the Attack goes on the stack, the defender can respond (e.g. Shieldguard enters, the Attack deals damage and goes away, Shieldguard's trigger resolves, then the rest).
+- [x] 43. Log size: 200 MB cap; the game ends when it is reached.
+- [x] 44. Each player's log shows only what is public to them (see 39).
 
-- [ ] 43. **Log size and pruning.** Logs grow with every status and zone change and are copied by every undo snapshot. Cap, summarise old entries, or exclude from snapshots? (Joins Q32.)
-- [ ] 44. **Log visibility.** The log of a visible opponent card shows its starting deck position and history. Hide deck positions of the other player's cards? Revealed hand cards: whole log or only the part since revealed?
-- [ ] 45. **Destroyed by a rule vs by an effect.** Zone-gone destruction is marked `by:'rule'`. Should "when destroyed by an effect" triggers (future) ignore it? Should it trigger "destroyed" abilities at all?
+### Timing and ordering
+- [x] 6. Simultaneous triggers: **kept** (turn player's first on the stack, so the other player's resolve first; creation order within a player).
+- [x] 7. Mandatory effects go on the stack first; mandatory ones can be rearranged among themselves.
+- [x] 8. Contradicting modifiers are statuses; they fold in list order; later-entered effects win.
+- [x] 11. A multi-turn effect states which turns count: any turn, the player's turns only, or the opponent's turns only.
+- [x] 12. Temporary effects end when the host leaves the board unless the text says otherwise.
+- [x] 13. The sim emits its results as a 1D array of events; the view reads it in order to play animations.
+- [x] 17. What ends an effect: **kept**.
+- [x] 19. Slow abilities are free unless the card says otherwise. Slow/Fast is declared per card.
+- [x] 21. Combat ends, then the turn ends. Entering combat and not attacking is legal.
+- [x] 46. Win and loss at the same time: whichever resolves first; if simultaneous, a draw.
+- [x] 47. Continuing a decided game does not change who won.
+- [x] 48. Leaving a running game: **kept**.
+- [x] 49. The opponent gets a stop, then the turn player gets one.
+- [x] 50. Stops: Arena style (per-player setting).
 
-- [ ] 46. **Win vs loss at the same time.** A `winGame` effect resolving while a player is at -1: the first decision stands (proto). Should a win effect beat a life loss, or a loss win over everything?
-- [ ] 47. **Continuing a decided game.** The result is fixed, so life below -1 no longer matters. Should a continued game still show who is "winning", and should a second decision (e.g. the other player also at -1) ever count?
-- [ ] 48. **Leaving a running game.** Hot seat: the viewed seat leaving gives the other seat the win. Online: a disconnect timeout is open.
-- [ ] 49. **Stops are for the non-turn player only.** Should the turn player get a window too (e.g. after the stack empties)? Should turn 1 start have a stop?
-- [ ] 50. **Which stops are on.** All five extra stops are on in real games; a per-player setting (Arena style) is open.
+### Combat
+- [x] 20. ATK = HP + 1 both kills and tramples 1. **Kept.**
+- [x] 31. Friendly cards ahead of a back-row attacker do **not** absorb.
 
-## Action points and the extra deck (new)
-- [ ] 51. **Action point supply.** Proto: one at the start of each own turn (the first player at game start), no cap, unspent ones stay. Cap? Does the first player get one on turn 1?
-- [ ] 52. **Do opening hands count as "drawn"?** Proto: no, `s.drawn` counts only cards drawn after the game started (L4's condition).
-- [ ] 53. **Revealing from the extra deck.** Proto: a `revealed` status (to the foe) while the card stays in the extra deck, an event in the log. The extra deck list of either player can be opened in play (like the decks); a real Observation layer should hide it.
-- [ ] 54. **Fusion gamble.** Depth Sea Fusion and Biology Cultivator may reveal an extra deck creature whose conditions are not met: Depth Sea spends the materials without a summon, Cultivator only reveals. Intended?
-- [ ] 55. **Fast / Slow of the new abilities.** Underworld Fusion's and Depth Sea Fusion's GY / deck abilities are Fast (Depth Sea pays an action point as a cost). Deck-zone abilities appear in `actionsOf`, so a player with a point always "has an action" while Depth Sea Fusion is in the deck (automation in "normal" mode stops more often).
-- [ ] 56. **Temporary control (L4).** `owner` doubles as controller; `home` remembers the real owner. Only permanents and untargeted spells can be played; targeted spells need a target choice. Do enter triggers, statuses and "your cards" effects treat the card as yours? (Proto: yes.) Does a Vine-like token created by it belong to the controller? (Proto: yes.)
-- [ ] 57. **Adjacency across the middle.** Opp Front and Player Front are adjacent rows (Widow Maker pairs and the foeEnter condition). Cards a player owns standing on the other side count as theirs.
-- [ ] 58. **Materials: current or printed stats.** "Same power / same HP" compares current values (`atkOf` / `hpOf`, no damage). Printed instead?
+### Action points and the extra deck
+- [x] 51. No cap; a player gets one point when their turn starts.
+- [x] 52. Opening hands do not count as drawn.
+- [x] 53. A revealed extra deck card stays revealed until it leaves the extra deck.
+- [x] 54. Not a gamble: the game tells the player whether the conditions are met; the player is responsible for checking they can perform the summon, and can see the conditions, the materials and all cards in hand, board and deck.
+- [x] 55. Each card must say whether its ability is Slow or Fast.
+- [x] 56. Control: the owner stays the owner, the controller is the player who plays it. Spells, abilities and attacks care about the controller unless the text says otherwise. A card going from the board to zone X goes to its **owner's** zone X.
+- [x] 57. Adjacency counts both players' cards unless the card says otherwise (Widow Maker: opponent's only).
+- [x] 58. Material checks ("same power / same HP") use current values. **Kept.**
 
-## Timing and ordering
-- [ ] 6. Simultaneous trigger order? (Proto: turn player's first on the stack, other player's resolve first; within a player, creation order.)
-- [ ] 7. Mandatory vs optional trigger order? (Players cannot yet order their own triggers.)
-- [ ] 8. Which modifier wins on contradiction? Proto: stat folds are list order; rule statuses (`cannot` vs `can`) not yet.
-- [ ] 11. When does a multi-turn effect expire? ("next three turns", *Maximum Damage*) The status model has `expires:'turnEnd'`; a turn counter (`expires:{turns:n}`) is the likely extension.
-- [ ] 12. Temporary effects when the host changes zones? (Proto: statuses go with the card unless `keep`.)
-- [ ] 17. What exactly ends an effect? (Proto: leave zone, requirement fails, link ends, clears itself, expires, removed by an effect.)
-- [ ] 19. **Do Slow abilities spend an action point?** Design: free. Proto: they spend one on activation.
-- [ ] 21. Should combat end the turn (original) or only the attack phase (proto)? Is entering the attack phase with no attack a legal "pass"? (End turn during combat ends the combat phase first: proto.)
-- [x] 22. Win/loss: a player loses at life <= -1 (0 is alive); both at once = a draw; the first decision stands. See `RULES.md` (Victory).
-
-## Combat
-- [ ] 20. Trample vs kill threshold: ATK = HP + 1 both kills and tramples 1. Intended?
-- [ ] 31. Direction rule: an attacker on the foe's side hits only cards beyond it. Should friendly cards ahead of a back-row attacker absorb?
-
-## Architecture
-- [ ] 13. Simulation events vs presentation-only events? (Proto: rule events only; animations are derived by diffing stack snapshots.)
-
-## Design
-- [ ] 18. **Primary strategic skill?** (Positioning / stack timing / tempo racing / reading the stage gimmick)
-
-## Card-specific
-| Card | Unknown |
+### Card-specific, resolved
+| Card | Ruling |
 |---|---|
-| The Vine | Back-row zones; simultaneous vs sequential (Q27). |
-| Fracture Ground | "Each zone": permanent zones only, or deck/hand/GY/exile/stack too? |
-| Maximum Damage | Boundary of "next three turns" (Q11). |
-| Throwing Bandages | Seven points or seven total? (Proto: points.) |
-| The Seven Steves | Damage per creature unspecified. |
-| Parriable | Ownership/ordering of simultaneous input windows. |
-| Creeping Parasite | Mode selection (Q29); "5" tier. |
-| Heaven and Sun | If it leaves play its `vault` statuses are removed: exiled cards stay exiled and cannot be retrieved. Intended? |
-| Spirit of the Sand | Cards entering later get no shield; `nogain` also blocks card life statuses (proto: yes). |
-| War Drum | Extra cost only on your turn; the returned creature's attack happens outside the attack phase; the -1/-1 aura can kill a creature whose damage equals HP when it enters range. |
-| Deep Sea Shark | The skip is a status on the foe: what if the foe also has a Shark? (Proto: their second-combat ability consumes it.) |
-| Quick Intuition | "Damage denied" lasts until end of turn, including damage to the creature from a later turn's cards? (Proto: expires at the end of the turn it was cast.) |
-| Underworld Fusion | Materials returned from exile: only the ones still in exile; the exiled Underworld Fusion itself is the cost. |
-| Depth Sea Fusion | Q54, Q55. |
-| Widow Maker | Q57; with only one targetable card of the pair left, it is sent without a choice. |
-| L4: The Librarian | Q52, Q56. "Summoned using Heaven and Sun" = Heaven and Sun is among the materials. The effect repeats only after playing the card. |
-| Ambush of the Night | Order and "up to" choices; the spell itself is not a legal pick (Q40). |
+| The Vine | Back-row zones allowed (text updated); picks are sequential (Q27). |
+| Maximum Damage | Uses the turn-kind rule of Q11. |
+| Creeping Parasite | Any unlocked mode (Q29). |
+| Heaven and Sun | Intended: if it leaves play its `vault` statuses are removed and the exiled cards cannot be retrieved. |
+| Spirit of the Sand | Kept (later cards get no shield; `nogain` also blocks card life statuses). |
+| War Drum | The extra cost can be paid on any turn. Kept. |
+| Quick Intuition | Kept (denial expires at the end of the turn it was cast). |
+| Underworld Fusion | Kept (only materials still in exile; the exiled Fusion itself is the cost). |
+| Depth Sea Fusion | Q54, Q55: answered. |
+| Widow Maker | Kept (with one targetable card left it is sent without a choice). |
+| L4: The Librarian | Kept (Q52, Q56). |
+| Ambush of the Night | Answered (Q40). |

@@ -305,7 +305,7 @@ Cards.add(Fx => {
     tokens: { vine: Fx.creature('vine-token', 'Vine', 1, 1, { text: 'Token. Vanilla 1/1.' }) },
     triggers: [
       withText(
-        'When this enters: 4 times, pick the closest zone not occupied by this card or a Vine token, destroy the card there, and create a Vine token (1/1) on it.',
+        'When this enters: 4 times, pick the closest zone (any row, back-row zones included) not occupied by this card or a Vine token, destroy the card there, and create a Vine token (1/1) on it, even in a zone a creature cannot normally enter.',
         Fx.trigger.enter(spread)
       ),
       withText('At the start of your turn: do the same.', Fx.trigger.turnStart(spread)),

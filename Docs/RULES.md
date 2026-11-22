@@ -80,12 +80,12 @@ King Eye clouds are **derived from the board** (a passive), not stored statuses;
 
 ## Turn and action points [proto]
 Each player holds **action points** (shown as four-point stars under the life bar; click one for its inspection panel). A player gains **one at the start of their own turn** (the first player when the game starts). **Unspent points stay**, so a player can hold several. Spending one is how the old "major action" works:
-1. **Draw** two (one if only one card is left; illegal on an empty deck), costs one point, OR 2. **Summon** one permanent / play one **Slow** spell / use one **Slow** ability, costs one point, OR 3. **Enter the attack phase**, costs one point.
+1. **Draw** two (one if only one card is left; illegal on an empty deck), costs one point, OR 2. **Summon** one permanent / play one **Slow** spell / use one **Slow** ability, costs one point **[decided 2026-11-22: Slow abilities are free unless the card says otherwise, see Rulings]**, OR 3. **Enter the attack phase**, costs one point.
 - All of these still need an **open game state** (empty stack, no open window) and **the controller's own turn**; a point alone is not enough. Free: Fast abilities, legal Quick spells, **Flash permanents**, inspecting piles. No draw at turn start.
 - Cards can spend a point themselves, **also on the opponent's turn** when the player has one: War Drum's optional additional cost (`extraCost:{ap:true}`), the `spendAP` cost (Depth Sea Fusion's ability).
 - Entering the attack phase spends a point; the phase can be toggled off but entering it again costs another.
 - A spent point stays in the player's list (`players[p].ap`: `{id, turn, spent:{why, turn}}`) and is written to the game log (`ActionPointSpent`); clicking that log line opens the point's inspection panel (gained on turn N, spent on turn M by what).
-- The turn does not end after combat. The turn player presses End turn (stack empty); the opponent gets an end-step window and the turn changes when they pass. **End turn during combat ends the combat phase first** (so "after combat" triggers still fire; if they use the stack, the turn is not over yet).
+- **[decided 2026-11-22: combat ends, then the turn ends; see Rulings.]** Today: the turn does not end after combat. The turn player presses End turn (stack empty); the opponent gets an end-step window and the turn changes when they pass. **End turn during combat ends the combat phase first** (so "after combat" triggers still fire; if they use the stack, the turn is not over yet).
 - Deep Sea Shark: while a `skipCombat` status is on a player, pressing combat becomes End turn and the status is removed. The point is not spent. The skipped player's own Shark second-combat ability also uses it up instead of starting a combat.
 - `RULES.apLimit = false` (console) lifts the limit for sandboxing (no point is needed or spent).
 
@@ -109,7 +109,7 @@ Add object -> priority/responses -> both pass -> top resolves -> triggers -> pri
 - **[proto] Choices:** an effect that needs a decision sets a pending *choice*; only `Choose` is accepted. A multi-step effect (Ambush of the Night, Parasite) suspends the rest of its effect list as a continuation and resumes after each answer. The resolving spell is never a legal pick for its own effect.
 
 ## Combat
-Enter the combat phase (an action point). Then the turn player's creatures attack one at a time, each at most once per phase. Combat does not end the turn.
+Enter the combat phase (an action point). Then the turn player's creatures attack one at a time, each at most once per phase. Combat does not end the turn **[proto; decided: combat ends, then the turn ends]**.
 - **An Attack is a stack object.** `Attack` (turn player, attack phase, **empty stack**, no open window, not yet attacked) puts an Attack object on the stack and marks the attacker `attacked`. Its attack triggers go **above** it as separate objects (so they resolve and can be answered first). The **defender gets priority first**.
 - **An Attack has no HP and no snapshot.** Damage dealt to it (Bolt) does nothing. It reads the attacker when it resolves: the attacker's *current* power if it is still on the board, plus the Attack's own **bonus** (damage added by effects, e.g. `addAttackDamage`). If the attacker left the board the attacker's power is 0, but the bonus still lands, down the column it stood in.
 - **Cancel Attack** removes the Attack object (no damage; its triggers stay).
@@ -142,4 +142,53 @@ Power, Defense, HP, Initial Distance, Speed, Acceleration.
 
 ## Zones and columns [not built]
 First-class objects: occupancy, usability, restrictions, optional integrity HP, effects, ownership. Column: `IsUsable, IsFullyOccupied, ExileEverything, GetZones`. Zone integrity: separate from permanent HP, unaffected by regular combat; at <= 0 exile contents and mark unusable (Q10).
+Zone HP is **disabled by default**; it exists only after an effect gives a zone HP, and several such effects share **one** HP bar (decided 2026-11-22, Q10).
 **[proto]** Slots are a map `owner|row|col -> card id`; `state.unusable` marks unusable zones; clouds are derived from the board.
+
+## Rulings 2026-11-22 (decided; **[not built]** unless marked **[proto]**)
+Answers to the numbered questions in `OPEN_QUESTIONS.md`. Where this section and an older line above disagree, **this section wins** and the older line is tagged.
+
+### Leaving play and zones
+- Words like destroy, bounce, spin (to the deck) and exile are only shorthand for what a card does; they are **not keywords**. The game only cares about **from which zone to which zone, how and why**. A card leaving the board goes to its **owner's** zone X.
+- Leaving the board ends **all** statuses on the card unless the card text says otherwise (also for card life statuses on bounce). **[proto]**
+- Zone HP is disabled until an effect gives a zone HP; effects share one HP bar.
+- An effect may create a creature in a zone that is normally illegal for it **only if the card text says so** (The Vine: any usable zone, back row included).
+
+### Targeting and shields
+- A legal target meets the requirement written on the card **and** is not blocked by an effect such as red shield. **[proto: finders]**
+- Blue shield protects only against spells and abilities, never against attacks or rules. **[proto]**
+- A resolving spell stays on the stack (resolving) until all its effects are done. It may be a legal pick of its own effect only if its text implies it.
+- Effects that pick an Attack will ask the player to choose which one.
+
+### Statuses
+- Contradicting modifiers are statuses, folded in list order; **effects that entered later win**. `mod` and `atkMul` fold in list order too (no "auras last" rule). Aura sources are applied oldest first. **[proto]**
+- A card re-entering an aura's range gets a **new** status. **[proto]** The `entered` status stays visible. **[proto]**
+- Stack objects (spells, abilities, **Attacks**) also have `statuses[]`; "damage added to an Attack" becomes a status.
+- Clouds (King Eye) and unusable zones become statuses **on the zones**. Action points stay their own objects. An Attack is a unique stack object, not a card.
+- A damage counter is one instance (one `damage` status). **[proto]**
+- A multi-turn effect says which turns count: any turn, its controller's turns only, or the opponent's turns only (`expires:{turns:n, whose:'any'|'self'|'foe'}`, working name).
+
+### Information and logs (anti-cheat)
+- **Public to both players:** cards on the board, in graveyards, in exile. **Private to the owner:** deck, extra deck, hand. A card may change that (King Eye hides, Creeping Parasite reveals).
+- The Observation a player gets (state, events, logs) must contain **only** what is public to that player. Treat this as a security feature: the host must not send hidden data to a client, so a modified client cannot read it.
+- Each player's log shows only what is available to them (the opponent's hand card is "a card"). `revealed` ends when the card leaves the hand (or the extra deck for extra deck cards). **[proto]**
+- Logs and statuses share a **200 MB cap**; reaching it **ends the game**.
+
+### Timing and stack
+- Mandatory effects go on the stack first; mandatory effects may be rearranged among themselves. Simultaneous triggers: turn player's first, so the other player's resolve first. **[proto]**
+- Slow/Fast is declared **per card**. Abilities cost nothing unless the card says so (they do **not** spend an action point by default).
+- **Flash** permanents enter immediately, even with objects on the stack. **[proto]**
+- An extra attack (War Drum): the effect that put the card in play resolves; then the Attack goes on the stack; the defender may respond (a Shieldguard played in response enters; the Attack deals damage and goes away; Shieldguard's trigger resolves; then the rest of the stack).
+- **Stops:** the opponent gets a stop, then the turn player gets one. Which stops are on is a **per-player** setting, Arena style.
+- **Combat:** entering combat and not attacking is legal. When combat ends, the turn ends. Friendly cards ahead of a back-row attacker do not absorb its damage. ATK = HP + 1 kills and tramples 1. **[proto]**
+- **Simulation output:** the sim emits the result of each command as a flat (1D) array of events; the presentation layer reads that array in order so animations play in the right order.
+
+### Win and end
+- If a win effect and a life loss happen together, **whichever resolves first** decides; if they are truly simultaneous the game is a **draw**. Continuing a decided game never changes the result. **[proto]** Leaving a running game: as in Victory. **[proto]**
+
+### Action points and the extra deck
+- No cap; a player gets **one point when their turn starts**. Opening hands do not count as drawn. **[proto]**
+- Fusion is not a gamble: the game tells the player whether the conditions are met, and the player is responsible for checking they can perform the summon (conditions, materials and every card in hand, board and deck are visible to them). **[proto reveals; the UI hint is partly built]**
+- Control: the **owner** stays the owner; the **controller** is the player who plays or controls the card. Spells, abilities and attacks care about the controller unless the text says otherwise. (Proto: `owner` doubles as controller and `home` is the real owner; to be split into owner / controller.)
+- "Adjacent" counts cards of both players unless the card says otherwise (Widow Maker: the opponent's adjacent cards only). Same-stat material checks use current values. **[proto]**
+- Heaven and Sun: if it leaves play its `vault` statuses are removed and the exiled cards can no longer be retrieved (intended). **[proto]**
