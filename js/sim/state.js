@@ -23,6 +23,12 @@ Sim.def('state', function (K) {
     }
     return cards;
   }
+  // stops (Q49 / Q50): null, or per player {opp, own}. A flat {kind:true} (older replays, the rules tests) means: both players, as the non-turn player only.
+  const normStops = x => {
+    if (!x) return null;
+    const one = e => (e && ('opp' in e || 'own' in e) ? { opp: e.opp || {}, own: e.own || {} } : { opp: e || {}, own: {} });
+    return x.Player || x.Opponent ? { Player: one(x.Player), Opponent: one(x.Opponent) } : { Player: one(x), Opponent: one(x) };
+  };
   function create(n, defs, opts = {}) {
     // opts: {decks:{Player:[ids], Opponent:[ids]}, shuffle:true, autoStart:false} (see createGame)                         // content is injected: the Sim never reads globals
     for (const k in byId) delete byId[k];
@@ -51,7 +57,8 @@ Sim.def('state', function (K) {
       unusable: {},
       respond: null,
       orderTriggers: !!opts.orderTriggers, // the host turns it on: a player with several triggers at once orders them (a 'trigorder' choice); off in the rules tests
-      stops: opts.stops || null, // extra priority windows ("stops") that are on: {turnStart, combatStart, combatEnd, draw, stack}; null = none (the rules tests)
+      turnEnding: false, // Q21: combat has ended, the end step opens as soon as nothing is pending
+      stops: normStops(opts.stops), // extra priority windows ("stops") that are on: {turnStart, combatStart, combatEnd, draw, stack}; null = none (the rules tests)
       result: null, // null | {winner:'Player'|'Opponent'|null (a draw), why:'life'|'surrender'|'left'|'effect', turn}: set once, never changed
     }; // respond: null | {kind:'enter'|'end'} = the non-turn player may respond before play continues
     for (const [p, seed] of [

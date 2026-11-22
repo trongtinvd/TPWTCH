@@ -135,10 +135,10 @@
     check('entering the battle phase uses the action point', s.attackPhase && !Sim.apCount(s, 'Player'));
     D(s, { type: 'SetAttackPhase', player: 'Player', on: false });
     rej(
-      'leaving and re-entering the battle phase is not a second action point',
+      'leaving the battle phase ends the turn (Q21): it cannot be entered again, the end step window is open',
       s,
       { type: 'SetAttackPhase', player: 'Player', on: true },
-      'No action point'
+      'priority'
     );
     s = start(42);
     D(s, { type: 'Draw', player: 'Player' });

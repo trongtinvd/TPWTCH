@@ -11,7 +11,7 @@ Sim.def('dispatch', function (K) {
   let askCounters, resume; // fx
   let CH; // ch
   let canAttack, dealDamage, declareAttack; // combat
-  let canActivate, canPlay, endTurn, fire, openRespond, pushObj, resolveObj, stopAt; // stack
+  let canActivate, canPlay, checkTurnEnd, endTurn, fire, openRespond, pushObj, resolveObj, respPri, stopAt, stopWants; // stack
   function settle(s, ev) {
     // the end of a resolution: a spell goes to the graveyard (or the hand), an ability token ceases to exist, then the stack-emptied stop.
     // A spell whose effect asks for choices (Fusion: materials, summon) stays "resolving" until the last answer, so its effects happen BEFORE it leaves the stack.
@@ -30,7 +30,7 @@ Sim.def('dispatch', function (K) {
       }
     } else if (r.kind !== 'attack') c.loc = 'gone'; // ability tokens cease to exist
     s.passes = 0;
-    s.priority = s.respond ? other(s.active) : s.active;
+    s.priority = s.respond ? respPri(s) : s.active;
     if (!r.dead) ev.push({ t: 'StackObjectResolved', iid: c.iid });
     if (!s.stack.length) {
       ev.push({ t: 'StackEmptied' });
@@ -82,6 +82,7 @@ Sim.def('dispatch', function (K) {
         if (s.stack.length) return fail('Stack is not empty');
         if (s.attackPhase) return fail('Not during the battle phase');
         if (cmd.player !== s.active) return fail('Only the turn player can draw');
+        if (s.respond) return fail('Waiting for the response window');
         if (!d.length) return fail('Deck is empty');
         if (!hasAP(s, cmd.player)) return fail('No action point left');
         spendAP(s, cmd.player, 'Draw', ev);
@@ -157,7 +158,15 @@ Sim.def('dispatch', function (K) {
         if (!s.stack.length) {
           // passing in an empty-stack response window closes it
           if (!s.respond) return fail('Nothing on the stack');
-          const k = s.respond.kind;
+          const r = s.respond,
+            k = r.kind;
+          if (r.stage === 'foe' && stopWants(s, s.active, k)) {
+            // Q49: the non-turn player passed; now the turn player gets the stop
+            r.stage = 'turn';
+            s.priority = s.active;
+            ev.push({ t: 'ResponseWindowOpened', kind: k, player: s.active });
+            break;
+          }
           s.respond = null;
           ev.push({ t: 'ResponseWindowClosed', kind: k });
           if (k === 'end') endTurn(s, ev);
@@ -183,6 +192,7 @@ Sim.def('dispatch', function (K) {
         if (cmd.player !== s.active) return fail('Only the turn player can enter the battle phase');
         if (cmd.player !== s.priority) return fail('Not this player\u2019s priority');
         if (s.stack.length) return fail('Stack is not empty');
+        if (s.respond) return fail('Waiting for the response window');
         if (cmd.on && !s.attackPhase) {
           if (!hasAP(s, cmd.player)) return fail('No action point left');
           {
@@ -206,6 +216,7 @@ Sim.def('dispatch', function (K) {
           stopAt(s, ev, 'combatStart'); // stop: combat started
         }
         if (!cmd.on && was) {
+          s.turnEnding = true; // Q21: when combat ends, the turn ends (checkTurnEnd, once nothing is pending)
           fire(s, ev, 'combatEnd', null);
           stopAt(s, ev, 'combatEnd'); // stop: combat ended
         }
@@ -258,7 +269,6 @@ Sim.def('dispatch', function (K) {
         const a = abDef(c).abilities[cmd.ab],
           tgt = findTarget(s, c, a);
         for (const k of a.cost || []) payCost(s, c, k, ev); // costs are paid on activation
-        if (a.speed === 'Slow') spendAP(s, c.owner, c.def.name + ': ' + a.name, ev); // Slow spends an action point now, not on resolution
         pushObj(s, c, 'abilities', cmd.ab, ev, tgt ? tgt.iid : null);
         s.priority = other(c.owner); // the opponent gets priority first
         ev.push({ t: 'AbilityActivated', iid: c.iid, ab: cmd.ab, speed: a.speed });
@@ -272,9 +282,10 @@ Sim.def('dispatch', function (K) {
         if (s.attackPhase) {
           s.attackPhase = false;
           ev.push({ t: 'AttackPhaseChanged', on: false });
+          s.turnEnding = true;
           fire(s, ev, 'combatEnd', null);
           stopAt(s, ev, 'combatEnd');
-          if (s.stack.length || s.respond) break;
+          break; // the end step opens by itself once nothing is pending (checkTurnEnd)
         } // ending the turn ends combat first, so 'after combat' triggers (Shark) still happen
         openRespond(s, ev, 'end');
         ev.push({ t: 'EndStepEntered' });
@@ -304,6 +315,7 @@ Sim.def('dispatch', function (K) {
     }
     sweepUnusable(s, ev);
     recalc(s, ev);
+    checkTurnEnd(s, ev);
     return { ok: true, events: ev };
   }
   function actionsOf(s, p) {
@@ -349,6 +361,7 @@ Sim.def('dispatch', function (K) {
       'canAttack',
       'canPayExtra',
       'canPlay',
+      'checkTurnEnd',
       'dealDamage',
       'declareAttack',
       'declareWinner',
@@ -371,10 +384,12 @@ Sim.def('dispatch', function (K) {
       'release',
       'removeStatus',
       'resolveObj',
+      'respPri',
       'resume',
       'slowish',
       'spendAP',
       'stopAt',
+      'stopWants',
       'sweepUnusable',
       'targetColumns',
       'targetZones',
@@ -390,6 +405,7 @@ Sim.def('dispatch', function (K) {
         canAttack,
         canPayExtra,
         canPlay,
+        checkTurnEnd,
         dealDamage,
         declareAttack,
         declareWinner,
@@ -412,10 +428,12 @@ Sim.def('dispatch', function (K) {
         release,
         removeStatus,
         resolveObj,
+        respPri,
         resume,
         slowish,
         spendAP,
         stopAt,
+        stopWants,
         sweepUnusable,
         targetColumns,
         targetZones,

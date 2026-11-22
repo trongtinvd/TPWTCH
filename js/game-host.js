@@ -550,7 +550,7 @@ function resetGame() {
     extra: { Player: exOf(c.p1), Opponent: exOf(c.p2) },
     shuffle: c.shuffle,
     autoStart: true,
-    stops: STOPS_ON,
+    stops: Settings.get('stops') || STOPS_ON,
     orderTriggers: true, // real games: a player with several triggers at once orders them
   });
   game = sim;
@@ -571,7 +571,7 @@ function resetGame() {
     x1: exOf(c.p1).slice(),
     x2: exOf(c.p2).slice(),
     sh: !!c.shuffle,
-    stops: STOPS_ON,
+    stops: Settings.get('stops') || STOPS_ON,
     ot: true, // the replay needs the same options (the trigger order choices are part of the recorded commands)
     mode: c.mode,
     a: c.p1,
@@ -637,7 +637,7 @@ const FN = [
   {
     id: 'battle',
     cls: 'c-atk',
-    label: () => 'Attack: ' + (game.attackPhase ? 'on' : 'off'),
+    label: () => (game.attackPhase ? 'End combat' : 'Attack: off'), // ending combat ends the turn
     run: toggleAttack,
     on: () =>
       myPriority() &&

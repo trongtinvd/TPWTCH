@@ -206,6 +206,42 @@ function settingsDialog() {
     note.textContent =
       'Browsers slow hidden tabs down: the bot and the automatic passes may act about once per second there.';
     box.appendChild(note);
+    // stops (Q50, Arena style): per player, the windows on the opponent's turn and on their own turn. Used by the next game.
+    const KINDS = [
+        ['turnStart', 'Turn start'],
+        ['combatStart', 'Combat start'],
+        ['combatEnd', 'Combat end'],
+        ['draw', 'Cards drawn'],
+        ['stack', 'Stack emptied'],
+      ],
+      own = KINDS.concat([
+        ['enter', 'Permanent entered'],
+        ['end', 'End step'],
+      ]),
+      cur = Settings.get('stops') ? JSON.parse(JSON.stringify(Settings.get('stops'))) : null,
+      st = cur || { Player: { opp: Object.assign({}, STOPS_ON), own: {} }, Opponent: { opp: Object.assign({}, STOPS_ON), own: {} } };
+    box.appendChild(mkEl('h2')).textContent = 'Stops';
+    for (const p of ['Player', 'Opponent'])
+      for (const [role, list, title] of [
+        ['opp', KINDS, ' on the opponent\u2019s turn'],
+        ['own', own, ' on their own turn'],
+      ]) {
+        const g = mkEl('div', 'mgroup');
+        g.appendChild(mkEl('div', 'mgtitle')).textContent = NAME[p] + title;
+        for (const [k, t] of list) {
+          const l = mkEl('label', 'mcheck'),
+            c = mkEl('input');
+          c.type = 'checkbox';
+          c.checked = !!st[p][role][k];
+          c.onchange = () => {
+            st[p][role][k] = c.checked;
+            Settings.set('stops', st);
+          };
+          l.append(c, document.createTextNode(' ' + t));
+          g.appendChild(l);
+        }
+        box.appendChild(g);
+      }
     const row = mkEl('div', 'mrow');
     row.appendChild(mkBtn('Close', cancel));
     box.appendChild(row);

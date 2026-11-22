@@ -457,7 +457,7 @@ function showAP(p, id, pin) {
       .map(x => '<span class="stat">' + x + '</span>')
       .join('');
     inspect.querySelector('p').textContent =
-      'Spend one to draw, enter the attack phase, summon a permanent, play a Slow spell or use a Slow ability. A player gains one at the start of their own turn; unspent points stay.';
+      'Spend one to draw, enter the attack phase, summon a permanent or play a Slow spell (some cards ask for one as a cost). A player gains one at the start of their own turn; unspent points stay.';
     inspect.querySelector('.where').textContent =
       'Gained on turn ' +
       a.turn +

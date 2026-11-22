@@ -87,7 +87,7 @@ Handlers get `x = {s, ev, src, t, who, foe, ...}`. Effects run in list order. An
 **Fizzle:** target gone at resolution (or a red-shielded zone target) -> no effects, `StackObjectFizzled`; costs stay paid.
 
 ## Activation (`canActivate` order)
-1. Zone. 2. Reqs. 3. Priority. 4. Speed (`Slow`: own turn, empty stack, no attack phase, an action point available; `Fast`: free). 5. Costs payable. Slow spends an action point on activation. After any activation the opponent gets priority first.
+1. Zone. 2. Reqs. 3. Priority. 4. Speed (`Slow`: own turn, empty stack, no open window, no attack phase, no point needed unless a `spendAP` cost says so; `Fast`: free). 5. Costs payable. After any activation the opponent gets priority first.
 
 ## Playing cards and priority
 See `RULES.md`. Flash permanents need only priority and a free zone.
@@ -102,7 +102,7 @@ See `RULES.md`. Flash permanents need only priority and a free zone.
 | `combatEnd` | After its controller's combat phase ends (`cond:'firstCombat'` = the first one this turn). Also fires when End turn ends combat. |
 | `turnStart` | Start of its controller's turn. |
 
-Optional fields: `hp`, `zone`, `cond`. `fire()` collects all matches, turn player's first, then priority to the non-turn player.
+Optional fields: `hp`, `zone`, `cond`, `optional:true` (goes on the stack after all mandatory triggers, not reorderable). `fire()` collects all matches, turn player's first, then priority to the non-turn player.
 
 ## Attack objects
 `declareAttack(s, c, ev, extra)` pushes `{kind:'attack', iid, controller, hp:null, slotAt, bonus:0}`, fires attack triggers above it, gives the defender priority. `resolveAttack`: damage = `atkOf(attacker)` if on board else 0, plus `bonus`, down the column (`slotAt` if the attacker left). Normal `Attack` command needs an empty stack; extra attacks come from effects.

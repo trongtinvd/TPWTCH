@@ -190,9 +190,9 @@
       const ar = take(s, 'Player', 'archer', 'board', 'Player|front|0');
       D(s, { type: 'Activate', iid: ar.iid, ab: 0 });
       eq(
-        'Volley: 1 life is paid on activation, action point used, effect pending',
-        [s.life.Player, s.life.Opponent, !ap(s), s.stack.length],
-        [19, 20, true, 1]
+        'Volley: 1 life is paid on activation, no action point is used (Slow abilities are free, Q19), effect pending',
+        [s.life.Player, s.life.Opponent, ap(s), s.stack.length],
+        [19, 20, 1, 1]
       );
       pass2(s);
       eq(
@@ -215,11 +215,10 @@
       s = start(94);
       const a4 = take(s, 'Player', 'archer', 'board', 'Player|front|0');
       D(s, { type: 'Draw', player: 'Player' });
-      rej(
-        'Volley (Slow) after the action point was used',
-        s,
-        { type: 'Activate', iid: a4.iid, ab: 0 },
-        'no action point'
+      eq(
+        'Volley (Slow) after the action point was used: still legal, Slow abilities are free (Q19)',
+        Sim.canActivate(s, a4, 0),
+        null
       );
       s = start(95);
       const a5 = take(s, 'Player', 'archer', 'board', 'Player|front|0'),
@@ -251,8 +250,8 @@
         h0 = s.piles.Player.hand.length;
       D(s, { type: 'Activate', iid: ch.iid, ab: 0 });
       check(
-        'Recall: the OLDEST graveyard card is exiled on activation, the newest stays; action point used',
-        oldest.loc === 'exile' && newest.loc === 'gy' && s.piles.Player.gy.length === 1 && !ap(s)
+        'Recall: the OLDEST graveyard card is exiled on activation, the newest stays; no action point used',
+        oldest.loc === 'exile' && newest.loc === 'gy' && s.piles.Player.gy.length === 1 && ap(s) === 1
       );
       pass2(s);
       check(
@@ -363,8 +362,7 @@
     D(s, { type: 'SetAttackPhase', player: 'Player', on: false });
     eq('stop "combat ended"', [s.respond && s.respond.kind, s.priority], ['combatEnd', 'Opponent']);
     D(s, { type: 'Pass', player: 'Opponent' });
-    D(s, { type: 'EndTurn', player: 'Player' });
-    eq('stop "turn ended" (end step)', s.respond && s.respond.kind, 'end');
+    eq('combat ended: the turn ends, so the end step window follows (Q21)', s.respond && s.respond.kind, 'end');
     D(s, { type: 'Pass', player: 'Opponent' });
     eq(
       'stop "turn started": the new turn\u2019s non-turn player gets a window',

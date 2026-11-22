@@ -389,6 +389,7 @@ Sim.def('ops', function (K) {
       if (s.piles[x.foe].deck.length < 5) return; // the draw is a cost: no 5 cards, no second combat
       OPS.Draw({ ...x, who: x.foe }, { n: 5 });
       s.attackPhase = true;
+      s.turnEnding = false; // a second combat phase: the turn is not ending yet
       clearAttacked(s, 'new combat phase');
       s.combats = (s.combats || 0) + 1;
       x.ev.push({ t: 'AttackPhaseChanged', on: true });

@@ -17,11 +17,7 @@ Last pass: 2026-11-22 (the owner answered every numbered question). What is left
 
 ### Decided but not built yet
 These rulings differ from the prototype (or need new code). Each needs tests first, then code. Detail in `RULES.md` ("Rulings 2026-11-22").
-- Q19 Slow abilities are free unless the card says so (proto: they spend an action point).
-- Q21 Combat ends, then the turn ends (proto: combat ends, the turn goes on until End turn).
-- Q49 The turn player also gets a stop (after the non-turn player's).
-- Q50 Stops are a per-player setting, Arena style.
-- Q7 Mandatory triggers go on the stack first and are reorderable among themselves.
+- Built (group 1, Patch1; tagged [proto] in RULES.md): Q19, Q21, Q49, Q50, Q7.
 - Q8 / Q37 Contradicting modifiers: list order, the later-entered effect wins (rule statuses `cannot` vs `can` still to build).
 - Q10 Zone HP: disabled by default, one shared bar for all effects.
 - Q11 Multi-turn effects declare which turns count (any / owner's / opponent's).

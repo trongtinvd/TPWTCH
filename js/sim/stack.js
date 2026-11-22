@@ -19,6 +19,7 @@ Sim.def('stack', function (K) {
     if (s.attackPhase && !c.def.flash && (isPerm(c) || c.def.timing !== 'Quick'))
       return 'Only Quick spells during the battle phase';
     if (slowish(c) && c.owner !== s.active) return 'Slow cards: turn player only';
+    if (slowish(c) && s.respond) return 'Slow cards: only in an open game state';
     if (slowish(c) && !hasAP(s, c.owner)) return 'No action point left';
     if (isPerm(c)) {
       if (s.stack.length && !c.def.flash) return 'Only when the stack is empty';
@@ -56,7 +57,7 @@ Sim.def('stack', function (K) {
       if (c.owner !== s.active) return 'Timing: Slow abilities only on your turn';
       if (s.stack.length) return 'Timing: Slow abilities need an empty stack';
       if (s.attackPhase) return 'Timing: not during the battle phase';
-      if (!hasAP(s, c.owner)) return 'Timing: no action point left';
+      if (s.respond) return 'Timing: Slow abilities need an open game state';
     }
     for (const k of a.cost || []) {
       const why = COSTS[k.op].check(s, c, k);
@@ -127,13 +128,13 @@ Sim.def('stack', function (K) {
         if (t.on !== on || (t.zone || 'board') !== c.loc) return;
         if (t.cond && !(COND[t.cond] && COND[t.cond](s, c, subject, t))) return; // an unknown condition fails closed (validate.js reports it at load)
         if (TRIGGERS[on] && !TRIGGERS[on](s, c, t, subject)) return;
-        hits.push({ c, i });
+        hits.push({ c, i, optional: !!t.optional });
       });
     }
     if (!hits.length) return;
     // 2) the triggers wait in s.trg: each player with several of them may order them (a choice, non-turn player first; only when the host turned
     //    it on), every trigger with a targeting picks its targets, then they go on the stack: turn player's first, so the other player's resolve first.
-    s.trg = { items: hits.map(h => ({ iid: h.c.iid, i: h.i, owner: h.c.owner })), R: {} };
+    s.trg = { items: hits.map(h => ({ iid: h.c.iid, i: h.i, owner: h.c.owner, optional: h.optional })), R: {} };
     advanceTrg(s, ev);
   }
   const permutations = a =>
@@ -144,7 +145,7 @@ Sim.def('stack', function (K) {
     // R[p] = the indices of p's triggers in RESOLUTION order (first resolves first). Default: they are pushed in creation order, so the last one resolves first.
     for (const p of [other(s.active), s.active]) {
       if (T.R[p]) continue;
-      const mine = T.items.map((x, k) => k).filter(k => T.items[k].owner === p),
+      const mine = T.items.map((x, k) => k).filter(k => T.items[k].owner === p && !T.items[k].optional), // only MANDATORY triggers are reorderable (Q7)
         def = k => abDef(s.cards[T.items[k].iid]).triggers[T.items[k].i];
       if (s.orderTriggers && mine.length > 1 && mine.length <= 6 && !s.choice) {
         const nm = k => s.cards[T.items[k].iid].def.name,
@@ -168,7 +169,14 @@ Sim.def('stack', function (K) {
       }
       T.R[p] = mine.slice().reverse();
     }
-    const pushOrder = [s.active, other(s.active)].flatMap(p => T.R[p].slice().reverse());
+    // Q7: mandatory triggers go on the stack first (turn player's, then the other player's), optional ones after them (same player order)
+    const optOf = p => T.items.map((x, k) => k).filter(k => T.items[k].owner === p && T.items[k].optional),
+      pushOrder = [
+        ...T.R[s.active].slice().reverse(),
+        ...T.R[other(s.active)].slice().reverse(),
+        ...optOf(s.active),
+        ...optOf(other(s.active)),
+      ];
     for (const k of pushOrder) {
       const it = T.items[k];
       if (it.tgt !== undefined) continue;
@@ -222,16 +230,36 @@ Sim.def('stack', function (K) {
     } // nothing legal under the clouds: it fizzles and nothing is revealed   // the column is no longer a legal target
     runFx({ s, ev, src, t, who: o.controller, foe: other(o.controller), col: o.col, o, tp: o.tplayer }, def.effects);
   }
+  // Q49 / Q50: s.stops = null | {Player:{opp:{kind:true}, own:{kind:true}}, Opponent:{...}}. `opp` = the windows a player gets as the NON-turn player
+  // (enter and end are always on), `own` = as the turn player. A window is {kind, stage:'foe'|'turn'}: the non-turn player first, then the turn player.
+  const stopWants = (s, p, kind) => {
+    const foe = p !== s.active;
+    if (foe && (kind === 'enter' || kind === 'end')) return true;
+    const st = s.stops && s.stops[p];
+    return !!(st && st[foe ? 'opp' : 'own'][kind]);
+  };
+  const respPri = s => (s.respond && s.respond.stage === 'turn' ? s.active : other(s.active)); // who holds priority in the open window
   function openRespond(s, ev, kind) {
-    // the non-turn player gets priority on an empty stack (triggers on the stack resolve first)
-    s.respond = { kind };
-    s.priority = other(s.active);
-    ev.push({ t: 'ResponseWindowOpened', kind }); // the non-turn player ALWAYS responds first, even with enter triggers already on the stack
+    // an empty-stack priority window (triggers on the stack resolve first); nothing opens when neither player wants this stop
+    const foe = other(s.active),
+      stage = stopWants(s, foe, kind) ? 'foe' : stopWants(s, s.active, kind) ? 'turn' : null;
+    if (!stage) return;
+    s.respond = { kind, stage };
+    s.priority = stage === 'foe' ? foe : s.active;
+    ev.push({ t: 'ResponseWindowOpened', kind, player: s.priority }); // the non-turn player ALWAYS responds first, even with enter triggers already on the stack
+  }
+  function checkTurnEnd(s, ev) {
+    // Q21: combat ended, so the turn ends: as soon as nothing is pending, the end step window opens
+    if (!s.turnEnding || s.phase !== 'play' || s.attackPhase || s.stack.length || s.choice || s.respond || s.trg || s.resolving)
+      return;
+    s.turnEnding = false;
+    openRespond(s, ev, 'end');
+    ev.push({ t: 'EndStepEntered' });
   }
   function stopAt(s, ev, kind) {
     // an optional "stop": at this moment the non-turn player gets priority on an empty stack (turnStart, combatStart, combatEnd, draw, stack).
     // s.stops is set by the host; null = no stops. A window that is already open is never replaced.
-    if (!s.stops || !s.stops[kind] || s.respond) return;
+    if (s.respond) return;
     openRespond(s, ev, kind);
   }
   function endTurn(s, ev) {
@@ -241,6 +269,7 @@ Sim.def('stack', function (K) {
         .forEach(x => removeStatus(s, x, 'expired')); // end of turn: expiring statuses go
     clearAttacked(s, 'turn ended');
     s.active = other(s.active);
+    s.turnEnding = false;
     s.attackPhase = false;
     s.turn++;
     s.combats = 0;
@@ -252,7 +281,21 @@ Sim.def('stack', function (K) {
     stopAt(s, ev, 'turnStart');
   }
   return {
-    exports: { advanceTrg, canActivate, canPlay, endTurn, fire, hitStack, openRespond, pushObj, resolveObj, stopAt },
+    exports: {
+      advanceTrg,
+      canActivate,
+      canPlay,
+      checkTurnEnd,
+      endTurn,
+      fire,
+      hitStack,
+      openRespond,
+      pushObj,
+      respPri,
+      resolveObj,
+      stopAt,
+      stopWants,
+    },
     needs: [
       'COLTARGETS',
       'TARGETINGS',

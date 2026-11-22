@@ -214,7 +214,7 @@ const Narrate = (function () {
           );
           break;
         case 'ResponseWindowOpened':
-          line(P(other(act)) + ' may respond: ' + (STOP[e.kind] || e.kind));
+          line(P(e.player || other(act)) + ' may respond: ' + (STOP[e.kind] || e.kind));
           break;
         case 'StackObjectCreated': {
           const o = e.attack ? null : fresh[made++];

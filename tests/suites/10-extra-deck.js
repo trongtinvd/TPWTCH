@@ -309,16 +309,16 @@
       s3 = take(s, 'Opponent', 'guard', 'board', 'Opponent|front|2');
     s.attackPhase = true;
     D(s, { type: 'Attack', iid: w2.iid });
-    pass2(s);
     eq(
-      'several adjacent pairs: the controller picks one (column neighbours and row neighbours)',
+      'several adjacent pairs: the controller picks one when the trigger is put on the stack (column neighbours and row neighbours)',
       [s.choice.kind, s.choice.player, s.choice.options.length],
-      ['pair', 'Player', 2]
+      ['trigtarget', 'Player', 2]
     );
     const o = s.choice.options.find(x => x.includes('front|1') && x.includes('front|2'));
     D(s, { type: 'Choose', player: 'Player', option: o });
+    pass2(s);
     eq(
-      '...and the foe is asked about exactly those two',
+      '...and, when the trigger resolves, the foe is asked about exactly those two',
       [s.choice.kind, s.choice.player, s.choice.options.sort()],
       ['pairsend', 'Opponent', [s1.iid, s3.iid].sort()]
     );
