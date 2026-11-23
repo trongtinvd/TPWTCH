@@ -1,6 +1,7 @@
 // ch.js - REGISTRY CH: answers to non-shift choices (Choose command)
 Sim.def('ch', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
+  let addAttackBonus, cancelAttackObj; // added by Patch3
   let other; // util
   let addStatus, has, hurt, live, removeStatus; // statuses
   let bounce, destroy, enterBoard, freeSlots, makeToken; // state
@@ -35,6 +36,12 @@ Sim.def('ch', function (K) {
       if (k.atk) extraAttack(s, s.cards[k.card], ev);
       if (k.next) upToAsk(s, k.player, c, k.next.e, k.next.left, ev);
       if (k.again) declareAsk(s, k.player, c, ev); // L4: repeat the effect after the played card entered
+    },
+    attackpick: (s, k, c, cmd, ev) => {
+      const o = s.stack.find(q => String(q.sid) === cmd.option);
+      if (!o) return; // it left the stack meanwhile
+      if (k.act === 'cancel') cancelAttackObj(s, o, ev);
+      else addAttackBonus(s, o, k.amount, c.def.name, ev);
     },
     trigorder: (s, k, c, cmd, ev) => {
       s.trg.R[k.p] = cmd.option.split(',').map(Number);
@@ -71,6 +78,12 @@ Sim.def('ch', function (K) {
       if (cmd.option === 'done') return;
       const t = s.cards[cmd.option],
         P = s.piles[k.player];
+      if (t === c && t.loc === 'stack') {
+        // Q40: the resolving spell picked itself: it ends up in the hand instead of the graveyard (settle)
+        if (s.resolving) s.resolving.toHand = true;
+        upToAsk(s, k.player, c, k.e, k.left - 1, ev);
+        return;
+      }
       if (k.e.then === 'toHand') {
         P[k.e.from].splice(P[k.e.from].indexOf(t), 1);
         t.loc = 'hand';
@@ -130,7 +143,7 @@ Sim.def('ch', function (K) {
   };
   return {
     exports: { CH },
-    needs: [
+    needs: ['addAttackBonus', 'cancelAttackObj', 
       'THEN',
       'advanceTrg',
       'addStatus',
@@ -158,6 +171,7 @@ Sim.def('ch', function (K) {
       'upToAsk',
     ],
     link: () => {
+      ({ addAttackBonus, cancelAttackObj } = K);
       ({
         THEN,
         advanceTrg,

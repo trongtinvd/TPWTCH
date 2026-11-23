@@ -64,7 +64,7 @@ King Eye clouds are `cloud` statuses on the zones, kept equal to the board (a pa
 - An extra deck creature has two fields, **`materials`** and **`conditions`**. They do nothing by themselves; effects read them. `materials`: `[{type:'creature'|'enchantment'|'any', n, same?:['atk','hp']}]` (`same`: the n cards share at least one of those stats; current values). `conditions`: `[{op}]` naming an `EXCOND` entry: `LostLife` (a player has lost life at some point, removed damage still counts), `BothDrewMoreThan` (n: each player drew more than n cards since the game started; the opening hand does not count).
 - **Fusion effect** (`fusion({from, pay, summon, pick, cond})`): reveal an extra deck creature (`pick`: `conditions` = conditions met and materials available, `fusable` = materials available, `any`), choose its materials among the `from` zones (`board`, `hand`, `deck`, `gy`; a blue-shielded card cannot be used; a choice with one option is made by itself), pay them (`pay`: `gy`, `exile`, `hand`), and if `summon`, summon it (the controller picks the zone). `cond`: `must` (conditions must be met), `ignoreHB` (ignored when every material comes from hand or field), `none`. The materials are spent even if the conditions end up unmet. A revealed card gets a `revealed` status (to the opponent) while it stays in the extra deck.
 - The materials used are remembered on the summoned creature (`mats`, kept for good) whichever card summoned it.
-- **Temporary control** (L4: The Librarian plays the opponent's top card): the card's `owner` becomes the player who plays it and `home` remembers the real owner; when it leaves the board or the stack it goes to its owner's graveyard / hand / exile and is the owner's again. Only permanents and spells that need no target can be played this way (targeted spells: not yet).
+- **Temporary control** (L4: The Librarian plays the opponent's top card): the card keeps its `owner`; a `controller` field names who controls it (`Sim.ctl(c)` = controller, else owner; Patch3, Q56). Control decides the side (zones), who may attack or activate, whose turn triggers, who pays, whose foe is hit. When the card leaves the board or the stack, control ends (`release`) and it goes to its OWNER's graveyard / hand / exile. Only permanents and spells that need no target can be played this way (targeted spells: not yet).
 
 ## Keywords
 - **Flash** (Creeping Parasite, War Drum): the permanent can be played like a Quick spell: whenever its owner holds priority, including the opponent's turn and the battle phase, even with objects on the stack. It does **not** spend an action point. It still needs a free zone in the right row. It opens the "permanent entered" window only when the turn player played it. [proto]
@@ -161,8 +161,8 @@ Answers to the numbered questions in `OPEN_QUESTIONS.md`. Where this section and
 ### Targeting and shields
 - A legal target meets the requirement written on the card **and** is not blocked by an effect such as red shield. **[proto: finders]**
 - Blue shield protects only against spells and abilities, never against attacks or rules. **[proto]**
-- A resolving spell stays on the stack (resolving) until all its effects are done. It may be a legal pick of its own effect only if its text implies it.
-- Effects that pick an Attack will ask the player to choose which one.
+- A resolving spell stays on the stack (resolving) until all its effects are done. It is a legal pick of its own effect only if the effect says so (`upTo(..., types, true)`: offered from the graveyard it is about to enter, and picking itself sends it to the hand instead). Ambush of the Night does not imply itself. **[proto]**
+- Effects that pick an Attack ask the player to choose which one when several match (`attackpick` choice: Rage's bonus, Cancel Attack). With one Attack nothing is asked. **[proto]**
 
 ### Statuses
 - Contradicting modifiers are statuses, folded in list order; **effects that entered later win**. `mod` and `atkMul` fold in list order too (no "auras last" rule). Aura sources are applied oldest first. Rule statuses `cannot` / `can` follow the same order (`Sim.allowed`). **[proto]**
@@ -174,9 +174,9 @@ Answers to the numbered questions in `OPEN_QUESTIONS.md`. Where this section and
 
 ### Information and logs (anti-cheat)
 - **Public to both players:** cards on the board, in graveyards, in exile. **Private to the owner:** deck, extra deck, hand. A card may change that (King Eye hides, Creeping Parasite reveals).
-- The Observation a player gets (state, events, logs) must contain **only** what is public to that player. Treat this as a security feature: the host must not send hidden data to a client, so a modified client cannot read it.
+- The Observation a player gets (state, events, logs) contains **only** what is public to that player. `Sim.observe(state, p)` builds it (`js/sim/observe.js`; `Sim.canSee` is the one rule): a card p may not know is an opaque stub (hidden hand / extra deck cards) or not mentioned at all (a card under an enemy cloud, a deck: only its size); ids of hidden cards are hashes of the seed, the viewer and the real id, so the position in the deck list cannot be read back; names in statuses and texts are masked; a pending choice is detailed only for its chooser. `Sim.observeEvents(pre, post, events, p)` does the same for a command's events, `Narrate.story` for the log. Treat this as a security feature: the host must not send hidden data to a client, so a modified client cannot read it. **[proto since Patch3; no host sends Observations yet, the view still reads the state]**
 - Each player's log shows only what is available to them (the opponent's hand card is "a card"). `revealed` ends when the card leaves the hand (or the extra deck for extra deck cards). **[proto]**
-- Logs and statuses share a **200 MB cap**; reaching it **ends the game**.
+- Logs and statuses share a **200 MB cap**; reaching it **ends the game**: `RULES.historyCap`, estimated from the number of status and log entries (`Sim.historyBytes`: bytes per entry, no serialising); the game becomes a draw by `cap` (a game decided earlier keeps its result), `state.capped` is set and every later command is refused. **[proto since Patch3]**
 
 ### Timing and stack
 - Mandatory effects go on the stack first; mandatory effects may be rearranged among themselves. Simultaneous triggers: turn player's first, so the other player's resolve first. **[proto]**
@@ -185,7 +185,7 @@ Answers to the numbered questions in `OPEN_QUESTIONS.md`. Where this section and
 - An extra attack (War Drum): the effect that put the card in play resolves; then the Attack goes on the stack; the defender may respond (a Shieldguard played in response enters; the Attack deals damage and goes away; Shieldguard's trigger resolves; then the rest of the stack).
 - **Stops:** the opponent gets a stop, then the turn player gets one. Which stops are on is a **per-player** setting, Arena style. **[proto]**
 - **Combat:** entering combat and not attacking is legal. When combat ends, the turn ends **[proto]**. Friendly cards ahead of a back-row attacker do not absorb its damage. ATK = HP + 1 kills and tramples 1. **[proto]**
-- **Simulation output:** the sim emits the result of each command as a flat (1D) array of events; the presentation layer reads that array in order so animations play in the right order.
+- **Simulation output:** the sim emits the result of each command as ONE flat (1D) array of events, in the order things happened; the presentation layer reads that array in order so animations play in the right order. **[proto]** (tests: no nested events, a permanent is summoned before its trigger is stacked, an attack is declared before it is stacked)
 
 ### Win and end
 - If a win effect and a life loss happen together, **whichever resolves first** decides; if they are truly simultaneous the game is a **draw**. Continuing a decided game never changes the result. **[proto]** Leaving a running game: as in Victory. **[proto]**
@@ -193,6 +193,6 @@ Answers to the numbered questions in `OPEN_QUESTIONS.md`. Where this section and
 ### Action points and the extra deck
 - No cap; a player gets **one point when their turn starts**. Opening hands do not count as drawn. **[proto]**
 - Fusion is not a gamble: the game tells the player whether the conditions are met, and the player is responsible for checking they can perform the summon (conditions, materials and every card in hand, board and deck are visible to them). **[proto reveals; the UI hint is partly built]**
-- Control: the **owner** stays the owner; the **controller** is the player who plays or controls the card. Spells, abilities and attacks care about the controller unless the text says otherwise. (Proto: `owner` doubles as controller and `home` is the real owner; to be split into owner / controller.)
+- Control: the **owner** stays the owner; the **controller** is the player who plays or controls the card. Spells, abilities and attacks care about the controller unless the text says otherwise. **[proto since Patch3]** (`card.controller`, `Sim.ctl`; stack objects had `controller` already.)
 - "Adjacent" counts cards of both players unless the card says otherwise (Widow Maker: the opponent's adjacent cards only). Same-stat material checks use current values. **[proto]**
 - Heaven and Sun: if it leaves play its `vault` statuses are removed and the exiled cards can no longer be retrieved (intended). **[proto]**

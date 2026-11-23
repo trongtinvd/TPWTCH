@@ -49,6 +49,10 @@ Sim.boot(K => {
     zoneBar,
     giveZoneHp,
     damageZone,
+    ctl,
+    observe,
+    observeEvents,
+    historyBytes,
   } = K;
   const REGISTRIES = {
     effects: K.OPS,
@@ -112,6 +116,10 @@ Sim.boot(K => {
     zoneBar,
     giveZoneHp,
     damageZone,
+    ctl,
+    observe,
+    observeEvents,
+    historyBytes,
     API: Object.fromEntries(Object.entries(REGISTRIES).map(([kind, reg]) => [kind, Object.keys(reg)])),
     create: K.createGame,
   };

@@ -19,13 +19,10 @@ Last pass: 2026-11-22 (the owner answered every numbered question). What is left
 These rulings differ from the prototype (or need new code). Each needs tests first, then code. Detail in `RULES.md` ("Rulings 2026-11-22").
 - Built (group 1, Patch1; tagged [proto] in RULES.md): Q19, Q21, Q49, Q50, Q7.
 - Built (group 2, Patch2; tagged [proto] in RULES.md): Q8, Q37 (rule statuses `cannot` / `can`), Q33 / Q34 (statuses on stack objects and zones), Q11 (`expires:{turns, whose}`), Q10 (zone HP bar, no card yet).
+- Built (groups 3-6, Patch3; tagged [proto] in RULES.md): Q56 (owner / controller), Q41 (attack picks), Q39 / Q44 (`Sim.observe`, `Sim.observeEvents`, narrate leak tests), Q43 (history cap), Q13 (flat ordered event array, tested), Q40 (`self` picks).
 
-- Q13 The sim emits a 1D event array; the view reads it in order.
 
-- Q39 / Q44 Hidden information enforced as an anti-cheat layer; each player's logs show only what is public to them.
-- Q41 Effects that pick an Attack will ask the player to choose it.
-- Q43 Logs and statuses are capped at 200 MB; the game ends when the cap is reached.
-- Q56 Controller vs owner (proto: `owner` doubles as controller, `home` remembers the real owner).
+
 - Q1 Zone moves are described by from / to / how / why, not by keywords.
 - Q16 The Vine's text says it may create tokens in back-row zones (card text updated 2026-11-22).
 

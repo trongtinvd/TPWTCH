@@ -63,7 +63,7 @@ function botCandidates(s, p, rnd, mem) {
   }
   fallback.push({ w: 1, cmd: { type: 'EndTurn', player: p } });
   if (++mem.n > 40) return { main, fallback }; // safety valve: a card that loops back to hand cannot keep it busy forever
-  const mine = Object.values(s.cards).filter(c => c.owner === p);
+  const mine = Object.values(s.cards).filter(c => Sim.ctl(c) === p);
   if (s.attackPhase) {
     mine.filter(c => Sim.canAttack(s, c) === null).forEach(c => add(3, { type: 'Attack', iid: c.iid }));
     return { main, fallback };

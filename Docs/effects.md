@@ -63,6 +63,8 @@ Handlers get `x = {s, ev, src, t, who, foe, ...}`. Effects run in list order. An
 | `nearestZone`, `destroyOnZone`, `createToken` | The Vine (re-evaluated each repetition). |
 | `placeToken(t)` | The controller picks a free **front** zone for a token (auto if one). Used by War Drum. |
 | `exileColumn`, `makeColumnUnusable`, `returnToHand` | Infinity Wall. `makeColumnUnusable` puts an `unusable` status on each zone of the column. |
+| `addAttackDamage`, `cancelAttack` with several Attacks | Q41: the controller is asked which Attack (`attackpick` choice, one option per Attack). |
+| `upTo(who, from, then, n, types, self)` with `self` | Q40: the resolving spell is offered from its graveyard and may pick itself (it then goes to the hand). |
 | `giveZoneHp(n)`, `damageZone(n)` | Zone HP (Q10): the picked zone (a spell's target zone) gets n zone HP / takes n zone damage. Every `giveZoneHp` adds to ONE bar; with no HP `damageZone` does nothing; at 0 the contents are exiled and the zone is unusable. No card uses them yet. |
 | `removeDamage(n)`, `damageAnother(n)` | Bandages / Avatar. Bandages asks which `damage` status to reduce; a fully removed one is greyed. |
 | `obscure()`, `aura(who, atk, hp)` (passives) | Clouds; aura: cards of `'own'`/`'foe'` in the source's column and adjacent columns hold a `mod` status while in range. |
@@ -143,7 +145,7 @@ Test-only fixtures (not in decks): Soldier 2/3, Knight 4/5, Giant 6/8, Guard 1/6
 ## Not implemented
 - Base/Current stat layers and equipment (only the status fold exists), durations other than `turnEnd`, Maximum Damage.
 - Zone HP (Fracture Ground), column state beyond "unusable".
-- Observation filtering beyond King Eye clouds and `revealed`.
+- The view and the bot read the full state, not an Observation (`Sim.observe` exists and is tested).
 - Real-time input windows.
 - Player-chosen trigger order; statuses on stack objects; pruning of old removed statuses.
 - Player stats, Distance/Speed/Acceleration. (Win/loss is built: life <= -1, `winGame`, Surrender, Leave; see `RULES.md`.)

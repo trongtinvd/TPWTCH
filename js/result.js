@@ -26,6 +26,7 @@ const Result = (function () {
           surrender: lose && NAME[lose] + ' surrendered',
           left: lose && NAME[lose] + ' left the game',
           effect: 'won by a card effect',
+          cap: 'the history limit was reached',
         }[r.why] || '';
     return { title: r.winner ? NAME[r.winner] + ' wins' : 'Draw', why };
   }

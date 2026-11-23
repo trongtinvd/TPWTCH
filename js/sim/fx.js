@@ -1,6 +1,7 @@
 // fx.js - effect runner and the choice helpers (ask, continuations)
 Sim.def('fx', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
+  let ctl; // added by Patch3
   let cname; // util
   let dmgs, removeStatus; // statuses
   let cloudMap, freeSlots; // state
@@ -34,7 +35,7 @@ Sim.def('fx', function (K) {
   const foeCreatures = x => {
     const m = cloudMap(x.s); // a creature under a cloud is not seen: next to a King Eye the foe sees ONE creature (King Eye itself)
     return Object.values(x.s.cards).filter(
-      c => c.loc === 'board' && c.def.type === 'creature' && c.owner !== x.who && !m[c.slot]
+      c => c.loc === 'board' && c.def.type === 'creature' && ctl(c) !== x.who && !m[c.slot]
     ).length;
   };
   function ask(s, who, src, kind, ids, label, prompt, extra, ev) {
@@ -78,11 +79,24 @@ Sim.def('fx', function (K) {
   function upToAsk(s, p, src, e, left, ev) {
     // 'up to n': one pick at a time, with a Done option
     if (left <= 0) return;
-    const ids = s.piles[p][e.from]
-      .filter(
-        c => c !== src && (!e.types || e.types.includes(c.def.type)) && (e.then !== 'play' || freeSlots(s, c).length)
-      )
-      .map(c => c.iid);
+    // Q40: the resolving spell is a legal pick of its own effect only when the effect says so (`self`: Fx.upTo(..., types, true)); it is then offered from the graveyard it is about to enter
+    const self =
+        !!e.self &&
+        e.from === 'gy' &&
+        e.then === 'toHand' &&
+        src.loc === 'stack' &&
+        src.def.type === 'spell' &&
+        src.owner === p &&
+        !(s.resolving && s.resolving.toHand),
+      ids = s.piles[p][e.from]
+        .concat(self ? [src] : [])
+        .filter(
+          c =>
+            (c !== src || self) &&
+            (!e.types || e.types.includes(c.def.type)) &&
+            (e.then !== 'play' || freeSlots(s, c).length)
+        )
+        .map(c => c.iid);
     if (!ids.length) return;
     ask(
       s,
@@ -136,8 +150,9 @@ Sim.def('fx', function (K) {
   }
   return {
     exports: { ask, askCounters, askDeck, foeCreatures, resume, runFx, suspend, upToAsk },
-    needs: ['OPS', 'cloudMap', 'cname', 'dmgs', 'freeSlots', 'removeStatus'],
+    needs: ['ctl', 'OPS', 'cloudMap', 'cname', 'dmgs', 'freeSlots', 'removeStatus'],
     link: () => {
+      ({ ctl } = K);
       ({ OPS, cloudMap, cname, dmgs, freeSlots, removeStatus } = K);
     },
   };

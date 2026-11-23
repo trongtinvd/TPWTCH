@@ -128,7 +128,7 @@ const Fx = {
   cancelAttack: () => ({ op: 'CancelAttack' }),
   skipFoeCombat: pay => ({ op: 'SkipFoeCombat', pay }),
   secondCombat: () => ({ op: 'SecondCombat' }),
-  upTo: (who, from, then, n, types) => ({ op: 'UpTo', who, from, then, n, types }), // who: me|foe; from: gy|hand; then: toHand|play
+  upTo: (who, from, then, n, types, self) => ({ op: 'UpTo', who, from, then, n, types, self }), // who: me|foe; from: gy|hand; then: toHand|play
   placeToken: token => ({ op: 'PlaceToken', token }), // effect: the controller picks a free front zone and puts the token there
   // extra deck: `materials` and `conditions` are plain data on the creature; they do nothing by themselves, Fusion effects (and other cards) read them
   mat: (type, n, same) => {

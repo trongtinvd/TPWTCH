@@ -1,6 +1,7 @@
 // state.js - game state: creation, zones, clouds, recalc (state-based rules), leaving / entering the board
 Sim.def('state', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
+  let ctl; // added by Patch3
   let byId, mulberry32, other, slotRow; // util
   let lg, syncLogs; // logs
   let abDef, addStatus, clearStatuses, hasSt, hpOf, isRevealed, live, removeStatus, syncLife, totalDamage; // statuses
@@ -59,6 +60,7 @@ Sim.def('state', function (K) {
       orderTriggers: !!opts.orderTriggers, // the host turns it on: a player with several triggers at once orders them (a 'trigorder' choice); off in the rules tests
       turnEnding: false, // Q21: combat has ended, the end step opens as soon as nothing is pending
       stops: normStops(opts.stops), // extra priority windows ("stops") that are on: {turnStart, combatStart, combatEnd, draw, stack}; null = none (the rules tests)
+      capped: false, // Q43: the history cap was reached: the game is over, every command is refused
       result: null, // null | {winner:'Player'|'Opponent'|null (a draw), why:'life'|'surrender'|'left'|'effect', turn}: set once, never changed
     }; // respond: null | {kind:'enter'|'end'} = the non-turn player may respond before play continues
     for (const [p, seed] of [
@@ -132,7 +134,7 @@ Sim.def('state', function (K) {
     return true;
   }
   const freeSlots = (s, c) =>
-    Object.keys(s.slots).filter(k => !s.slots[k] && !isUnusable(s, k) && k.startsWith(c.owner + '|' + slotRow(c) + '|')); // an unusable zone is never free
+    Object.keys(s.slots).filter(k => !s.slots[k] && !isUnusable(s, k) && k.startsWith(ctl(c) + '|' + slotRow(c) + '|')); // an unusable zone is never free
   // Clouds (King Eye) are derived from the board, so they vanish when King Eye leaves: slotKey -> King Eye iid. They cover the controller's OTHER zones.
   // Q34: a cloud is a `cloud` status on a zone; syncClouds keeps those statuses equal to the board (recalc runs it after every command, cloudMap before
   // it answers, so a state built by hand is read correctly too). Nothing changes when they already match.
@@ -142,7 +144,7 @@ Sim.def('state', function (K) {
     for (const k in s.zones) {
       const z = s.zones[k],
         mine = k.split('|')[0],
-        covers = a => a.slot !== k && a.owner === mine;
+        covers = a => a.slot !== k && ctl(a) === mine;
       for (const st of live(z))
         if (st.kind === 'cloud') {
           const a = s.cards[st.src];
@@ -167,7 +169,7 @@ Sim.def('state', function (K) {
   // Logs, the table and every list ask THIS function, so a hidden card can never leak by accident.
   const canSee = (s, p, c) => {
     if (!c) return false;
-    if (c.loc === 'board') return !(c.owner !== p && cloudMap(s)[c.slot]);
+    if (c.loc === 'board') return !(ctl(c) !== p && cloudMap(s)[c.slot]);
     if (c.loc === 'gy' || c.loc === 'exile' || c.loc === 'stack' || c.loc === 'gone') return true;
     if (c.loc === 'hand' || c.loc === 'extra') return c.owner === p || isRevealed(c, p);
     return false;
@@ -182,7 +184,7 @@ Sim.def('state', function (K) {
       p &&
       p.op === 'Aura' &&
       Math.abs(+c.slot.split('|')[2] - +a.slot.split('|')[2]) <= 1 &&
-      (p.who === 'foe') === (c.owner !== a.owner)
+      (p.who === 'foe') === (ctl(c) !== ctl(a))
     );
   };
   let rcBusy = false;
@@ -272,10 +274,7 @@ Sim.def('state', function (K) {
   }
   function release(c) {
     // a card played under temporary control (L4) goes back to its real owner when it leaves: the owner's zones receive it
-    if (c.home) {
-      c.owner = c.home;
-      delete c.home;
-    }
+    delete c.controller; // Q56: control ends; the card was always its owner's
   }
   function destroy(s, c, ev, why) {
     // leaves the field for the graveyard; its statuses are removed (they stay in the list, greyed)
@@ -351,7 +350,7 @@ Sim.def('state', function (K) {
       sweepUnusable,
       zoneBar,
     },
-    needs: [
+    needs: ['ctl', 
       'abDef',
       'addStatus',
       'byId',
@@ -372,6 +371,7 @@ Sim.def('state', function (K) {
       'totalDamage',
     ],
     link: () => {
+      ({ ctl } = K);
       ({
         abDef,
         addStatus,

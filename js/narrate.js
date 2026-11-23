@@ -99,7 +99,7 @@ const Narrate = (function () {
       life = { Player: pre.life.Player, Opponent: pre.life.Opponent };
     let act = pre.active;
     // ---- the command
-    const own = cmd.player || (card(cmd.iid) && card(cmd.iid).owner),
+    const own = cmd.player || (card(cmd.iid) && Sim.ctl(card(cmd.iid))),
       spent = ev.find(e => e.t === 'ActionPointSpent' && e.player === own),
       apTxt = spent ? ' (ap ' + ap[own] + '\u2192' + (ap[own] - 1) + ')' : '';
     let skipSpent = false;

@@ -4,6 +4,7 @@ Sim.def('util', function (K) {
   let create; // state
   let hasAP; // ap
   const other = p => (p === 'Player' ? 'Opponent' : 'Player');
+  const ctl = c => c.controller || c.owner; // Q56: the controller (a card played under temporary control, L4); the owner never changes. Spells, abilities and attacks care about the controller
   const byId = {}; // def id -> definition (filled by create)
   const isPerm = c => c.def.type !== 'spell' && c.def.type !== 'ability';
   const slowish = c => (isPerm(c) && !c.def.flash) || c.def.timing === 'Slow'; // Flash permanents are played like Quick spells
@@ -29,7 +30,7 @@ Sim.def('util', function (K) {
   const cname = (s, i) => s.cards[i].def.name;
   const colKeys = col => ['Opponent|back|', 'Opponent|front|', 'Player|front|', 'Player|back|'].map(p => p + col); // the 4 zones of a column
   // ---- Abilities & stack objects ------------------------------------------------
-  const RULES = { apLimit: true }; // console: cardGame.Sim.RULES.apLimit = false to sandbox freely (no action point is ever needed)
+  const RULES = { apLimit: true, historyCap: 200 * 1024 * 1024 }; // console: cardGame.Sim.RULES.apLimit = false to sandbox freely (no action point is ever needed)
   const canPayExtra = (s, c) => !!(c.def.extraCost && c.def.extraCost.ap) && hasAP(s, c.owner); // the optional additional cost 'spend an action point': whenever its owner has one (also on the opponent's turn)
   return {
     exports: {
@@ -38,6 +39,7 @@ Sim.def('util', function (K) {
       canPayExtra,
       cname,
       colKeys,
+      ctl,
       isPerm,
       mulberry32,
       other,

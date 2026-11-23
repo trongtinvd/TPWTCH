@@ -74,9 +74,23 @@ Sim.def('logs', function (K) {
         'status-': () => 'removed #' + e.id + ' (' + e.sk + '): ' + e.why,
       }[e.kind] || (() => e.kind)
     )();
+  // Q43: statuses and logs share a cap (RULES.historyCap, 200 MB). The size is ESTIMATED from the number of entries (bytes per status / log entry), not measured:
+  // a command costs a walk over the objects, never a serialisation
+  const BYTES = { status: 230, log: 120 };
+  const historyBytes = s => {
+    let n = 0;
+    const add = o => {
+      n += ((o.statuses && o.statuses.length) || 0) * BYTES.status + ((o.logs && o.logs.length) || 0) * BYTES.log;
+    };
+    Object.values(s.cards).forEach(add);
+    Object.values(s.players).forEach(add);
+    Object.values(s.zones).forEach(add);
+    s.stack.forEach(add);
+    return n;
+  };
   const logLines = o => (o.logs || []).map(e => ({ text: logText(e), n: e.n, e })); // oldest first; the UI shows newest on top
   return {
-    exports: { HOW, howOf, lg, logLines, logText, ownKey, ownerOf, syncLogs, whereOf },
+    exports: { HOW, historyBytes, howOf, lg, logLines, logText, ownKey, ownerOf, syncLogs, whereOf },
     needs: [],
     link: () => {},
   };

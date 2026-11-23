@@ -57,7 +57,7 @@ Categories: Card, Permanent, Creature, Zone, Column, Player, Stack Object, Damag
 
 ## Information
 **[proto] `Sim.canSee(state, player, card)` is the one rule** for what a player may know: the board (unless covered by a cloud the owner controls), the GY, exile and the stack are public; a hand or the extra deck is known to its owner and to whoever it was revealed to; a deck is known to nobody. The table (face-down cards), the inspector, the deck / extra deck lists and BOTH logs ask it, so a hidden card cannot leak by accident (a test plays bot games with decks that share no card name and fails when a name shows up in a log that may not know it). Each player has their own log (`Narrate.story(pre, post, cmd, events, viewer)`): their own cards by name, the other player's hidden cards as "a card", names coloured by owner; the two logs together are the whole game. "All events" shows the raw events (debug).
-AI and UI get a filtered **Observation**, not raw GameState. **[proto]** No Observation layer. The view hides the other player's hand unless a `revealed` status names the viewer (`Sim.isRevealed`); clouds are drawn over hidden zones. The inspector shows statuses with their source names, so an Observation layer will have to filter status lists too (a hidden card's statuses must not leak).
+AI and UI get a filtered **Observation**, not raw GameState. **[proto since Patch3]** `Sim.observe(state, player)` (`js/sim/observe.js`) returns plain data with only what that player may know: own hand and extra deck by name; the other hand and extra deck as opaque stubs (ids are hashes of seed + viewer + real id); decks as sizes; cards under an enemy cloud not mentioned; stack objects from hidden sources masked ("King Eye: Ability"); a choice only for its chooser; status texts scrubbed of hidden names. `Sim.observeEvents` filters a command's events the same way. `tests/suites/14-rulings-information.js` plays bot games with disjoint decks and fails when a hidden name or id shows up in an Observation, an event or a log line. The view still reads the full state (a single-process prototype): moving it onto Observations is the next step.
 
 ## Real-time input
 Simulation -> `InputWindowRequested` -> presentation prompt -> `PlayerCommand` -> simulation resolves. **[proto]** Only `WaitingForChoice` and empty-stack response windows.
@@ -101,5 +101,5 @@ Status in `tests/selftest.js` (`node tests/run.js`, or `cardGame.selfTest()` in 
 - [ ] Undo removing tokens (view); foe-side attacker direction in the view.
 - [ ] Zone/column restrictions block the intended operations *(partly)*.
 - [ ] Base stats persist; equipment changes only current stats *(not built)*.
-- [ ] Hidden info never reaches AI *(not built)*.
+- [x] Observations and logs leak nothing hidden (bot games with disjoint decks); [ ] the AI and the view read Observations only *(not built)*.
 - [ ] Simulated games reproduce real-game outcomes *(needs command recording)*.

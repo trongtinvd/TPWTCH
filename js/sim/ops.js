@@ -1,6 +1,8 @@
 // ops.js - REGISTRY OPS: effect handlers. Add an entry here (and an Fx builder in cards.js) to give every card a new building block
 Sim.def('ops', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
+  let addAttackBonus, cancelAttackObj; // added by Patch3
+  let ctl; // added by Patch3
   let cname, colKeys, zoneDist; // util
   let PL, addStatus, allowed, clearAttacked, clearStatuses, has, hasSt, hurt, isRevealed, live, removeStatus, syncLife; // statuses
   let cloudMap, damageZone, declareWinner, destroy, freeSlots, giveZoneHp, isUnusable, makeToken, markUnusable, recalc, release; // state
@@ -30,6 +32,22 @@ Sim.def('ops', function (K) {
     }
     return out;
   };
+  // Q41: an effect that picks an Attack, with several to pick from, asks (one option per Attack; the answer is in ch.js)
+  const pickAttack = (x, list, extra) =>
+    ask(
+      x.s,
+      x.who,
+      x.src,
+      'attackpick',
+      list.map(o => String(o.sid)),
+      i => {
+        const o = x.s.stack.find(q => String(q.sid) === i);
+        return 'Attack of ' + cname(x.s, o.iid) + (o.slotAt ? ' (column ' + (+o.slotAt.split('|')[2] + 1) + ')' : '');
+      },
+      x.src.def.name + ': choose which Attack.',
+      extra,
+      x.ev
+    );
   const OPS = {
     // effect handlers: (ctx, effect). ctx = {s, ev, src, t, who, foe}
     DealDamage: (x, e) => {
@@ -230,7 +248,7 @@ Sim.def('ops', function (K) {
     PickCard: (x, e) => {
       const s = x.s,
         cs = Object.values(s.cards),
-        mine = c => c.owner === x.who;
+        mine = c => ctl(c) === x.who;
       const ids =
         e.from === 'foeHand'
           ? s.piles[x.foe].hand.map(c => {
@@ -327,20 +345,20 @@ Sim.def('ops', function (K) {
     },
     SwapIn: x => {
       const s = x.s,
-        o = pendingAtk(s, x.src.owner),
+        o = pendingAtk(s, ctl(x.src)),
         a = o && s.cards[o.iid],
         src = x.src;
       if (!a || a.loc !== 'board' || src.loc !== 'hand') return;
       const ids = colKeys(a.slot.split('|')[2])
         .map(k => s.slots[k])
-        .filter(id => id && s.cards[id].owner === src.owner && s.cards[id].def.type === 'creature');
+        .filter(id => id && ctl(s.cards[id]) === ctl(src) && s.cards[id].def.type === 'creature');
       if (!ids.length) return;
       if (ids.length === 1) CH.swap(s, null, src, { option: ids[0] }, x.ev);
       else ask(s, x.who, src, 'swap', ids, null, 'Click the creature to return to your hand.', {}, x.ev);
     },
     ShieldAll: (x, e) => {
       for (const c of Object.values(x.s.cards))
-        if (c.loc === 'board' && c.owner === x.who) {
+        if (c.loc === 'board' && ctl(c) === x.who) {
           addStatus(x.s, c, { kind: 'shield', color: e.color, srcName: x.src.def.name });
           x.ev.push({ t: 'CounterAdded', iid: c.iid, color: e.color });
         }
@@ -372,7 +390,9 @@ Sim.def('ops', function (K) {
     },
     CancelAttack: x => {
       const s = x.s,
-        id = x.t && x.t.iid,
+        foes = s.stack.filter(o => o.kind === 'attack' && o.controller !== x.who);
+      if (foes.length > 1) return pickAttack(x, foes, { act: 'cancel' }); // Q41: several Attacks: the player chooses which one
+      const id = x.t && x.t.iid,
         i = s.stack.map(o => o.kind === 'attack' && o.iid === id).lastIndexOf(true);
       if (i < 0) return;
       s.stack.splice(i, 1);
@@ -405,16 +425,11 @@ Sim.def('ops', function (K) {
       fire(s, x.ev, 'combat', null);
     },
     AddAttackDamage: (x, e) => {
-      const w = e.whose || 'any';
-      for (let i = x.s.stack.length - 1; i >= 0; i--) {
-        const o = x.s.stack[i];
-        if (o.kind === 'attack' && (w === 'any' || (w === 'mine') === (o.controller === x.who))) {
-          addStatus(x.s, o, { kind: 'bonus', amount: e.amount, srcName: x.src.def.name }); // damage added to an Attack is a status on it
-          x.ev.push({ t: 'AttackBoosted', sid: o.sid, amount: e.amount });
-          return;
-        }
-      }
-    }, // generic: adds damage to the topmost matching Attack object
+      const w = e.whose || 'any',
+        hit = x.s.stack.filter(o => o.kind === 'attack' && (w === 'any' || (w === 'mine') === (o.controller === x.who)));
+      if (hit.length > 1) return pickAttack(x, hit, { act: 'boost', amount: e.amount }); // Q41: several matching Attacks: the player chooses
+      if (hit.length) addAttackBonus(x.s, hit[0], e.amount, x.src.def.name, x.ev);
+    }, // generic: adds damage to the matching Attack object (the one, or the chosen one)
     UpTo: (x, e) => upToAsk(x.s, e.who === 'foe' ? x.foe : x.who, x.src, e, e.n, x.ev),
     PlaceToken: (x, e) => {
       const s = x.s,
@@ -437,7 +452,7 @@ Sim.def('ops', function (K) {
   };
   return {
     exports: { OPS },
-    needs: [
+    needs: ['addAttackBonus', 'cancelAttackObj', 'ctl', 
       'CH',
       'PL',
       'addStatus',
@@ -482,6 +497,8 @@ Sim.def('ops', function (K) {
       'markUnusable',
     ],
     link: () => {
+      ({ addAttackBonus, cancelAttackObj } = K);
+      ({ ctl } = K);
       ({
         CH,
         PL,

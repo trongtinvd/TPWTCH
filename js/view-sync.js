@@ -36,7 +36,7 @@ function targets() {
       z.position.x,
       z.position.z,
       0.11 + (!rp.on && Sim.canAttack(game, c) ? ATTACK_RAISE : 0),
-      c.owner === 'Opponent' ? Math.PI : 0,
+      Sim.ctl(c) === 'Opponent' ? Math.PI : 0,
       false,
       k.split('|')[0]
     ); // creatures able to attack stand slightly raised
@@ -139,7 +139,7 @@ function applyLink() {
   ui.reds = [];
   const H = ui.linkSrc;
   if (!H) return;
-  const owner = o => game.cards[o.src || o.iid].owner;
+  const owner = o => Sim.ctl(game.cards[o.src || o.iid]);
   const list =
     H.t === 'entry'
       ? game.stack.filter(o => o.sid === H.sid)
@@ -377,7 +377,7 @@ async function enterJob(pre, o, i) {
     m = o.kind === 'spell' ? meshes.get(src.iid) : null,
     mk = maskOf(o, sim, pre);
   if (mk) {
-    await fly(mk.def, 'Ability', screenOf(mk), () => stackSlot(src.owner, i), 0.45, 0.32, fxMs(o));
+    await fly(mk.def, 'Ability', screenOf(mk), () => stackSlot(Sim.ctl(src), i), 0.45, 0.32, fxMs(o));
     return;
   } // hidden source: it starts from King Eye
   const from = screenOf(src);
@@ -385,7 +385,7 @@ async function enterJob(pre, o, i) {
     m.visible = false;
     ui.dirty = true;
   } // the hand card is carried by the ghost
-  await fly(src.def, subOf(src, o), from, () => stackSlot(src.owner, i), 0.45, 0.32, fxMs(o));
+  await fly(src.def, subOf(src, o), from, () => stackSlot(Sim.ctl(src), i), 0.45, 0.32, fxMs(o));
 }
 async function leaveJob(pre, o) {
   const src = pre.cards[o.src || o.iid] || sim.cards[o.src || o.iid],
@@ -611,7 +611,7 @@ function buildStack() {
       mk = maskOf(o),
       c = mk || game.cards[o.iid],
       d = c.def,
-      own = game.cards[o.src || o.iid].owner,
+      own = Sim.ctl(game.cards[o.src || o.iid]),
       el = document.createElement('div');
     el.className =
       'sc ' +

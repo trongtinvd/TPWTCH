@@ -1,6 +1,7 @@
 // targeting.js - REGISTRIES TARGETS / COLTARGETS / ZONETARGETS and the target finders
 Sim.def('targeting', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
+  let ctl; // added by Patch3
   let colKeys, other; // util
   let has; // statuses
   let cloudMap, isUnusable; // state
@@ -41,28 +42,29 @@ Sim.def('targeting', function (K) {
   }; // the topmost Attack object on the stack that p's opponent controls
   const TARGETS = {
     attacker: (s, c) => {
-      const o = pendingAtk(s, c.owner);
+      const o = pendingAtk(s, ctl(c));
       return o ? s.cards[o.iid] : null;
     },
     opposingFront: (s, c) => {
       const col = c.slot && c.slot.split('|')[2],
-        id = col != null && s.slots[other(c.owner) + '|front|' + col];
+        id = col != null && s.slots[other(ctl(c)) + '|front|' + col];
       return id && !has(s.cards[id], 'red') ? s.cards[id] : null;
     },
   };
   // TARGETINGS: the targets a TRIGGER picks when it is put on the stack (Yu-Gi-Oh: condition : cost / targeting ; effect). An ability with a targeting that has no legal option is not put on the stack at all.
   const TARGETINGS = {
     adjacentPair: {
-      options: (s, c) => pairOptions(s, c.owner),
-      label: (s, c, o) => pairLabel(s, c.owner, o),
+      options: (s, c) => pairOptions(s, ctl(c)),
+      label: (s, c, o) => pairLabel(s, ctl(c), o),
       prompt: c => c.def.name + ': target two adjacent cards your opponent controls.',
     },
   };
   const findTarget = (s, c, a) => (a.target && TARGETS[a.target] ? TARGETS[a.target](s, c) : null);
   return {
     exports: { COLTARGETS, TARGETINGS, TARGETS, ZONETARGETS, findTarget, pendingAtk, targetColumns, targetZones },
-    needs: ['cloudMap', 'colKeys', 'has', 'isUnusable', 'other', 'pairLabel', 'pairOptions'],
+    needs: ['ctl', 'cloudMap', 'colKeys', 'has', 'isUnusable', 'other', 'pairLabel', 'pairOptions'],
     link: () => {
+      ({ ctl } = K);
       ({ cloudMap, colKeys, has, isUnusable, other, pairLabel, pairOptions } = K);
     },
   };

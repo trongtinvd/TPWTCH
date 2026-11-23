@@ -497,7 +497,7 @@ const canUseNow = c =>
     !foeChoice() &&
     ((game.choice.kind === 'pick' && !game.choice.labels) || boardPick(game.choice)) &&
     game.choice.options.includes(c.iid)) ||
-  (c.owner === ui.view &&
+  (Sim.ctl(c) === ui.view &&
     (c.loc === 'hand'
       ? !Sim.canPlay(game, c) || (Sim.abDef(c).abilities || []).some((a, i) => !Sim.canActivate(game, c, i))
       : c.loc === 'board' && (Sim.abDef(c).abilities || []).some((a, i) => !Sim.canActivate(game, c, i))));

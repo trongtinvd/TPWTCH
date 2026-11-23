@@ -446,8 +446,8 @@
         'played Zap is on the stack under MY control; its real owner is remembered',
         s.stack.length === 2 &&
           zp.loc === 'stack' &&
-          zp.owner === 'Player' &&
-          zp.home === 'Opponent' &&
+          zp.owner === 'Opponent' &&
+          zp.controller === 'Player' &&
           s.stack[s.stack.length - 1].controller === 'Player'
       );
       eq('the effect repeats: declare again', s.choice.kind, 'declare');
@@ -525,7 +525,7 @@
       D(s, { type: 'Choose', player: 'Player', option: 'Player|front|0' });
       check(
         'the Wolf stands under my control (it belongs to the opponent)',
-        w.loc === 'board' && w.owner === 'Player' && w.home === 'Opponent' && w.slot === 'Player|front|0'
+        w.loc === 'board' && w.owner === 'Opponent' && w.controller === 'Player' && w.slot === 'Player|front|0'
       );
       eq('...and the effect repeats', s.choice.kind, 'declare');
       D(s, { type: 'Choose', player: 'Player', option: 'giant' });
@@ -536,7 +536,7 @@
       drain(s);
       eq(
         'when it leaves the board it goes to its owner\u2019s graveyard and is the owner\u2019s again',
-        [w.loc, w.owner, w.home, s.piles.Opponent.gy.includes(w), s.piles.Player.gy.includes(w)],
+        [w.loc, w.owner, w.controller, s.piles.Opponent.gy.includes(w), s.piles.Player.gy.includes(w)],
         ['gy', 'Opponent', undefined, true, false]
       );
     }

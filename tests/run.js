@@ -33,7 +33,7 @@ const simFiles = listed(/<script src="(js\/sim\/[^"]+)">/g);
 if (!simFiles.length) throw new Error('no js/sim/*.js scripts found in index.html');
 const testFiles = testFile ? ['tests/harness.js', testFile] : listed(/<script src="(tests\/[^"]+)">/g);
 if (!testFiles.length) throw new Error('no tests/*.js scripts found in index.html');
-const scripts = ['js/cards.js', ...simFiles, 'js/storage.js', 'js/decks.js', 'js/bot.js', ...testFiles].map(f =>
+const scripts = ['js/cards.js', ...simFiles, 'js/narrate.js', 'js/storage.js', 'js/decks.js', 'js/bot.js', ...testFiles].map(f =>
   path.isAbsolute(f) ? f : path.join(root, f)
 );
 for (const f of scripts) vm.runInContext(fs.readFileSync(f, 'utf8'), sandbox, { filename: f });

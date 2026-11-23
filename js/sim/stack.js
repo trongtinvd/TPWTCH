@@ -1,6 +1,7 @@
 // stack.js - playing cards, activating abilities, the stack, triggers (fire), response windows, end of turn
 Sim.def('stack', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
+  let ctl; // added by Patch3
   let byId, isPerm, other, slotRow, slowish; // util
   let gainAP, hasAP; // ap
   let PL, abDef, clearAttacked, expiresAtTurnEnd, has, hasSt, live, removeStatus; // statuses
@@ -52,9 +53,9 @@ Sim.def('stack', function (K) {
       const why = REQS[r] && REQS[r](s, c, a);
       if (why) return why;
     }
-    if (c.owner !== s.priority) return 'Timing: you do not have priority';
+    if (ctl(c) !== s.priority) return 'Timing: you do not have priority';
     if (a.speed === 'Slow') {
-      if (c.owner !== s.active) return 'Timing: Slow abilities only on your turn';
+      if (ctl(c) !== s.active) return 'Timing: Slow abilities only on your turn';
       if (s.stack.length) return 'Timing: Slow abilities need an empty stack';
       if (s.attackPhase) return 'Timing: not during the battle phase';
       if (s.respond) return 'Timing: Slow abilities need an open game state';
@@ -91,7 +92,7 @@ Sim.def('stack', function (K) {
         hp: a.hp ?? 1,
         text: abDef(c).text,
       },
-      owner: c.owner,
+      owner: ctl(c),
       loc: 'stack',
       slot: null,
       token: true,
@@ -108,7 +109,7 @@ Sim.def('stack', function (K) {
           list,
           ab: i,
           from: abDef(c).id,
-          controller: c.owner,
+          controller: ctl(c),
           hp: tok.def.hp,
           target: target || null,
           name: tok.def.name,
@@ -135,7 +136,7 @@ Sim.def('stack', function (K) {
     if (!hits.length) return;
     // 2) the triggers wait in s.trg: each player with several of them may order them (a choice, non-turn player first; only when the host turned
     //    it on), every trigger with a targeting picks its targets, then they go on the stack: turn player's first, so the other player's resolve first.
-    s.trg = { items: hits.map(h => ({ iid: h.c.iid, i: h.i, owner: h.c.owner, optional: h.optional })), R: {} };
+    s.trg = { items: hits.map(h => ({ iid: h.c.iid, i: h.i, owner: ctl(h.c), optional: h.optional })), R: {} };
     advanceTrg(s, ev);
   }
   const permutations = a =>
@@ -297,7 +298,7 @@ Sim.def('stack', function (K) {
       stopAt,
       stopWants,
     },
-    needs: [
+    needs: ['ctl', 
       'expiresAtTurnEnd',
       'hasSt',
       'COLTARGETS',
@@ -327,6 +328,7 @@ Sim.def('stack', function (K) {
       'targetZones',
     ],
     link: () => {
+      ({ ctl } = K);
       ({ expiresAtTurnEnd, hasSt } = K);
       ({
         COLTARGETS,

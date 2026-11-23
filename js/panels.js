@@ -318,13 +318,13 @@ function showCard(c, pin = true, hl = null) {
     exile: 'In exile (' + NAME[c.owner] + ')',
     extra: 'In the extra deck (' + NAME[c.owner] + ')',
     hand: 'In ' + NAME[c.owner] + '\u2019s hand',
-    board: 'On the board (' + NAME[c.owner] + ')',
-    stack: 'On the stack (' + NAME[c.owner] + ')',
+    board: 'On the board (' + NAME[Sim.ctl(c)] + ')' + (Sim.ctl(c) !== c.owner ? ', owned by ' + NAME[c.owner] : ''),
+    stack: 'On the stack (' + NAME[Sim.ctl(c)] + ')' + (Sim.ctl(c) !== c.owner ? ', owned by ' + NAME[c.owner] : ''),
   }[c.loc];
   const gyActs =
     !rp.on && (c.loc === 'gy' || c.loc === 'hand' || c.loc === 'deck')
       ? (Sim.abDef(c).abilities || [])
-          .map((a, i) => ({ a, i, why: c.owner !== ui.view ? 'Not your card' : Sim.canActivate(game, c, i) }))
+          .map((a, i) => ({ a, i, why: Sim.ctl(c) !== ui.view ? 'Not your card' : Sim.canActivate(game, c, i) }))
           .filter(x => [].concat(x.a.zone || 'board').includes(c.loc))
       : [];
   const key =
@@ -391,7 +391,7 @@ function showPlayer(p, pin) {
   }
   const s = game,
     P = s.piles[p],
-    n = Object.values(s.cards).filter(c => c.loc === 'board' && c.owner === p).length;
+    n = Object.values(s.cards).filter(c => c.loc === 'board' && Sim.ctl(c) === p).length;
   const stats = [
     'Life ' + s.life[p] + ' / ' + s.maxLife,
     'Permanents ' + n,
@@ -473,7 +473,7 @@ function actionsFor(c) {
   if (c.loc === 'board' && c.def.type === 'creature')
     acts.push({
       t: 'Attack',
-      why: c.owner !== ui.view ? 'Not your creature' : Sim.canAttack(game, c),
+      why: Sim.ctl(c) !== ui.view ? 'Not your creature' : Sim.canAttack(game, c),
       run: () => send({ type: 'Attack', iid: c.iid }),
     });
   if (c.loc === 'board' || c.loc === 'hand' || c.loc === 'gy' || c.loc === 'deck')
@@ -482,7 +482,7 @@ function actionsFor(c) {
         [].concat(a.zone || 'board').includes(c.loc) &&
         acts.push({
           t: a.speed + ': ' + a.name,
-          why: c.owner !== ui.view ? 'Not your card' : Sim.canActivate(game, c, i),
+          why: Sim.ctl(c) !== ui.view ? 'Not your card' : Sim.canActivate(game, c, i),
           run: () => send({ type: 'Activate', iid: c.iid, ab: i }),
         })
     );

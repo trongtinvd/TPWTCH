@@ -1,6 +1,7 @@
 // combat.js - damage, retaliate, riders, Attack objects and strikes
 Sim.def('combat', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
+  let ctl; // added by Patch3
   let other; // util
   let abDef, addStatus, allowed, atkOf, bonusOf, has, hasSt, hpOf, hurt, totalDamage; // statuses
   let destroy, recalc; // state
@@ -17,8 +18,8 @@ Sim.def('combat', function (K) {
   function retaliate(s, from, pw, src, ev) {
     if (pw <= 0) return;
     if (src.def.type === 'spell') {
-      hurt(s, src.owner, pw, from.def.name, 'retaliate');
-      ev.push({ t: 'PlayerDamaged', player: src.owner, amount: pw });
+      hurt(s, ctl(src), pw, from.def.name, 'retaliate');
+      ev.push({ t: 'PlayerDamaged', player: ctl(src), amount: pw });
     } else if (src.loc === 'board') dealDamage(s, from, src, pw, ev, 'retaliate');
   } // Retaliate: the source (creature, or the spell's controller) takes damage equal to the retaliator's power; retaliation never retaliates
   function dealDamage(s, src, tgt, amount, ev, type, targeted) {
@@ -49,7 +50,7 @@ Sim.def('combat', function (K) {
     if (!allowed(c, 'attack')) return 'This creature cannot attack';
     if (!s.attackPhase) return 'Turn the attack phase on first';
     if (hasSt(c, 'attacked')) return 'Already attacked this turn';
-    if (c.owner !== s.active) return 'Not this player\u2019s turn';
+    if (ctl(c) !== s.active) return 'Not this player\u2019s turn';
     if (s.stack.length) return 'Stack is not empty';
     if (s.respond) return 'Waiting for the response window';
     return null;
@@ -58,7 +59,7 @@ Sim.def('combat', function (K) {
     // damage flows down the attacker's CURRENT column
     const at = (o && o.slotAt && c.loc !== 'board' ? o.slotAt : c.slot).split('|'),
       col = at[2],
-      foe = other(c.owner);
+      foe = other(ctl(c));
     /* at: where it stood when it struck (it may die mid-strike, e.g. to Retaliate) */ let left =
       (c.loc === 'board' ? atkOf(c) : 0) + (o ? bonusOf(o) : 0); // the attacker's power counts only while it is on the board; damage added to the Attack itself always counts. Damage goes toward the controller's opponent; a card standing on the foe's side skips itself
 
@@ -91,7 +92,7 @@ Sim.def('combat', function (K) {
       kind: 'attack',
       iid: c.iid,
       src: c.iid,
-      controller: c.owner,
+      controller: ctl(c),
       hp: null,
       name: 'Attack: ' + c.def.name,
       slotAt: c.slot,
@@ -102,12 +103,22 @@ Sim.def('combat', function (K) {
     ev.push({ t: 'CreatureAttackDeclared', iid: c.iid, col: +c.slot.split('|')[2], extra: !!extra });
     ev.push({ t: 'StackObjectCreated', iid: c.iid, attack: true });
     fire(s, ev, 'attack', c); // its triggers go ABOVE the Attack: separate objects, resolved (and answered) independently
-    s.priority = other(c.owner); // the defender answers first
+    s.priority = other(ctl(c)); // the defender answers first
+  }
+  function addAttackBonus(s, o, amount, srcName, ev) {
+    addStatus(s, o, { kind: 'bonus', amount, srcName }); // damage added to an Attack is a status on it
+    ev.push({ t: 'AttackBoosted', sid: o.sid, amount });
+  }
+  function cancelAttackObj(s, o, ev) {
+    const i = s.stack.indexOf(o);
+    if (i < 0) return;
+    s.stack.splice(i, 1);
+    ev.push({ t: 'AttackCancelled', iid: o.iid });
   }
   const extraAttack = (s, c, ev) => declareAttack(s, c, ev, true);
   return {
-    exports: { RIDERS, canAttack, dealDamage, declareAttack, extraAttack, resolveAttack, retaliate, strike },
-    needs: [
+    exports: { RIDERS, addAttackBonus, cancelAttackObj, canAttack, dealDamage, declareAttack, extraAttack, resolveAttack, retaliate, strike },
+    needs: ['ctl', 
       'allowed',
       'bonusOf',
       'abDef',
@@ -124,6 +135,7 @@ Sim.def('combat', function (K) {
       'totalDamage',
     ],
     link: () => {
+      ({ ctl } = K);
       ({ allowed, bonusOf } = K);
       ({ abDef, addStatus, atkOf, destroy, fire, has, hasSt, hpOf, hurt, other, recalc, totalDamage } = K);
     },

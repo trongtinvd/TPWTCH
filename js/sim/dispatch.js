@@ -1,6 +1,8 @@
 // dispatch.js - the command interpreter and hasAction
 Sim.def('dispatch', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
+  let RULES, historyBytes; // added by Patch3
+  let ctl; // added by Patch3
   let canPayExtra, isPerm, other, slowish; // util
   let gainAP, hasAP, spendAP; // ap
   let lg; // logs
@@ -41,6 +43,7 @@ Sim.def('dispatch', function (K) {
     // mutates s; returns {ok, why, events}
     const ev = [],
       fail = why => ({ ok: false, why, events: [] });
+    if (s.capped) return fail('The history limit was reached: the game is over');
     if (s.choice && !['Choose', 'Surrender', 'Leave'].includes(cmd.type))
       return fail('Waiting for ' + s.choice.player + ' to choose'); // giving up is possible at any time
     if (s.phase === 'deck' && cmd.type !== 'ReorderDeck' && cmd.type !== 'Start')
@@ -271,7 +274,7 @@ Sim.def('dispatch', function (K) {
           tgt = findTarget(s, c, a);
         for (const k of a.cost || []) payCost(s, c, k, ev); // costs are paid on activation
         pushObj(s, c, 'abilities', cmd.ab, ev, tgt ? tgt.iid : null);
-        s.priority = other(c.owner); // the opponent gets priority first
+        s.priority = other(ctl(c)); // the opponent gets priority first
         ev.push({ t: 'AbilityActivated', iid: c.iid, ab: cmd.ab, speed: a.speed });
         break;
       }
@@ -317,6 +320,12 @@ Sim.def('dispatch', function (K) {
     sweepUnusable(s, ev);
     recalc(s, ev);
     checkTurnEnd(s, ev);
+    if (!s.capped && historyBytes(s) > RULES.historyCap) {
+      // Q43: the game ends (a draw, unless it was decided already; the first decision stands)
+      s.capped = true;
+      declareWinner(s, null, 'cap', ev);
+      ev.push({ t: 'HistoryCapReached' });
+    }
     return { ok: true, events: ev };
   }
   function actionsOf(s, p) {
@@ -325,7 +334,7 @@ Sim.def('dispatch', function (K) {
     const out = [];
     if (s.phase !== 'play' || p !== s.priority) return out;
     const P = s.piles[p],
-      mine = Object.values(s.cards).filter(c => c.owner === p && (c.loc === 'board' || c.loc === 'gy')),
+      mine = Object.values(s.cards).filter(c => ctl(c) === p && (c.loc === 'board' || c.loc === 'gy')),
       turn = p === s.active && !s.stack.length;
     if (turn && !s.attackPhase && hasAP(s, p) && P.deck.length) out.push({ kind: 'draw' });
     P.hand.forEach(c => {
@@ -352,7 +361,7 @@ Sim.def('dispatch', function (K) {
   const hasAction = (s, p) => actionsOf(s, p).length > 0; // is there anything legal for p right now?
   return {
     exports: { actionsOf, dispatch, hasAction },
-    needs: [
+    needs: ['RULES', 'historyBytes', 'ctl', 
       'CH',
       'PL',
       'abDef',
@@ -396,6 +405,8 @@ Sim.def('dispatch', function (K) {
       'targetZones',
     ],
     link: () => {
+      ({ RULES, historyBytes } = K);
+      ({ ctl } = K);
       ({
         CH,
         PL,

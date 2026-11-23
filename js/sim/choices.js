@@ -2,6 +2,7 @@
 // then playing the opponent's top card (L4: The Librarian). Each flow is started by an op (ops.js) and continued by a CH handler (ch.js).
 Sim.def('choices', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
+  let ctl; // added by Patch3
   let byId, cname, isPerm, other, zoneDist; // util
   let has; // statuses
   let cloudMap, destroy, enterBoard, freeSlots, isUnusable; // state
@@ -17,7 +18,7 @@ Sim.def('choices', function (K) {
       // a zone under the foe's own cloud is offered whatever is (or is not) under it; elsewhere only visible, targetable cards
       seen = Object.keys(s.slots).filter(
         k =>
-          !isUnusable(s, k) && ((m[k] && k.split('|')[0] === foe) || (at(k) && at(k).owner === foe && !has(at(k), 'red')))
+          !isUnusable(s, k) && ((m[k] && k.split('|')[0] === foe) || (at(k) && ctl(at(k)) === foe && !has(at(k), 'red')))
       ),
       opts = [];
     for (let i = 0; i < seen.length; i++)
@@ -54,7 +55,7 @@ Sim.def('choices', function (K) {
       real = opt
         .split('#')
         .map(k => s.slots[k] && s.cards[s.slots[k]])
-        .filter(t => t && t.loc === 'board' && t.owner === foe && !has(t, 'red')); // only what is really there and still targetable
+        .filter(t => t && t.loc === 'board' && ctl(t) === foe && !has(t, 'red')); // only what is really there and still targetable
     if (real.length === 1) destroy(s, real[0], ev);
     else if (real.length === 2)
       ask(
@@ -119,15 +120,16 @@ Sim.def('choices', function (K) {
   }
   const playable = (s, me, t) => {
     // permanents need a free zone on my side; spells that need no target and whose requirements hold (targeted spells cannot be played this way yet)
-    const was = t.owner;
-    t.owner = me;
+    const was = t.controller;
+    t.controller = me;
     try {
       if (isPerm(t)) return freeSlots(s, t).length > 0;
       const d = t.def;
       if (d.zoneTarget || d.colTarget || d.playerTarget || d.stackTarget) return false;
       return (d.req || []).every(r => !REQS[r] || !REQS[r](s, t, d));
     } finally {
-      t.owner = was;
+      if (was === undefined) delete t.controller;
+      else t.controller = was;
     }
   };
   function libLook(s, me, c, name, ev) {
@@ -153,8 +155,7 @@ Sim.def('choices', function (K) {
   function libPlay(s, me, c, t, ev) {
     const D = s.piles[t.owner].deck;
     D.splice(D.indexOf(t), 1);
-    t.home = t.owner; // it goes back to its owner's zones when it leaves
-    t.owner = me;
+    t.controller = me; // Q56: the owner stays, only the control changes; it ends when the card leaves (release)
     if (isPerm(t)) {
       const f = freeSlots(s, t);
       if (f.length === 1) enterBoard(s, t, f[0], ev);
@@ -192,7 +193,7 @@ Sim.def('choices', function (K) {
   }
   return {
     exports: { declareAsk, libLook, libPlay, pairLabel, pairOptions, pairPicked, pairStart, reorderAsk, reorderStart },
-    needs: [
+    needs: ['ctl', 
       'REQS',
       'ask',
       'byId',
@@ -208,6 +209,7 @@ Sim.def('choices', function (K) {
       'zoneDist',
     ],
     link: () => {
+      ({ ctl } = K);
       ({ REQS, ask, byId, cloudMap, cname, destroy, enterBoard, freeSlots, has, isPerm, isUnusable, other, zoneDist } = K);
     },
   };

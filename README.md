@@ -42,6 +42,7 @@ Plain scripts loaded in order by `index.html` (no build step):
 - `css/theme.css` every colour, distance and sprite setting as a CSS variable; `js/theme.js` reads them for the 3D scene; `js/storage.js` the only code that touches localStorage
 - `js/gamelog.js` the game log (back of the stack panel: every command and rule event, by name)
 - `js/main.js` console hook and render loop
+- `js/sim/observe.js` per-player Observations (`Sim.observe`, `Sim.observeEvents`); `js/narrate.js` is loaded by the Node tests too, to check the logs for leaks
 - `tests/selftest.js` headless rules tests, `tests/run.js` runs them in Node
 
 ## Running the tests

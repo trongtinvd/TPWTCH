@@ -1,17 +1,18 @@
 // costs.js - REGISTRY COSTS: check (payable?) and pay (mutates)
 Sim.def('costs', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
+  let ctl; // added by Patch3
   let PL, addStatus, has, syncLife; // statuses
   let destroy; // state
   let hasAP, spendAP; // ap
   const COSTS = {
     // check -> reason|null; pay mutates (never refunded if countered)
     PayLife: {
-      check: (s, c, k) => (s.life[c.owner] <= k.n ? 'Cost: not enough life' : null),
+      check: (s, c, k) => (s.life[ctl(c)] <= k.n ? 'Cost: not enough life' : null),
       pay: (s, c, k, ev) => {
-        addStatus(s, PL(s, c.owner), { kind: 'paid', amount: k.n, srcName: c.def.name });
-        syncLife(s, c.owner);
-        ev.push({ t: 'LifePaid', player: c.owner, amount: k.n });
+        addStatus(s, PL(s, ctl(c)), { kind: 'paid', amount: k.n, srcName: c.def.name });
+        syncLife(s, ctl(c));
+        ev.push({ t: 'LifePaid', player: ctl(c), amount: k.n });
       },
     },
     ExileFromGY: {
@@ -36,16 +37,17 @@ Sim.def('costs', function (K) {
       },
     },
     SpendAP: {
-      check: (s, c) => (hasAP(s, c.owner) ? null : 'Cost: no action point left'),
-      pay: (s, c, k, ev) => spendAP(s, c.owner, c.def.name + ' (cost)', ev),
+      check: (s, c) => (hasAP(s, ctl(c)) ? null : 'Cost: no action point left'),
+      pay: (s, c, k, ev) => spendAP(s, ctl(c), c.def.name + ' (cost)', ev),
     },
     SacrificeSelf: { check: () => null, pay: (s, c, k, ev) => destroy(s, c, ev) },
   };
   const payCost = (s, c, k, ev) => COSTS[k.op].pay(s, c, k, ev);
   return {
     exports: { COSTS, payCost },
-    needs: ['PL', 'addStatus', 'destroy', 'has', 'hasAP', 'spendAP', 'syncLife'],
+    needs: ['ctl', 'PL', 'addStatus', 'destroy', 'has', 'hasAP', 'spendAP', 'syncLife'],
     link: () => {
+      ({ ctl } = K);
       ({ PL, addStatus, destroy, has, hasAP, spendAP, syncLife } = K);
     },
   };

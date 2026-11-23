@@ -95,13 +95,13 @@ const ui = {
   pulse: false,
   lastPulse: 0,
 };
-const seenHidden = c => !!(c && c.loc === 'board' && c.slot && Sim.cloudMap(game)[c.slot] && c.owner !== ui.view); // under an enemy cloud
+const seenHidden = c => !!(c && c.loc === 'board' && c.slot && Sim.cloudMap(game)[c.slot] && Sim.ctl(c) !== ui.view); // under an enemy cloud
 // A card under an enemy cloud never shows itself: its abilities appear to come from the King Eye that makes the cloud.
 function maskOf(o, ...sts) {
   if (o.kind === 'spell') return null;
   for (const st of sts.length ? sts : [game]) {
     const c = st.cards[o.src];
-    if (c && c.loc === 'board' && c.owner !== ui.view) {
+    if (c && c.loc === 'board' && Sim.ctl(c) !== ui.view) {
       const k = Sim.cloudMap(st)[c.slot];
       if (k) return st.cards[k];
     }
