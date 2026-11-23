@@ -13,5 +13,6 @@ with (order matters: harness first, selftest.js last):
   <script src="tests/suites/09-decks-bot-replay.js"></script>
   <script src="tests/suites/10-extra-deck.js"></script>
   <script src="tests/suites/11-rulings-timing.js"></script>
+  <script src="tests/suites/12-rulings-statuses.js"></script>
   <script src="tests/selftest.js"></script>
 tests/run.js reads this list from index.html, so a new suite file only needs a script line there.

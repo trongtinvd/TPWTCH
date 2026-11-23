@@ -51,6 +51,7 @@ const GameLog = (function () {
     LifeCounterAdded: e => 'life gained: +' + e.amount,
     CounterAdded: e => cn(e.iid) + ' gets a ' + e.color + ' shield',
     ZoneUnusable: e => e.slot + ' becomes unusable',
+    ZoneDamaged: e => e.slot + ' takes ' + e.amount + ' zone damage',
     AbilitiesTransformed: e => cn(e.iid) + ' takes on new abilities (was ' + e.from + ')',
     AbilityActivated: e => cn(e.iid) + ' activates ability #' + (e.ab + 1) + ' (' + e.speed + ')',
     ChoiceRequested: e => who(e.player) + ' must choose',

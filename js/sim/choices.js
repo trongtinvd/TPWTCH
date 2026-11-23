@@ -4,7 +4,7 @@ Sim.def('choices', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
   let byId, cname, isPerm, other, zoneDist; // util
   let has; // statuses
-  let cloudMap, destroy, enterBoard, freeSlots; // state
+  let cloudMap, destroy, enterBoard, freeSlots, isUnusable; // state
   let ask; // fx
   let REQS; // reqs
   // ---- Widow Maker: target two adjacent cards the opponent controls; THEY send one of them to the graveyard
@@ -17,7 +17,7 @@ Sim.def('choices', function (K) {
       // a zone under the foe's own cloud is offered whatever is (or is not) under it; elsewhere only visible, targetable cards
       seen = Object.keys(s.slots).filter(
         k =>
-          !s.unusable[k] && ((m[k] && k.split('|')[0] === foe) || (at(k) && at(k).owner === foe && !has(at(k), 'red')))
+          !isUnusable(s, k) && ((m[k] && k.split('|')[0] === foe) || (at(k) && at(k).owner === foe && !has(at(k), 'red')))
       ),
       opts = [];
     for (let i = 0; i < seen.length; i++)
@@ -183,6 +183,7 @@ Sim.def('choices', function (K) {
         zone: null,
         tplayer: null,
         tsid: null,
+        statuses: [],
       });
       s.passes = 0;
       ev.push({ t: 'StackObjectCreated', iid: t.iid });
@@ -202,11 +203,12 @@ Sim.def('choices', function (K) {
       'freeSlots',
       'has',
       'isPerm',
+      'isUnusable',
       'other',
       'zoneDist',
     ],
     link: () => {
-      ({ REQS, ask, byId, cloudMap, cname, destroy, enterBoard, freeSlots, has, isPerm, other, zoneDist } = K);
+      ({ REQS, ask, byId, cloudMap, cname, destroy, enterBoard, freeSlots, has, isPerm, isUnusable, other, zoneDist } = K);
     },
   };
 });

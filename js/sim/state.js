@@ -54,7 +54,7 @@ Sim.def('state', function (K) {
       drawn: { Player: 0, Opponent: 0 }, // cards drawn since the game started (the opening hand does not count)
       sid: 0,
       choice: null,
-      unusable: {},
+      zones: {}, // zone objects {key, statuses[]}: unusable, clouds and zone HP are statuses on them (Q34, Q10)
       respond: null,
       orderTriggers: !!opts.orderTriggers, // the host turns it on: a player with several triggers at once orders them (a 'trigorder' choice); off in the rules tests
       turnEnding: false, // Q21: combat has ended, the end step opens as soon as nothing is pending
@@ -93,7 +93,12 @@ Sim.def('state', function (K) {
         lg(s, c, { kind: 'start', to: 'deck', pos: i + 1, of: deck.length });
       });
       s.piles[p] = { deck, hand: [], gy: [], exile: [], extra }; // opening hands are dealt when both players press Start
-      for (const row of ['front', 'back']) for (let c = 0; c < 5; c++) s.slots[p + '|' + row + '|' + c] = null; // slot -> iid
+      for (const row of ['front', 'back'])
+        for (let c = 0; c < 5; c++) {
+          const k = p + '|' + row + '|' + c;
+          s.slots[k] = null; // slot -> iid
+          s.zones[k] = { key: k, statuses: [] };
+        }
     }
     return s;
   }
@@ -102,18 +107,59 @@ Sim.def('state', function (K) {
     if (opts.autoStart) for (const p of ['Player', 'Opponent']) dispatch(s, { type: 'Start', player: p });
     return s;
   } // the public Sim.create
+  const isUnusable = (s, k) => !!s.zones[k] && hasSt(s.zones[k], 'unusable');
+  const markUnusable = (s, k, srcName) => {
+    if (s.zones[k] && !isUnusable(s, k)) addStatus(s, s.zones[k], { kind: 'unusable', keep: true, srcName });
+  };
+  // Zone HP (Q10): off until an effect gives a zone HP; every such effect feeds ONE shared bar. null = disabled
+  function zoneBar(s, k) {
+    const z = s.zones[k],
+      sum = kind => (z ? live(z).reduce((n, x) => n + (x.kind === kind ? x.amount : 0), 0) : 0);
+    if (!z || !live(z).some(x => x.kind === 'zonehp')) return null;
+    const hp = sum('zonehp'),
+      damage = sum('zonedmg');
+    return { hp, damage, left: hp - damage };
+  }
+  const giveZoneHp = (s, k, n, srcName) => {
+    if (s.zones[k]) addStatus(s, s.zones[k], { kind: 'zonehp', amount: n, srcName });
+  };
+  function damageZone(s, k, n, srcName, ev) {
+    // false when the zone has no HP (nothing happens). At <= 0 recalc exiles its contents and the zone becomes unusable
+    if (!zoneBar(s, k)) return false;
+    addStatus(s, s.zones[k], { kind: 'zonedmg', amount: n, srcName });
+    ev.push({ t: 'ZoneDamaged', slot: k, amount: n });
+    recalc(s, ev);
+    return true;
+  }
   const freeSlots = (s, c) =>
-    Object.keys(s.slots).filter(k => !s.slots[k] && !s.unusable[k] && k.startsWith(c.owner + '|' + slotRow(c) + '|')); // an unusable zone is never free
+    Object.keys(s.slots).filter(k => !s.slots[k] && !isUnusable(s, k) && k.startsWith(c.owner + '|' + slotRow(c) + '|')); // an unusable zone is never free
   // Clouds (King Eye) are derived from the board, so they vanish when King Eye leaves: slotKey -> King Eye iid. They cover the controller's OTHER zones.
+  // Q34: a cloud is a `cloud` status on a zone; syncClouds keeps those statuses equal to the board (recalc runs it after every command, cloudMap before
+  // it answers, so a state built by hand is read correctly too). Nothing changes when they already match.
+  const obscures = c => c.loc === 'board' && (abDef(c).passives || []).some(p => p.op === 'Obscure');
+  function syncClouds(s) {
+    const kings = Object.values(s.cards).filter(obscures);
+    for (const k in s.zones) {
+      const z = s.zones[k],
+        mine = k.split('|')[0],
+        covers = a => a.slot !== k && a.owner === mine;
+      for (const st of live(z))
+        if (st.kind === 'cloud') {
+          const a = s.cards[st.src];
+          if (!(a && obscures(a) && covers(a))) removeStatus(s, st, 'no longer covered');
+        }
+      for (const a of kings)
+        if (covers(a) && !live(z).some(x => x.kind === 'cloud' && x.src === a.iid))
+          addStatus(s, z, { kind: 'cloud', src: a.iid, srcName: a.def.name });
+    }
+  }
   const cloudMap = s => {
+    syncClouds(s);
     const m = {};
-    for (const c of Object.values(s.cards))
-      if (c.loc === 'board' && (abDef(c).passives || []).some(p => p.op === 'Obscure'))
-        for (const row of ['front', 'back'])
-          for (let i = 0; i < 5; i++) {
-            const k = c.owner + '|' + row + '|' + i;
-            if (k !== c.slot) m[k] = c.iid;
-          }
+    for (const k in s.zones) {
+      const st = live(s.zones[k]).find(x => x.kind === 'cloud');
+      if (st) m[k] = st.src;
+    }
     return m;
   };
   // INFORMATION: may player p know which card c is, right now? The board (unless covered by a cloud the owner controls), the graveyard, exile and the
@@ -169,8 +215,22 @@ Sim.def('state', function (K) {
             }
           });
         }
+        syncClouds(s);
+        let zoneChanged = false;
+        for (const k of Object.keys(s.zones)) {
+          // a zone whose HP bar is used up: its contents are exiled (a rule, so even a blue card), the zone becomes unusable, the bar is gone
+          const b = zoneBar(s, k);
+          if (!b || b.left > 0) continue;
+          if (s.slots[k]) exileFromBoard(s, s.cards[s.slots[k]], ev);
+          markUnusable(s, k, 'zone HP');
+          live(s.zones[k])
+            .filter(x => x.kind === 'zonehp' || x.kind === 'zonedmg')
+            .forEach(x => removeStatus(s, x, 'zone HP used up'));
+          ev.push({ t: 'ZoneUnusable', slot: k });
+          zoneChanged = true;
+        }
         const dead = board.filter(c => c.loc === 'board' && totalDamage(c) > hpOf(c)); // only the final value decides: at -1 HP inside the columns a card lives, leave them and it dies
-        if (!dead.length) break;
+        if (!dead.length && !zoneChanged) break;
         dead.forEach(c => destroy(s, c, ev));
       }
       for (const p of ['Player', 'Opponent']) syncLife(s, p);
@@ -193,10 +253,22 @@ Sim.def('state', function (K) {
   }
   function sweepUnusable(s, ev) {
     // a card that somehow ends up on an unusable zone goes to the graveyard
-    for (const k of Object.keys(s.unusable)) {
+    for (const k of Object.keys(s.zones).filter(z => isUnusable(s, z))) {
       const id = s.slots[k];
       if (id) destroy(s, s.cards[id], ev, 'left the board: its zone became unusable (a rule, not an effect)');
     }
+  }
+  function exileFromBoard(s, c, ev) {
+    s.slots[c.slot] = null;
+    c.slot = null;
+    release(c);
+    clearStatuses(s, c, 'left the board');
+    if (c.token) c.loc = 'gone';
+    else {
+      c.loc = 'exile';
+      s.piles[c.owner].exile.push(c);
+    }
+    ev.push({ t: 'CardExiled', iid: c.iid });
   }
   function release(c) {
     // a card played under temporary control (L4) goes back to its real owner when it leaves: the owner's zones receive it
@@ -266,11 +338,18 @@ Sim.def('state', function (K) {
       declareWinner,
       destroy,
       enterBoard,
+      damageZone,
+      exileFromBoard,
       freeSlots,
+      giveZoneHp,
+      isUnusable,
       makeToken,
+      markUnusable,
       recalc,
       release,
+      syncClouds,
       sweepUnusable,
+      zoneBar,
     },
     needs: [
       'abDef',

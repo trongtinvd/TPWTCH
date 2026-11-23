@@ -4,8 +4,19 @@ Sim.def('logs', function (K) {
   const lg = (s, o, e) => {
     if (o) (o.logs || (o.logs = [])).push(Object.assign({ n: (s.lseq = (s.lseq || 0) + 1), turn: s.turn }, e));
   };
-  const ownKey = (s, o) => o.iid || (o === s.players.Player ? 'Player' : o === s.players.Opponent ? 'Opponent' : null);
-  const ownerOf = (s, st) => s.cards[st.own] || s.players[st.own];
+  // a status belongs to a card (iid), a player, a zone (its key) or a stack object ('so-' + sid)
+  const ownKey = (s, o) =>
+    o.sid != null && o.kind
+      ? 'so-' + o.sid
+      : o.key && o.statuses
+        ? o.key
+        : o.iid || (o === s.players.Player ? 'Player' : o === s.players.Opponent ? 'Opponent' : null);
+  const ownerOf = (s, st) =>
+    s.cards[st.own] ||
+    s.players[st.own] ||
+    (s.zones && s.zones[st.own]) ||
+    (String(st.own).startsWith('so-') ? s.stack.find(o => 'so-' + o.sid === st.own) : null) ||
+    null; // a stack object that is gone cannot log any more
   const whereOf = c => (c.loc === 'board' ? 'board ' + c.slot : c.loc);
   const HOW = {
     CardDrawn: ['drawn', 'hand'],

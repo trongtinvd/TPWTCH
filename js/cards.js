@@ -107,6 +107,8 @@ const Fx = {
   obscure: () => ({ op: 'Obscure' }), // passive: a black cloud covers each of the controller's other zones
   exileColumn: () => ({ op: 'ExileColumn' }), // effect: exile every card on the targeted column
   makeColumnUnusable: () => ({ op: 'MakeColumnUnusable' }), // effect: the targeted column's four zones become unusable for the rest of the game
+  giveZoneHp: n => ({ op: 'GiveZoneHp', n }), // effect: the picked zone gets n zone HP (off until an effect gives it; every such effect feeds ONE shared bar)
+  damageZone: n => ({ op: 'DamageZone', n }), // effect: damage the picked zone's HP bar; used up = its contents are exiled and the zone becomes unusable
   returnToHand: () => ({ op: 'ReturnToHand' }), // effect: this spell goes to its owner's hand instead of the graveyard
   modes: (...modes) => ({ op: 'ChooseMode', modes }), // controller picks one mode whose [min,max] foe-creature range fits
   mode: (name, min, max, ...effects) => ({ name, min, max, effects }),

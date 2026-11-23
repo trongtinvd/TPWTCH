@@ -2,8 +2,8 @@
 Sim.def('ops', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
   let cname, colKeys, zoneDist; // util
-  let PL, addStatus, clearAttacked, clearStatuses, has, hasSt, hurt, isRevealed, live, removeStatus, syncLife; // statuses
-  let cloudMap, declareWinner, destroy, freeSlots, makeToken, recalc, release; // state
+  let PL, addStatus, allowed, clearAttacked, clearStatuses, has, hasSt, hurt, isRevealed, live, removeStatus, syncLife; // statuses
+  let cloudMap, damageZone, declareWinner, destroy, freeSlots, giveZoneHp, isUnusable, makeToken, markUnusable, recalc, release; // state
   let fusionStart; // fusion
   let declareAsk, pairStart, reorderStart; // choices
   let pendingAtk; // targeting
@@ -18,7 +18,7 @@ Sim.def('ops', function (K) {
       m = cloudMap(s),
       out = [];
     for (const k of Object.keys(s.slots)) {
-      if (s.unusable[k]) continue;
+      if (isUnusable(s, k)) continue;
       const own = k.split('|')[0] === x.who;
       if (foeOnly && own) continue;
       if (m[k] && !own) {
@@ -66,7 +66,7 @@ Sim.def('ops', function (K) {
     },
     GainLife: (x, e) => {
       // gaining life adds a 'life' status to a player (or +HP to a target card)
-      if (hasSt(PL(x.s, x.who), 'nogain')) return;
+      if (!allowed(PL(x.s, x.who), 'gainLife')) return;
       const k = { kind: 'life', amount: e.amount, srcName: x.src.def.name };
       if (e.to === 'target' && x.t && x.t.loc === 'board') addStatus(x.s, x.t, k);
       else {
@@ -105,7 +105,7 @@ Sim.def('ops', function (K) {
       const [o, row, col] = c.slot.split('|'),
         opts = [-1, 1]
           .map(d => o + '|' + row + '|' + (+col + d))
-          .filter(k => k in x.s.slots && !x.s.slots[k] && !x.s.unusable[k]);
+          .filter(k => k in x.s.slots && !x.s.slots[k] && !isUnusable(x.s, k));
       if (opts.length) {
         x.s.choice = {
           player: x.who,
@@ -124,7 +124,7 @@ Sim.def('ops', function (K) {
       let best = null,
         bd = Infinity;
       for (const k of Object.keys(x.s.slots)) {
-        if (x.s.unusable[k]) continue; // unusable zones are never targeted
+        if (isUnusable(x.s, k)) continue; // unusable zones are never targeted
         const occ = x.s.slots[k] && x.s.cards[x.s.slots[k]];
         if (occ && (e.skip || []).some(sp => (sp === 'self' ? occ === c : occ.def.id === sp))) continue;
         const d = zoneDist(c.slot, k);
@@ -141,7 +141,7 @@ Sim.def('ops', function (K) {
     },
     CreateToken: (x, e) => {
       const def = x.src.def.tokens && x.src.def.tokens[e.token];
-      if (!x.zone || !def || x.s.slots[x.zone] || x.s.unusable[x.zone]) return;
+      if (!x.zone || !def || x.s.slots[x.zone] || isUnusable(x.s, x.zone)) return;
       const n = (x.s.tokN = (x.s.tokN || 0) + 1),
         t = { iid: 'tk-' + n, def, owner: x.who, loc: 'board', slot: x.zone, statuses: [], token: true };
       x.s.cards[t.iid] = t;
@@ -172,7 +172,7 @@ Sim.def('ops', function (K) {
     MakeColumnUnusable: x => {
       if (x.col == null) return;
       for (const k of colKeys(x.col)) {
-        x.s.unusable[k] = true;
+        markUnusable(x.s, k, x.src.def.name);
         x.ev.push({ t: 'ZoneUnusable', slot: k });
       }
     },
@@ -346,7 +346,16 @@ Sim.def('ops', function (K) {
         }
     },
     NoLifeGain: x => {
-      addStatus(x.s, PL(x.s, x.who), { kind: 'nogain', srcName: x.src.def.name });
+      addStatus(x.s, PL(x.s, x.who), { kind: 'cannot', what: 'gainLife', srcName: x.src.def.name });
+    },
+    GiveZoneHp: (x, e) => {
+      // the picked zone (a spell's target zone, or NearestZone's) gets zone HP; all such effects add to ONE bar (Q10)
+      const k = x.zone || (x.o && x.o.zone);
+      if (k) giveZoneHp(x.s, k, e.n, x.src.def.name);
+    },
+    DamageZone: (x, e) => {
+      const k = x.zone || (x.o && x.o.zone);
+      if (k) damageZone(x.s, k, e.n, x.src.def.name, x.ev); // nothing happens to a zone without HP
     },
     Aura: () => {}, // passive, read by recalc()
     WinGame: (x, e) => {
@@ -358,7 +367,7 @@ Sim.def('ops', function (K) {
         addStatus(x.s, x.t, { kind: 'nodamage', expires: 'turnEnd', srcName: x.src.def.name });
       else if (x.o && x.o.tsid) {
         const u = x.s.stack.find(y => y.sid === x.o.tsid);
-        if (u) u.nodmg = x.s.turn;
+        if (u) addStatus(x.s, u, { kind: 'nodamage', expires: 'turnEnd', srcName: x.src.def.name });
       }
     },
     CancelAttack: x => {
@@ -400,7 +409,7 @@ Sim.def('ops', function (K) {
       for (let i = x.s.stack.length - 1; i >= 0; i--) {
         const o = x.s.stack[i];
         if (o.kind === 'attack' && (w === 'any' || (w === 'mine') === (o.controller === x.who))) {
-          o.bonus = (o.bonus || 0) + e.amount;
+          addStatus(x.s, o, { kind: 'bonus', amount: e.amount, srcName: x.src.def.name }); // damage added to an Attack is a status on it
           x.ev.push({ t: 'AttackBoosted', sid: o.sid, amount: e.amount });
           return;
         }
@@ -410,7 +419,7 @@ Sim.def('ops', function (K) {
     PlaceToken: (x, e) => {
       const s = x.s,
         def = x.src.def.tokens[e.token],
-        f = Object.keys(s.slots).filter(k => k.startsWith(x.who + '|front|') && !s.slots[k] && !s.unusable[k]); // the controller picks the zone (front row only)
+        f = Object.keys(s.slots).filter(k => k.startsWith(x.who + '|front|') && !s.slots[k] && !isUnusable(s, k)); // the controller picks the zone (front row only)
       if (!f.length) return;
       if (f.length === 1) return makeToken(s, def, x.who, f[0], x.ev);
       ask(
@@ -466,6 +475,11 @@ Sim.def('ops', function (K) {
       'syncLife',
       'upToAsk',
       'zoneDist',
+      'allowed',
+      'damageZone',
+      'giveZoneHp',
+      'isUnusable',
+      'markUnusable',
     ],
     link: () => {
       ({
@@ -507,6 +521,7 @@ Sim.def('ops', function (K) {
         upToAsk,
         zoneDist,
       } = K);
+      ({ allowed, damageZone, giveZoneHp, isUnusable, markUnusable } = K);
     },
   };
 });

@@ -3,7 +3,7 @@ Sim.def('targeting', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
   let colKeys, other; // util
   let has; // statuses
-  let cloudMap; // state
+  let cloudMap, isUnusable; // state
   let pairLabel, pairOptions; // choices
   // third argument true = TARGETING (a cloud counts as a card/zone there); false = RESOLUTION (only what is really underneath)
   const COLTARGETS = {
@@ -19,14 +19,14 @@ Sim.def('targeting', function (K) {
       const m = cloudMap(s);
       return Object.keys(s.slots).filter(
         k =>
-          !s.unusable[k] &&
+          !isUnusable(s, k) &&
           (m[k] || (s.slots[k] && s.cards[s.slots[k]].def.type === 'creature' && !has(s.cards[s.slots[k]], 'red')))
       );
     },
     anyPermanent: s => {
       const m = cloudMap(s);
       return Object.keys(s.slots).filter(
-        k => !s.unusable[k] && (m[k] || (s.slots[k] && !has(s.cards[s.slots[k]], 'red')))
+        k => !isUnusable(s, k) && (m[k] || (s.slots[k] && !has(s.cards[s.slots[k]], 'red')))
       );
     },
   }; // a cloud counts as a target even over an empty zone
@@ -61,9 +61,9 @@ Sim.def('targeting', function (K) {
   const findTarget = (s, c, a) => (a.target && TARGETS[a.target] ? TARGETS[a.target](s, c) : null);
   return {
     exports: { COLTARGETS, TARGETINGS, TARGETS, ZONETARGETS, findTarget, pendingAtk, targetColumns, targetZones },
-    needs: ['cloudMap', 'colKeys', 'has', 'other', 'pairLabel', 'pairOptions'],
+    needs: ['cloudMap', 'colKeys', 'has', 'isUnusable', 'other', 'pairLabel', 'pairOptions'],
     link: () => {
-      ({ cloudMap, colKeys, has, other, pairLabel, pairOptions } = K);
+      ({ cloudMap, colKeys, has, isUnusable, other, pairLabel, pairOptions } = K);
     },
   };
 });

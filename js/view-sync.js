@@ -622,7 +622,7 @@ function buildStack() {
     el.style.setProperty('--tc', cardColor(d));
     el.innerHTML =
       '<b></b><div class="sm"><span>' +
-      (o.kind === 'attack' ? 'Attack (no HP)' + (o.bonus ? ' +' + o.bonus + ' damage' : '') : 'HP ' + o.hp) +
+      (o.kind === 'attack' ? 'Attack (no HP)' + (Sim.bonusOf(o) ? ' +' + Sim.bonusOf(o) + ' damage' : '') : 'HP ' + o.hp) +
       (o.hp != null && o.hp <= -1 ? ' \u2716 countered on resolve' : '') +
       '</span><span></span></div>';
     el.firstChild.textContent = stackName(o);
@@ -725,7 +725,7 @@ function sync() {
   const CM = Sim.cloudMap(game);
   for (const k in clouds) {
     const col = +k.split('|')[2],
-      on = !!CM[k] && !game.unusable[k];
+      on = !!CM[k] && !Sim.isUnusable(game, k);
     clouds[k].visible = on;
     if (on) clouds[k].material = k.split('|')[0] === ui.view ? cloudOwn : cloudHide;
   } // owner sees through; revealed columns are clean
@@ -764,7 +764,7 @@ function sync() {
           ? zones.filter(z => tz.has(z.userData.slotKey))
           : tcols
             ? zones.filter(z => z.userData.slot && tcols.includes(z.userData.slot.col))
-            : zones.filter(z => z.userData.slot && !game.unusable[z.userData.slotKey]);
+            : zones.filter(z => z.userData.slot && !Sim.isUnusable(game, z.userData.slotKey));
   const actZones = new Set(); // zones that hold something the viewer can use now: the graveyard when one of its cards has a usable ability
   if (!rp.on && !game.choice && game.phase === 'play')
     for (const a of Sim.actionsOf(game, ui.view))
@@ -785,7 +785,7 @@ function sync() {
   for (const k in clouds)
     if (clouds[k].visible && k.split('|')[0] !== ui.view && valid.includes(slotZones[k])) clouds[k].material = cloudHot; // the clouds are legal targets: they light up too
   zones.forEach(z => {
-    const dead = !!(z.userData.slotKey && game.unusable[z.userData.slotKey]);
+    const dead = !!(z.userData.slotKey && Sim.isUnusable(game, z.userData.slotKey));
     z.visible = !dead;
     z.userData.plane.visible = !dead;
   }); // an unusable zone vanishes from the board

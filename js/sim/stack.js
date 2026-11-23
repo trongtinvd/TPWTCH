@@ -3,7 +3,7 @@ Sim.def('stack', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
   let byId, isPerm, other, slotRow, slowish; // util
   let gainAP, hasAP; // ap
-  let PL, abDef, clearAttacked, has, live, removeStatus; // statuses
+  let PL, abDef, clearAttacked, expiresAtTurnEnd, has, hasSt, live, removeStatus; // statuses
   let freeSlots; // state
   let COLTARGETS, TARGETINGS, targetColumns, targetZones; // targeting
   let REQS; // reqs
@@ -68,7 +68,7 @@ Sim.def('stack', function (K) {
   function hitStack(s, u, n, ev) {
     if (u.kind === 'attack') return; // an Attack has no HP: damage against it does nothing
     // stack HP: <= -1 is countered, 0 still resolves
-    if (u.nodmg === s.turn) {
+    if (hasSt(u, 'nodamage')) {
       ev.push({ t: 'DamageDenied', sid: u.sid, amount: n });
       return;
     }
@@ -112,6 +112,7 @@ Sim.def('stack', function (K) {
           hp: tok.def.hp,
           target: target || null,
           name: tok.def.name,
+          statuses: [],
         },
         extra || null // pick: what the trigger targeted when it was put on the stack
       )
@@ -263,9 +264,9 @@ Sim.def('stack', function (K) {
     openRespond(s, ev, kind);
   }
   function endTurn(s, ev) {
-    for (const o of [...Object.values(s.cards), PL(s, 'Player'), PL(s, 'Opponent')])
+    for (const o of [...Object.values(s.cards), PL(s, 'Player'), PL(s, 'Opponent'), ...Object.values(s.zones), ...s.stack])
       live(o)
-        .filter(x => x.expires === 'turnEnd')
+        .filter(x => expiresAtTurnEnd(x, s.active)) // 'turnEnd', or {turns, whose}: only the turns that count are counted down (Q11)
         .forEach(x => removeStatus(s, x, 'expired')); // end of turn: expiring statuses go
     clearAttacked(s, 'turn ended');
     s.active = other(s.active);
@@ -297,6 +298,8 @@ Sim.def('stack', function (K) {
       stopWants,
     },
     needs: [
+      'expiresAtTurnEnd',
+      'hasSt',
       'COLTARGETS',
       'TARGETINGS',
       'ask',
@@ -324,6 +327,7 @@ Sim.def('stack', function (K) {
       'targetZones',
     ],
     link: () => {
+      ({ expiresAtTurnEnd, hasSt } = K);
       ({
         COLTARGETS,
         TARGETINGS,

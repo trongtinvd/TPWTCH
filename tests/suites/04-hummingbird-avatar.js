@@ -62,7 +62,7 @@
       s = start(52);
       const h3 = take(s, 'Opponent', 'hummingbird', 'board', 'Opponent|front|0'),
         g3 = take(s, 'Player', 'giant', 'board', 'Player|front|0');
-      s.unusable['Opponent|front|1'] = true;
+      Sim.markUnusable(s, 'Opponent|front|1', 'test');
       s.attackPhase = true;
       D(s, { type: 'Attack', iid: g3.iid });
       pass2(s);

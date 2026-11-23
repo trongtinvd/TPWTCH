@@ -244,7 +244,7 @@
         'an Attack has no HP and keeps no snapshot of the attacker\u2019s power',
         s.stack[0].kind === 'attack' && s.stack[0].hp === null && s.stack[0].atk === undefined
       );
-      s.stack[0].bonus = 5;
+      Sim.addStatus(s, s.stack[0], { kind: 'bonus', amount: 5, srcName: 'test' }); // damage added to the Attack is a status on it (Q33)
       wf.loc = 'gy';
       s.slots['Player|front|1'] = null;
       wf.slot = null;
@@ -292,7 +292,7 @@
       pass2(s);
       eq(
         'Rage resolves above the Attack: its bonus becomes 4 and the Attack is still there',
-        [s.stack.map(o => o.kind), s.stack[0].bonus],
+        [s.stack.map(o => o.kind), Sim.bonusOf(s.stack[0])],
         [['attack'], 4]
       );
       pass2(s);
@@ -304,7 +304,7 @@
       D(s, { type: 'Attack', iid: w3.iid });
       D(s, { type: 'PlayCard', iid: z.iid });
       pass2(s);
-      eq('the defender may also boost the Attack (effect has whose:any): bonus 4', s.stack[0].bonus, 4);
+      eq('the defender may also boost the Attack (effect has whose:any): bonus 4', Sim.bonusOf(s.stack[0]), 4);
       s = start(323);
       const w4 = take(s, 'Player', 'wolf', 'board', 'Player|front|1'),
         k4 = take(s, 'Player', 'knight', 'board', 'Player|front|2'),

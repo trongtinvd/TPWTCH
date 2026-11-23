@@ -11,6 +11,12 @@ Sim.def('statuses', function (K) {
   const live = o => stOf(o).filter(x => !x.removed);
   const addStatus = (s, o, st) => {
     st = Object.assign({ turn: s.turn, own: ownKey(s, o) }, st);
+    if (st.expires && typeof st.expires === 'object') {
+      // Q11: {turns:n, whose:'any'|'self'|'foe'}: it ends after n turns that count; 'self' / 'foe' are relative to its controller (by)
+      st.expires = Object.assign({ turns: 1, whose: 'any' }, st.expires);
+      st.expires.left = st.expires.turns;
+      if (st.by === undefined) st.by = st.own === 'Player' || st.own === 'Opponent' ? st.own : o.controller || o.owner;
+    }
     st.seq = ++s.seq;
     st.removed = null;
     stOf(o).push(st);
@@ -28,6 +34,21 @@ Sim.def('statuses', function (K) {
       if (!x.keep) removeStatus(s, x, why);
     });
   const hasSt = (o, kind, f) => !!o && live(o).some(x => x.kind === kind && (!f || f(x)));
+  // Q8 / Q37: rule statuses. {kind:'cannot'|'can', what}: folded in list order, the later-entered one wins; allowed by default
+  const allowed = (o, what) => {
+    let ok = true;
+    for (const x of live(o)) if (x.what === what) ok = x.kind === 'can' ? true : x.kind === 'cannot' ? false : ok;
+    return ok;
+  };
+  const bonusOf = o => live(o).reduce((n, x) => n + (x.kind === 'bonus' ? x.amount : 0), 0); // damage added to an Attack: statuses on the Attack
+  // end of a turn (ended = the player whose turn it was): does this status end now? 'turnEnd' = this turn; {turns, whose} counts only matching turns
+  const expiresAtTurnEnd = (st, ended) => {
+    const e = st.expires;
+    if (e === 'turnEnd') return true;
+    if (!e || typeof e !== 'object') return false;
+    if (e.whose === 'self' ? ended !== st.by : e.whose === 'foe' ? ended === st.by : false) return false;
+    return --e.left <= 0;
+  };
   const abDef = c => {
     const d = live(c)
       .filter(x => x.kind === 'ability')
@@ -57,7 +78,16 @@ Sim.def('statuses', function (K) {
   function describe(st) {
     const by = st.srcName ? ' from ' + st.srcName : '',
       when = ' \u00b7 turn ' + st.turn + ', #' + st.seq,
-      sg = n => (n >= 0 ? '+' : '') + n;
+      sg = n => (n >= 0 ? '+' : '') + n,
+      RULE = { gainLife: 'gain life', attack: 'attack' },
+      ex =
+        st.expires && typeof st.expires === 'object'
+          ? ' \u00b7 ends after ' +
+            st.expires.left +
+            ' more ' +
+            ({ any: '', self: 'own ', foe: 'opposing ' }[st.expires.whose] || '') +
+            'turn(s)'
+          : '';
     const t = {
       damage: () =>
         'Damage ' +
@@ -85,12 +115,19 @@ Sim.def('statuses', function (K) {
       extraPaid: () => 'Additional cost was paid',
       attacked: () => 'Restriction: already attacked',
       entered: () => 'Entered the board (#' + st.n + ')',
-      nogain: () => 'Cannot gain life for the rest of the game' + by,
+      cannot: () => 'Cannot ' + (RULE[st.what] || st.what) + by,
+      can: () => 'Can ' + (RULE[st.what] || st.what) + by,
+      bonus: () => 'Attack gets +' + st.amount + ' damage' + by,
+      cloud: () => 'Covered by a black cloud' + by,
+      unusable: () => 'Zone is unusable' + by,
+      zonehp: () => 'Zone HP +' + st.amount + ' (one shared bar)' + by,
+      zonedmg: () => 'Zone damage ' + st.amount + by,
       skipCombat: () => 'Waiting: your next combat is skipped (pressing combat becomes End turn)' + by,
     }[st.kind];
     return (
       (t ? t() : st.kind) +
       when +
+      ex +
       (st.removed ? ' \u2014 removed: ' + st.removed.why + ' (turn ' + st.removed.turn + ')' : '')
     );
   }
@@ -120,12 +157,15 @@ Sim.def('statuses', function (K) {
       PL,
       abDef,
       addStatus,
+      allowed,
       atkOf,
       attackedIds,
+      bonusOf,
       clearAttacked,
       clearStatuses,
       describe,
       dmgs,
+      expiresAtTurnEnd,
       has,
       hasSt,
       hpOf,

@@ -146,6 +146,7 @@ Sim.def('dispatch', function (K) {
             zone: c.def.zoneTarget && !tp && !tsid ? cmd.zone || null : null,
             tplayer: tp,
             tsid,
+            statuses: [],
           });
           s.passes = 0;
           s.priority = other(c.owner);

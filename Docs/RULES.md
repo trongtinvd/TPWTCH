@@ -26,7 +26,7 @@ Everything that changes a card or a player after it was printed/started is a **s
   1. its card **leaves the board** (or the zone the status lives in, e.g. a `revealed` status lives in the hand), unless the status has `keep` (an effect says it stays);
   2. it **stops meeting its requirement** (an aura status when the card leaves the source's columns or the source leaves; a status linked to another status when that one ends);
   3. it **clears itself** (Shark's skip-combat once used);
-  4. it **expires** (`expires:'turnEnd'`: Quick Intuition's damage denial, "already attacked");
+  4. it **expires** (`expires:'turnEnd'`: Quick Intuition's damage denial, "already attacked"; or `expires:{turns:n, whose:'any'|'self'|'foe'}`: it ends after n turns that count, `self` / `foe` relative to the status's controller `by`, counted down at each turn end) **[proto since Patch2]**;
   5. an effect removes it (Throwing Bandages).
 - A removed status **stays in the list** with `removed:{why, turn, seq}`. Every fold ignores it. The inspector and player panel show it **greyed and struck through** when the "Removed: hidden/shown" button in the panel header is on.
 - A status that re-applies (a card moves back into War Drum's columns) is a **new** status at the end of the list; the old one stays greyed.
@@ -34,7 +34,7 @@ Everything that changes a card or a player after it was printed/started is a **s
 | Kind | On | Effect |
 |---|---|---|
 | `damage` {amount, orig, type, source} | card, player | Damage instance. Bandages lowers `amount` (orig stays) or removes it. |
-| `life` {amount} | card (+HP), player | Gained life. Blocked by `nogain`. |
+| `life` {amount} | card (+HP), player | Gained life. Blocked by a `cannot gainLife` rule status. |
 | `paid` {amount} | player | Life paid as a cost. |
 | `mod` {atk, hp} | card | Additive modifier. Aura ones carry `aura` + source and end when out of range. |
 | `atkMul` {n} | card | Multiplies ATK at its place in the list (Black Hawk: five x2). |
@@ -47,10 +47,14 @@ Everything that changes a card or a player after it was printed/started is a **s
 | `extraPaid` | card | The optional additional cost was paid (War Drum). |
 | `entered` {n} | card | Board entry order (orders aura sources). |
 | `mats` {cards} | extra deck creature | The materials it was summoned with (`keep`: survives leaving the board). Read by "return the materials used" and by `cond:'usedMat'`. Removed when the materials are returned. |
-| `nogain` | player | Cannot gain life (Spirit of the Sand). |
+| `cannot` / `can` {what} | card, player | Rule statuses (Q8, Q37): `cannot` forbids `what` (`gainLife`, `attack`), a later `can` allows it again; the later-entered one wins (`Sim.allowed`). Spirit of the Sand = `cannot gainLife`. |
+| `bonus` {amount} | stack object (Attack) | Damage added to an Attack (Rage). The Attack deals its attacker's power + the sum of its bonus statuses. |
+| `cloud` {src} | zone | King Eye covers this zone. Kept equal to the board by `syncClouds` (recalc, and before `cloudMap` answers). |
+| `unusable` | zone | The zone is unusable (Infinity Wall, a used-up zone HP bar). `keep`: permanent. |
+| `zonehp` / `zonedmg` {amount} | zone | Zone HP: every `zonehp` adds to ONE shared bar, `zonedmg` lowers it. At 0 the contents are exiled (a rule) and the zone becomes `unusable`. |
 | `skipCombat` | player | Next combat becomes End turn; removed when used (Deep Sea Shark). |
 
-King Eye clouds are **derived from the board** (a passive), not stored statuses; the inspector lists them as a derived line.
+King Eye clouds are `cloud` statuses on the zones, kept equal to the board (a passive of the source): they vanish (greyed) when King Eye leaves, and follow it when it moves. **[proto since Patch2]** Stack objects (spells, abilities, Attacks) hold `statuses[]` too (`bonus`, `nodamage`); they have no lifecycle rules, they simply end with the object.
 
 ## Logs (one per card and per player, next to statuses) [proto]
 `card.logs[]` / `players[p].logs[]`: append-only history since the duel began. **statuses[] rebuilds the current state; logs[] rebuilds the whole story.** Entries: `start` (position in the shuffled deck), `locked` (position when the deck was locked), `zone` (from -> to and **how**: drawn, milled, entered the board, shifted, destroyed, destroyed by the rules, exiled, returned to hand, put on the stack, resolved, countered), `status+` (applied, with id) and `status-` (removed, with id and reason). The inspector toggles between Statuses and Log; both list the newest on top. Ability tokens have no log. Own counter (`s.lseq`), so status ids do not change.
@@ -140,10 +144,10 @@ Power, Defense, HP, Initial Distance, Speed, Acceleration.
 ## Stat layers [not built]
 `Original` -> `Base` (persistent) -> `Current` (temporary + equipment). **[proto]** The statuses list replaces the ad-hoc fields: printed stats, then every status in order. Persistence across zones is the `keep` flag. The Base/Current split (equipment) still has to be built on top.
 
-## Zones and columns [not built]
+## Zones and columns [partly built]
 First-class objects: occupancy, usability, restrictions, optional integrity HP, effects, ownership. Column: `IsUsable, IsFullyOccupied, ExileEverything, GetZones`. Zone integrity: separate from permanent HP, unaffected by regular combat; at <= 0 exile contents and mark unusable (Q10).
 Zone HP is **disabled by default**; it exists only after an effect gives a zone HP, and several such effects share **one** HP bar (decided 2026-11-22, Q10).
-**[proto]** Slots are a map `owner|row|col -> card id`; `state.unusable` marks unusable zones; clouds are derived from the board.
+**[proto]** Slots are a map `owner|row|col -> card id`; `state.zones[key] = {key, statuses[]}` holds the zone's statuses: `unusable`, `cloud`, `zonehp` / `zonedmg` (Patch2). Zone HP (Q10) is built as a status bar; no card gives it yet (effects `GiveZoneHp`, `DamageZone`, tests only).
 
 ## Rulings 2026-11-22 (decided; **[not built]** unless marked **[proto]**)
 Answers to the numbered questions in `OPEN_QUESTIONS.md`. Where this section and an older line above disagree, **this section wins** and the older line is tagged.
@@ -151,7 +155,7 @@ Answers to the numbered questions in `OPEN_QUESTIONS.md`. Where this section and
 ### Leaving play and zones
 - Words like destroy, bounce, spin (to the deck) and exile are only shorthand for what a card does; they are **not keywords**. The game only cares about **from which zone to which zone, how and why**. A card leaving the board goes to its **owner's** zone X.
 - Leaving the board ends **all** statuses on the card unless the card text says otherwise (also for card life statuses on bounce). **[proto]**
-- Zone HP is disabled until an effect gives a zone HP; effects share one HP bar.
+- Zone HP is disabled until an effect gives a zone HP; effects share one HP bar. **[proto]**
 - An effect may create a creature in a zone that is normally illegal for it **only if the card text says so** (The Vine: any usable zone, back row included).
 
 ### Targeting and shields
@@ -161,12 +165,12 @@ Answers to the numbered questions in `OPEN_QUESTIONS.md`. Where this section and
 - Effects that pick an Attack will ask the player to choose which one.
 
 ### Statuses
-- Contradicting modifiers are statuses, folded in list order; **effects that entered later win**. `mod` and `atkMul` fold in list order too (no "auras last" rule). Aura sources are applied oldest first. **[proto]**
+- Contradicting modifiers are statuses, folded in list order; **effects that entered later win**. `mod` and `atkMul` fold in list order too (no "auras last" rule). Aura sources are applied oldest first. Rule statuses `cannot` / `can` follow the same order (`Sim.allowed`). **[proto]**
 - A card re-entering an aura's range gets a **new** status. **[proto]** The `entered` status stays visible. **[proto]**
-- Stack objects (spells, abilities, **Attacks**) also have `statuses[]`; "damage added to an Attack" becomes a status.
-- Clouds (King Eye) and unusable zones become statuses **on the zones**. Action points stay their own objects. An Attack is a unique stack object, not a card.
+- Stack objects (spells, abilities, **Attacks**) also have `statuses[]`; "damage added to an Attack" becomes a status. **[proto]**
+- Clouds (King Eye) and unusable zones become statuses **on the zones**. Action points stay their own objects. An Attack is a unique stack object, not a card. **[proto]**
 - A damage counter is one instance (one `damage` status). **[proto]**
-- A multi-turn effect says which turns count: any turn, its controller's turns only, or the opponent's turns only (`expires:{turns:n, whose:'any'|'self'|'foe'}`, working name).
+- A multi-turn effect says which turns count: any turn, its controller's turns only, or the opponent's turns only (`expires:{turns:n, whose:'any'|'self'|'foe'}`). **[proto]**
 
 ### Information and logs (anti-cheat)
 - **Public to both players:** cards on the board, in graveyards, in exile. **Private to the owner:** deck, extra deck, hand. A card may change that (King Eye hides, Creeping Parasite reveals).

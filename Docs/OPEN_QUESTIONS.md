@@ -18,11 +18,10 @@ Last pass: 2026-11-22 (the owner answered every numbered question). What is left
 ### Decided but not built yet
 These rulings differ from the prototype (or need new code). Each needs tests first, then code. Detail in `RULES.md` ("Rulings 2026-11-22").
 - Built (group 1, Patch1; tagged [proto] in RULES.md): Q19, Q21, Q49, Q50, Q7.
-- Q8 / Q37 Contradicting modifiers: list order, the later-entered effect wins (rule statuses `cannot` vs `can` still to build).
-- Q10 Zone HP: disabled by default, one shared bar for all effects.
-- Q11 Multi-turn effects declare which turns count (any / owner's / opponent's).
+- Built (group 2, Patch2; tagged [proto] in RULES.md): Q8, Q37 (rule statuses `cannot` / `can`), Q33 / Q34 (statuses on stack objects and zones), Q11 (`expires:{turns, whose}`), Q10 (zone HP bar, no card yet).
+
 - Q13 The sim emits a 1D event array; the view reads it in order.
-- Q33 / Q34 Stack objects (Attacks included) get `statuses[]`; clouds and unusable zones become statuses on zones; action points stay their own objects.
+
 - Q39 / Q44 Hidden information enforced as an anti-cheat layer; each player's logs show only what is public to them.
 - Q41 Effects that pick an Attack will ask the player to choose it.
 - Q43 Logs and statuses are capped at 200 MB; the game ends when the cap is reached.

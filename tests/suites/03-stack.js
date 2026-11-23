@@ -321,7 +321,7 @@
     Sim.dispatch(r, { type: 'Pass', player: 'Opponent' });
     check(
       'the response resolves: column exiled and unusable, wall back in the opponent\u2019s hand',
-      kn.loc === 'exile' && r.unusable['Player|front|2'] && wl.loc === 'hand'
+      kn.loc === 'exile' && Sim.isUnusable(r, 'Player|front|2') && wl.loc === 'hand'
     );
     check('the window stays open after the response', !!r.respond && r.priority === 'Opponent');
   });

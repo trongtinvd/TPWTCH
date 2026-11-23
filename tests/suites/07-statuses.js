@@ -256,15 +256,15 @@
     pass2(s);
     D(s, { type: 'Choose', player: 'Player', option: '0' });
     check(
-      'Spirit of the Sand: red shield statuses + a nogain status on the player; healing now does nothing',
-      Sim.hasSt(s.players.Player, 'nogain') && kinds(ar, 'shield').length === 1
+      'Spirit of the Sand: red shield statuses + a cannot-gain-life rule status on the player; healing now does nothing',
+      !Sim.allowed(s.players.Player, 'gainLife') && kinds(ar, 'shield').length === 1
     );
     const he2 = take(s, 'Player', 'heal', 'hand');
     const l = s.life.Player;
     D(s, { type: 'PlayCard', iid: he2.iid });
     pass2(s);
     eq(
-      '...no life status is added while nogain is active',
+      '...no life status is added while the cannot-gain-life status is active',
       [s.life.Player, s.players.Player.statuses.filter(x => x.kind === 'life').length],
       [l, 0]
     );

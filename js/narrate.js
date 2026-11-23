@@ -318,6 +318,9 @@ const Narrate = (function () {
         case 'ZoneUnusable':
           line(zoneTxt(e.slot) + ' becomes unusable');
           break;
+        case 'ZoneDamaged':
+          line(zoneTxt(e.slot) + ' takes ' + e.amount + ' zone damage');
+          break;
         case 'ChoiceRequested':
           lastChoice = e;
           break;

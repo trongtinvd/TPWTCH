@@ -42,6 +42,13 @@ Sim.boot(K => {
     condOk,
     condsMet,
     canSee,
+    allowed,
+    bonusOf,
+    isUnusable,
+    markUnusable,
+    zoneBar,
+    giveZoneHp,
+    damageZone,
   } = K;
   const REGISTRIES = {
     effects: K.OPS,
@@ -98,6 +105,13 @@ Sim.boot(K => {
     condOk,
     condsMet,
     canSee,
+    allowed,
+    bonusOf,
+    isUnusable,
+    markUnusable,
+    zoneBar,
+    giveZoneHp,
+    damageZone,
     API: Object.fromEntries(Object.entries(REGISTRIES).map(([kind, reg]) => [kind, Object.keys(reg)])),
     create: K.createGame,
   };

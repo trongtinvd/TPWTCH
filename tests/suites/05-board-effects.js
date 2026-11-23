@@ -36,8 +36,8 @@
     );
     check(
       'all four zones of the column become unusable',
-      ['Opponent|back|2', 'Opponent|front|2', 'Player|front|2', 'Player|back|2'].every(k => q.unusable[k]) &&
-        !q.unusable['Player|front|1']
+      ['Opponent|back|2', 'Opponent|front|2', 'Player|front|2', 'Player|back|2'].every(k => Sim.isUnusable(q, k)) &&
+        !Sim.isUnusable(q, 'Player|front|1')
     );
     check('Infinity Wall returns to its owner\u2019s hand', w.loc === 'hand' && q.piles.Player.hand.includes(w));
     const sd = take(q, 'Player', 'soldier', 'hand');
@@ -73,7 +73,7 @@
       const k2 = Sim.dispatch(q, { type: 'Pass', player: 'Player' });
       check(
         'Wall fizzles when nothing legal is underneath the clouds, and nothing is revealed',
-        k1.ok && kw.loc === 'gy' && !q.unusable['Player|front|0'] && k2.events.some(e => e.t === 'StackObjectFizzled')
+        k1.ok && kw.loc === 'gy' && !Sim.isUnusable(q, 'Player|front|0') && k2.events.some(e => e.t === 'StackObjectFizzled')
       );
       const q2 = start(41);
       take(q2, 'Player', 'wolf', 'board', 'Player|front|2');
@@ -86,7 +86,7 @@
       const k3 = Sim.dispatch(q2, { type: 'Pass', player: 'Player' });
       check(
         'with one real card under the clouds the Wall also fizzles (column not really full)',
-        kw2.loc === 'gy' && !q2.unusable['Player|front|2'] && k3.events.some(e => e.t === 'StackObjectFizzled')
+        kw2.loc === 'gy' && !Sim.isUnusable(q2, 'Player|front|2') && k3.events.some(e => e.t === 'StackObjectFizzled')
       );
       const q3 = start(42);
       take(q3, 'Opponent', 'kingeye', 'board', 'Opponent|front|1');
@@ -255,7 +255,7 @@
       );
       s = start(141);
       const v2 = take(s, 'Player', 'vine', 'hand');
-      for (const k of Object.keys(s.slots)) if (k !== 'Player|front|0') s.unusable[k] = true;
+      for (const k of Object.keys(s.slots)) if (k !== 'Player|front|0') Sim.markUnusable(s, k, 'test');
       D(s, { type: 'PlayCard', iid: v2.iid, slot: 'Player|front|0' });
       drain(s);
       eq(
@@ -265,7 +265,7 @@
       );
       s = start(142);
       const v3 = take(s, 'Player', 'vine', 'hand');
-      for (const k of Object.keys(s.slots)) if (k !== 'Player|front|0' && k !== 'Opponent|back|4') s.unusable[k] = true;
+      for (const k of Object.keys(s.slots)) if (k !== 'Player|front|0' && k !== 'Opponent|back|4') Sim.markUnusable(s, k, 'test');
       D(s, { type: 'PlayCard', iid: v3.iid, slot: 'Player|front|0' });
       drain(s);
       eq(

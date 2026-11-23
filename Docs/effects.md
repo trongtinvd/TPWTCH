@@ -26,12 +26,12 @@ Card `type`: `creature`, `enchantment` (any non-creature permanent), `spell` (`t
 
 ## Statuses
 One ordered list per card (`card.statuses`) and per player (`state.players[p].statuses`); see `RULES.md` for the rules and the kind table.
-- `Sim.addStatus(s, owner, {kind, ...})` appends (id = `++s.seq`, `turn`, `removed:null`). Optional fields: `zone` (default `'board'`; the status is removed when the card is not in that zone, unless `keep:true`), `aura` + `src` + `idx` (re-checked each recalc), `link` (seq of another status on the card), `expires:'turnEnd'`.
+- `Sim.addStatus(s, owner, {kind, ...})` appends (id = `++s.seq`, `turn`, `removed:null`). Optional fields: `expires` (`'turnEnd'` or `{turns, whose:'any'|'self'|'foe'}`, with `by` = the controller; counted down at each turn end), `zone` (default `'board'`; the status is removed when the card is not in that zone, unless `keep:true`), `aura` + `src` + `idx` (re-checked each recalc), `link` (seq of another status on the card), `expires:'turnEnd'`.
 - `Sim.removeStatus(s, st, why)` sets `removed:{why,turn,seq}`. It is never deleted. All folds skip removed statuses.
 - `recalc(s, ev)` runs after every command (and inside many ops): removes statuses that left their zone / failed their requirement / lost their link, adds `entered`, adds aura `mod` statuses (oldest source first), kills cards with damage > HP, refreshes the `state.life` cache.
 - Folds: `hpOf(c)` (printed HP + `life` + `mod.hp`), `atkOf(c)` (printed, then `mod` add and `atkMul` multiply in list order, min 0), `totalDamage(c)`, `lifeOf(s,p)`.
 - `Sim.statusLines(owner)` returns `[{text, removed, st}]` in list order: the inspector and player panel render exactly this (removed ones greyed, behind a toggle).
-- Effects write statuses; they never edit fields: `dealDamage` -> `damage`, `gainLife` -> `life`, `doublePower` -> `atkMul`, `shieldAll` -> `shield`, `noLifeGain` -> `nogain`, `noDamage` -> `nodamage` (turnEnd), `skipFoeCombat` -> `skipCombat` on the foe, `payLife` cost -> `paid`, `vaultFromDeck` -> `vault`, `pickCard foeHand` -> `revealed`, rider `inheritAbilities` -> linked `ability`.
+- Effects write statuses; they never edit fields: `dealDamage` -> `damage`, `gainLife` -> `life`, `doublePower` -> `atkMul`, `shieldAll` -> `shield`, `noLifeGain` -> `cannot gainLife`, `noDamage` -> `nodamage` (turnEnd), `skipFoeCombat` -> `skipCombat` on the foe, `payLife` cost -> `paid`, `vaultFromDeck` -> `vault`, `pickCard foeHand` -> `revealed`, rider `inheritAbilities` -> linked `ability`.
 
 ## Effect sources
 | Source | Field | Runs |
@@ -50,7 +50,7 @@ Handlers get `x = {s, ev, src, t, who, foe, ...}`. Effects run in list order. An
 | Builder | Behavior |
 |---|---|
 | `dealDamage(to, n)` | `'target'`: `damage` status on the target card (or a targeted player). `'player'`: on the controller's opponent. Target damage passes blue shields. Denied by `nodamage`. |
-| `gainLife(n, to?)` | `life` status on the controller (default) or target card (+HP). Blocked by `nogain`. |
+| `gainLife(n, to?)` | `life` status on the controller (default) or target card (+HP). Blocked by a `cannot gainLife` rule status. |
 | `draw(n, who?)`, `drawUntil(n)` | Deck -> hand one at a time (`who:'foe'` = the opponent); empty deck = no draw. `drawUntil`: until n cards in hand. |
 | `damageStack(n)` | Damages the top stack object. **No effect on an Attack.** |
 | **`addAttackDamage(n, whose?)`** | **Adds n to the `bonus` of the topmost Attack object on the stack** (`whose`: `'mine'` / `'foe'` / `'any'` (default), relative to the effect's controller). The bonus is read when the Attack resolves and still lands if the attacker left. Requirement `attackOnStack` is available. |
@@ -62,7 +62,8 @@ Handlers get `x = {s, ev, src, t, who, foe, ...}`. Effects run in list order. An
 | `mill`, `fetch`, `doublePower` | Mill target player; fetch a named card; `doublePower` adds an `atkMul` x2 status. |
 | `nearestZone`, `destroyOnZone`, `createToken` | The Vine (re-evaluated each repetition). |
 | `placeToken(t)` | The controller picks a free **front** zone for a token (auto if one). Used by War Drum. |
-| `exileColumn`, `makeColumnUnusable`, `returnToHand` | Infinity Wall. |
+| `exileColumn`, `makeColumnUnusable`, `returnToHand` | Infinity Wall. `makeColumnUnusable` puts an `unusable` status on each zone of the column. |
+| `giveZoneHp(n)`, `damageZone(n)` | Zone HP (Q10): the picked zone (a spell's target zone) gets n zone HP / takes n zone damage. Every `giveZoneHp` adds to ONE bar; with no HP `damageZone` does nothing; at 0 the contents are exiled and the zone is unusable. No card uses them yet. |
 | `removeDamage(n)`, `damageAnother(n)` | Bandages / Avatar. Bandages asks which `damage` status to reduce; a fully removed one is greyed. |
 | `obscure()`, `aura(who, atk, hp)` (passives) | Clouds; aura: cards of `'own'`/`'foe'` in the source's column and adjacent columns hold a `mod` status while in range. |
 | `modes`, `mode` | Controller picks one mode whose `[min,max]` fits the opponent's creature count. |
@@ -75,7 +76,7 @@ Handlers get `x = {s, ev, src, t, who, foe, ...}`. Effects run in list order. An
 | `selfToHand()` | This card goes from the deck or GY to its owner's hand (Depth Sea Fusion). |
 | `sendAdjacentPair()` | Target two adjacent cards the opponent controls (zones under the foe's clouds are offered whatever is under them); the opponent sends one of them to the GY (Widow Maker). |
 | `reorderTop(who, n)`, `declareName()` | L4: look at the top n cards of a deck and reorder them; declare a card name, look at the opponent's top card, play it if it matches (temporary control) and repeat. |
-| `shieldAll(color)`, `noLifeGain()` | `shield` statuses on your board cards; `nogain` on you. |
+| `shieldAll(color)`, `noLifeGain()` | `shield` statuses on your board cards; a `cannot gainLife` rule status on you. |
 | `winGame(who?)` | The controller wins the game (`who:'foe'`: the opponent). Sets `state.result` (why `effect`); ignored when the game is already decided. |
 | `skipFoeCombat(pay)`, `secondCombat()` | Shark: pay life, `skipCombat` on the foe; second combat (foe draws 5 as a cost; if you hold a `skipCombat` status it is used up instead). |
 
@@ -111,7 +112,7 @@ Optional fields: `hp`, `zone`, `cond`, `optional:true` (goes on the stack after 
 `state.choice = {player, iid, kind, options, labels?, prompt, cont?}`; only `Choose` is accepted. Kinds: `trigorder` (order your simultaneous triggers; options are permutations "1,0"), `trigtarget` (a trigger's target, picked when it is put on the stack), shift (no kind), `damage`, `counter` (options are `damage` status ids), `mode`, `pick`, `place`, `swap`, `vault`, `vaultpick`, `upto`, and for the extra deck cards `fusepick` (reveal), `fusemat` (a material), `pair` / `pairsend` (Widow Maker: the controller picks two adjacent cards, the opponent picks which one goes), `reorder`, `declare`, `libplay`, `libseen` (L4). Without `labels` it is answered by clicking the board; with `labels` the picker panel shows.
 
 ## Stack HP
-`hitStack` subtracts; **<= -1 countered, 0 resolves**. An Attack ignores it. Countered spell -> GY; countered ability token removed. (Stack objects have no statuses yet: `nodmg` is a field, Q33.)
+`hitStack` subtracts; **<= -1 countered, 0 resolves**. An Attack ignores it. Countered spell -> GY; countered ability token removed. Stack objects have `statuses[]` (Q33): `nodamage` (Quick Intuition on a spell) and, on an Attack, `bonus` (`addAttackDamage`).
 
 ## Current cards (28 main deck + 2 extra deck; one of each per deck)
 | Card | Effect |
@@ -119,7 +120,7 @@ Optional fields: `hp`, `zone`, `cond`, `optional:true` (goes on the stack after 
 | Heal / Zap / Bolt / Superbolt / GrainFall | As before: +3 life / 1 damage / 3 damage to the stack object below / 20 damage to any target / mill 10 |
 | Throwing Bandages | Quick, HP 10: remove 7 damage points from a permanent |
 | Infinity Wall | Quick, HP 6: exile a full column, make it unusable, back to hand |
-| Spirit of the Sand | Quick, HP 0: red or blue `shield` on each of your cards + `nogain` |
+| Spirit of the Sand | Quick, HP 0: red or blue `shield` on each of your cards + `cannot gainLife` |
 | Quick Intuition | Quick, HP 4: `drawUntil(7)`, optional target creature/spell gets `noDamage`. GY, Fast, when the foe attacks: exile this; `cancelAttack` |
 | Ambush of the Night | Slow, HP 0: you draw 2, return <=2 GY cards, put <=2 creatures/enchantments from hand into play; then the foe returns <=2, puts <=2 from their GY into play, draws 2 |
 | Ward, Charm, Heaven and Sun | Enchantments (see card text) |

@@ -51,7 +51,7 @@
       D(s, { type: 'Choose', player: 'Player', option: '1' });
       eq(
         'Spirit (blue): counter on each own board card; life gain is disabled',
-        [kinds(a, 'shield').map(x => x.color), Sim.hasSt(s.players.Player, 'nogain')],
+        [kinds(a, 'shield').map(x => x.color), !Sim.allowed(s.players.Player, 'gainLife')],
         [['blue'], true]
       );
     }

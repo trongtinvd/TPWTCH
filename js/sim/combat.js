@@ -2,7 +2,7 @@
 Sim.def('combat', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
   let other; // util
-  let abDef, addStatus, atkOf, has, hasSt, hpOf, hurt, totalDamage; // statuses
+  let abDef, addStatus, allowed, atkOf, bonusOf, has, hasSt, hpOf, hurt, totalDamage; // statuses
   let destroy, recalc; // state
   let fire; // stack
   const RIDERS = {
@@ -46,6 +46,7 @@ Sim.def('combat', function (K) {
   function canAttack(s, c) {
     // reason string, or null if legal
     if (!c || c.loc !== 'board' || c.def.type !== 'creature') return 'Only creatures on the board can attack';
+    if (!allowed(c, 'attack')) return 'This creature cannot attack';
     if (!s.attackPhase) return 'Turn the attack phase on first';
     if (hasSt(c, 'attacked')) return 'Already attacked this turn';
     if (c.owner !== s.active) return 'Not this player\u2019s turn';
@@ -59,7 +60,7 @@ Sim.def('combat', function (K) {
       col = at[2],
       foe = other(c.owner);
     /* at: where it stood when it struck (it may die mid-strike, e.g. to Retaliate) */ let left =
-      (c.loc === 'board' ? atkOf(c) : 0) + ((o && o.bonus) || 0); // the attacker's power counts only while it is on the board; damage added to the Attack itself always counts. Damage goes toward the controller's opponent; a card standing on the foe's side skips itself
+      (c.loc === 'board' ? atkOf(c) : 0) + (o ? bonusOf(o) : 0); // the attacker's power counts only while it is on the board; damage added to the Attack itself always counts. Damage goes toward the controller's opponent; a card standing on the foe's side skips itself
 
     for (const row of ['front', 'back']) {
       if (at[0] === foe && (row === 'front' || at[1] === 'back')) continue; // an attacker standing on the foe's side only hits what lies beyond it, never backward
@@ -94,7 +95,7 @@ Sim.def('combat', function (K) {
       hp: null,
       name: 'Attack: ' + c.def.name,
       slotAt: c.slot,
-      bonus: 0,
+      statuses: [], // damage added to this Attack is a bonus status on it
     };
     s.stack.push(o);
     s.passes = 0;
@@ -107,6 +108,8 @@ Sim.def('combat', function (K) {
   return {
     exports: { RIDERS, canAttack, dealDamage, declareAttack, extraAttack, resolveAttack, retaliate, strike },
     needs: [
+      'allowed',
+      'bonusOf',
       'abDef',
       'addStatus',
       'atkOf',
@@ -121,6 +124,7 @@ Sim.def('combat', function (K) {
       'totalDamage',
     ],
     link: () => {
+      ({ allowed, bonusOf } = K);
       ({ abDef, addStatus, atkOf, destroy, fire, has, hasSt, hpOf, hurt, other, recalc, totalDamage } = K);
     },
   };
