@@ -40,6 +40,22 @@ Sim.def('statuses', function (K) {
     for (const x of live(o)) if (x.what === what) ok = x.kind === 'can' ? true : x.kind === 'cannot' ? false : ok;
     return ok;
   };
+  // Patch4: 'combatEnd' statuses (attack counters) end when a combat phase ends; every object with statuses is swept
+  const expireStatuses = (s, when, why) => {
+    for (const o of [...Object.values(s.cards), PL(s, 'Player'), PL(s, 'Opponent'), ...Object.values(s.zones), ...s.stack])
+      live(o)
+        .filter(x => x.expires === when)
+        .forEach(x => removeStatus(s, x, why));
+  };
+  // Patch4: non-lethal damage. The NEWEST live status that changes HP decides: while it is non-lethal damage, HP at or below the death line
+  // does not kill (a card, a zone bar). Any HP status entered later (damage, life, an HP modifier, zone HP) takes over and can kill.
+  const changesHp = x =>
+    x.kind === 'damage' || x.kind === 'life' || (x.kind === 'mod' && !!x.hp) || x.kind === 'zonehp' || x.kind === 'zonedmg';
+  const nonLethalHold = o => {
+    const L = live(o).filter(changesHp);
+    return !!L.length && !!L[L.length - 1].nonLethal;
+  };
+  const dmgFlags = st => (st.nonLethal ? ' \u00b7 non-lethal' : '') + (st.temporary ? ' \u00b7 temporary' : '');
   const bonusOf = o => live(o).reduce((n, x) => n + (x.kind === 'bonus' ? x.amount : 0), 0); // damage added to an Attack: statuses on the Attack
   // end of a turn (ended = the player whose turn it was): does this status end now? 'turnEnd' = this turn; {turns, whose} counts only matching turns
   const expiresAtTurnEnd = (st, ended) => {
@@ -95,7 +111,8 @@ Sim.def('statuses', function (K) {
         (st.orig != null && st.orig !== st.amount ? ' (was ' + st.orig + ')' : '') +
         by +
         ' \u00b7 ' +
-        st.type,
+        st.type +
+        dmgFlags(st),
       life: () => 'Life +' + st.amount + by,
       paid: () => 'Life paid ' + st.amount + ' for ' + st.srcName,
       mod: () => (st.srcName || 'Effect') + ': ' + sg(st.atk) + '/' + sg(st.hp) + ' while in range',
@@ -121,7 +138,8 @@ Sim.def('statuses', function (K) {
       cloud: () => 'Covered by a black cloud' + by,
       unusable: () => 'Zone is unusable' + by,
       zonehp: () => 'Zone HP +' + st.amount + ' (one shared bar)' + by,
-      zonedmg: () => 'Zone damage ' + st.amount + by,
+      zonedmg: () => 'Zone damage ' + st.amount + by + dmgFlags(st),
+      attackCounter: () => 'Attack counter: attacking spends it; it ends with the combat phase',
       skipCombat: () => 'Waiting: your next combat is skipped (pressing combat becomes End turn)' + by,
     }[st.kind];
     return (
@@ -165,7 +183,9 @@ Sim.def('statuses', function (K) {
       clearStatuses,
       describe,
       dmgs,
+      expireStatuses,
       expiresAtTurnEnd,
+      nonLethalHold,
       has,
       hasSt,
       hpOf,

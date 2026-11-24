@@ -118,7 +118,7 @@
     take(s, 'Player', 't-o1', 'board', 'Player|front|1');
     take(s, 'Opponent', 't-m2', 'board', 'Opponent|front|0');
     take(s, 'Opponent', 't-o2', 'board', 'Opponent|front|1');
-    s.attackPhase = true;
+    Sim.enterCombat(s);
     D(s, { type: 'Attack', iid: Object.values(s.cards).find(c => c.def.id === 't-m1').iid });
     eq('pushed in this order: turn player mandatory, other mandatory, turn player optional, other optional', srcs(s), ['A', 't-m1', 't-m2', 't-o1', 't-o2']);
     s = start(1131, defs);
@@ -126,7 +126,7 @@
     take(s, 'Player', 't-m3', 'board', 'Player|front|2');
     take(s, 'Player', 't-o1', 'board', 'Player|front|1');
     s.orderTriggers = true;
-    s.attackPhase = true;
+    Sim.enterCombat(s);
     D(s, { type: 'Attack', iid: Object.values(s.cards).find(c => c.def.id === 't-m1').iid });
     eq('only the two mandatory triggers can be ordered: a choice with two arrangements, for their controller', [s.choice.kind, s.choice.player, s.choice.options.length], ['trigorder', 'Player', 2]);
     D(s, { type: 'Choose', player: 'Player', option: s.choice.options[0] });

@@ -12,7 +12,8 @@ Card factory -> Fx builders -> plain {op:...} -> Sim.dispatch -> stack object ->
 | `COSTS` | Sim | `check` (payable?) and `pay` (mutates). |
 | `REQS` | Sim | Return reason string, or `null` if satisfied. |
 | `TARGETS` | Sim | Target finders. |
-| `TARGETINGS` | Sim | What a trigger targets when it is put on the stack (`adjacentPair`): `options`, `label`, `prompt`. A trigger field `targeting`. |
+| `TARGETINGS` | Sim | What a trigger or an activated ability targets when it is put on the stack (`adjacentPair`, `nonPlayerHp`): `options`, `label`, `prompt`, optional `legal` (re-checked at resolution: illegal = fizzle). Field `targeting`. An ability with several options asks an `abtarget` choice before its costs are paid (or takes `cmd.pick`). |
+| `HPKINDS` | Sim | **Patch4** (`hp.js`): every non-player thing with active HP (`card`, `zone`, `stack`): `refs`, `resolve` (null = illegal), `damage`, `label`. Refs: card iid, `Z:<slot>`, `S:<sid>`. |
 | `COND` | Sim | Trigger conditions (`ownInAttackCol`, `extraPaid`, `firstCombat`, `foeAdjacent`, `usedMat`). |
 | `EXCOND` | Sim | Conditions of extra deck creatures (`LostLife`, `BothDrewMoreThan`); read by Fusion effects. |
 | `CH` / `THEN` | Sim | Answers to `Choose` and the "then" actions of `PickCard`. |
@@ -45,6 +46,7 @@ One ordered list per card (`card.statuses`) and per player (`state.players[p].st
 Spells/abilities/triggers are stack objects with HP. Abilities/triggers are wrapped in a temp token card (`type:'ability'`, `loc:'stack'`) -> `loc:'gone'` after resolve/counter. An **Attack** is a stack object of `kind:'attack'` (no HP, no token card).
 
 ## Ops
+- **Patch4** `DamageHp {amount, nonLethal, temporary}`: damages the picked non-player HP target (`x.o.pick`) through `HPKINDS`.
 Handlers get `x = {s, ev, src, t, who, foe, ...}`. Effects run in list order. An op that opens a choice suspends the rest of the list as a continuation; `Choose` resumes it.
 
 | Builder | Behavior |
@@ -83,7 +85,7 @@ Handlers get `x = {s, ev, src, t, who, foe, ...}`. Effects run in list order. An
 | `skipFoeCombat(pay)`, `secondCombat()` | Shark: pay life, `skipCombat` on the foe; second combat (foe draws 5 as a cost; if you hold a `skipCombat` status it is used up instead). |
 
 ## Costs (paid at activation, never refunded if countered/fizzled)
-`payLife(n)` (`paid` status), `exileFromGY(n)`, `exileSelf()`, `sacrificeSelf()` (destroys immediately). `spendAP()` (spends one of the owner's action points, any turn). Optional card cost `extraCost:{ap:true}` (War Drum): asked on play, payable whenever the owner has a point; adds `extraPaid`.
+`spendStatus(kind)` / `spendAttackCounter()` (**Patch4**: removes one such status from the card), `payLife(n)` (`paid` status), `exileFromGY(n)`, `exileSelf()`, `sacrificeSelf()` (destroys immediately). `spendAP()` (spends one of the owner's action points, any turn). Optional card cost `extraCost:{ap:true}` (War Drum): asked on play, payable whenever the owner has a point; adds `extraPaid`.
 
 ## Requirements / targets
 `front`, `hurt`, `target`, `stack`, `foeAttacking`, `attackedCol`, `attackOnStack`, `fusionOK` (the card's Fusion effect has a creature it can summon), `exInGY` (an extra deck creature in your GY). Targets: `opposingFront`, `attacker` (the topmost Attack the opponent controls). Zone targets `anyPermanent`, `anyCreature`; `colTarget` `fullColumn`; `playerTarget`; `optionalTarget`, `stackTarget` (Quick Intuition).
@@ -116,9 +118,10 @@ Optional fields: `hp`, `zone`, `cond`, `optional:true` (goes on the stack after 
 ## Stack HP
 `hitStack` subtracts; **<= -1 countered, 0 resolves**. An Attack ignores it. Countered spell -> GY; countered ability token removed. Stack objects have `statuses[]` (Q33): `nodamage` (Quick Intuition on a spell) and, on an Attack, `bonus` (`addAttackDamage`).
 
-## Current cards (28 main deck + 2 extra deck; one of each per deck)
+## Current cards (29 main deck + 2 extra deck; one of each per deck)
 | Card | Effect |
 |---|---|
+| Vanguard | **Patch4.** 2/3 creature. Fast: spend an attack counter on it, target a non-player HP thing (`nonPlayerHp`): `damageHp(3, {nonLethal, temporary})`. Stats / stack HP are placeholders (C6). |
 | Heal / Zap / Bolt / Superbolt / GrainFall | As before: +3 life / 1 damage / 3 damage to the stack object below / 20 damage to any target / mill 10 |
 | Throwing Bandages | Quick, HP 10: remove 7 damage points from a permanent |
 | Infinity Wall | Quick, HP 6: exile a full column, make it unusable, back to hand |

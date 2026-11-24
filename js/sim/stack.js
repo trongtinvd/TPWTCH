@@ -53,6 +53,7 @@ Sim.def('stack', function (K) {
       const why = REQS[r] && REQS[r](s, c, a);
       if (why) return why;
     }
+    if (a.targeting && !TARGETINGS[a.targeting].options(s, c).length) return 'Requirement: no legal target'; // Patch4
     if (ctl(c) !== s.priority) return 'Timing: you do not have priority';
     if (a.speed === 'Slow') {
       if (ctl(c) !== s.active) return 'Timing: Slow abilities only on your turn';
@@ -65,6 +66,15 @@ Sim.def('stack', function (K) {
       if (why) return why;
     }
     return null;
+  }
+  // Patch4: activation after the checks. Targeting is part of the cost (Yu-Gi-Oh): the target is picked first (`pick`), then costs are paid
+  function activate(s, c, i, pick, ev) {
+    const a = abDef(c).abilities[i],
+      tgt = findTarget(s, c, a);
+    for (const k of a.cost || []) payCost(s, c, k, ev); // costs are paid on activation
+    pushObj(s, c, 'abilities', i, ev, tgt ? tgt.iid : null, pick != null ? { pick } : null);
+    s.priority = other(ctl(c)); // the opponent gets priority first
+    ev.push({ t: 'AbilityActivated', iid: c.iid, ab: i, speed: a.speed });
   }
   function hitStack(s, u, n, ev) {
     if (u.kind === 'attack') return; // an Attack has no HP: damage against it does nothing
@@ -226,6 +236,10 @@ Sim.def('stack', function (K) {
       ev.push({ t: 'StackObjectFizzled', sid: o.sid });
       return;
     } // target became illegal
+    if (def.targeting && o.pick != null && TARGETINGS[def.targeting].legal && !TARGETINGS[def.targeting].legal(s, src, o.pick)) {
+      ev.push({ t: 'StackObjectFizzled', sid: o.sid });
+      return;
+    } // Patch4: the picked target is no longer legal
     if (def.colTarget && COLTARGETS[def.colTarget](s, o.col)) {
       ev.push({ t: 'StackObjectFizzled', sid: o.sid });
       return;
@@ -269,6 +283,7 @@ Sim.def('stack', function (K) {
       live(o)
         .filter(x => expiresAtTurnEnd(x, s.active)) // 'turnEnd', or {turns, whose}: only the turns that count are counted down (Q11)
         .forEach(x => removeStatus(s, x, 'expired')); // end of turn: expiring statuses go
+    expireStatuses(s, 'combatEnd', 'combat ended'); // Patch4: the turn ending ends any combat phase still open
     clearAttacked(s, 'turn ended');
     s.active = other(s.active);
     s.turnEnding = false;
@@ -284,6 +299,7 @@ Sim.def('stack', function (K) {
   }
   return {
     exports: {
+      activate,
       advanceTrg,
       canActivate,
       canPlay,
@@ -298,7 +314,8 @@ Sim.def('stack', function (K) {
       stopAt,
       stopWants,
     },
-    needs: ['ctl', 
+    needs: [ 'expireStatuses', 'findTarget', 'payCost', // Patch4
+     'ctl', 
       'expiresAtTurnEnd',
       'hasSt',
       'COLTARGETS',
@@ -328,6 +345,7 @@ Sim.def('stack', function (K) {
       'targetZones',
     ],
     link: () => {
+      ({ expireStatuses, findTarget, payCost } = K); // Patch4
       ({ ctl } = K);
       ({ expiresAtTurnEnd, hasSt } = K);
       ({

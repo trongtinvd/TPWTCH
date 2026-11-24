@@ -48,7 +48,7 @@
         'a card that stays on the board keeps its statuses',
         Sim.live(so).filter(x => x.kind !== 'entered').length === 2
       );
-      s.attackPhase = true;
+      Sim.enterCombat(s);
       AT(s, g.iid);
       check(
         'a destroyed card has every status REMOVED (not deleted): the list keeps them, greyed, with the reason',
@@ -79,7 +79,7 @@
         w = take(s, 'Player', 'wolf', 'board', 'Player|front|1');
       const d = dmg(s, ally, 1);
       shield(s, ally, 'blue');
-      s.attackPhase = true;
+      Sim.enterCombat(s);
       D(s, { type: 'Attack', iid: w.iid });
       D(s, { type: 'Activate', iid: sg.iid, ab: 0 });
       pass2(s);
@@ -368,7 +368,7 @@
           m.from,
           m.to,
           m.how,
-          gf.logs.filter(e => e.kind === 'zone').map(e => e.to),
+          gf.logs.filter(e => e.kind === 'zone').map(e => e.to).slice(-2), // the last two moves (it may have been drawn first, depending on the shuffle)
           gf.logs.filter(e => e.kind === 'zone').pop().how,
         ],
         ['deck', 'gy', 'milled', ['stack', 'gy'], 'resolved']
@@ -387,7 +387,7 @@
           so.logs.some(e => e.kind === 'status-' && e.id === d.seq && e.why === 'test') &&
           !so.logs.some(e => e.kind === 'status-' && e.id === sh.seq)
       );
-      s.attackPhase = true;
+      Sim.enterCombat(s);
       AT(s, g.iid);
       check(
         'logs: when the card dies every status it ever had has a matching removal entry',

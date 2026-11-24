@@ -176,7 +176,7 @@ addEventListener('pointerup', e => {
             ? u.slotKey
             : null
           : k.kind
-            ? ['damage', 'pick', 'swap'].includes(k.kind) || boardPick(k)
+            ? ['damage', 'pick', 'swap', 'abtarget'].includes(k.kind) || boardPick(k)
               ? u.slotKey && k.options.includes('Z:' + u.slotKey)
                 ? 'Z:' + u.slotKey
                 : u.card

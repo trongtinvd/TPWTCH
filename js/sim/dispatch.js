@@ -216,10 +216,12 @@ Sim.def('dispatch', function (K) {
         ev.push({ t: 'AttackPhaseChanged', on: s.attackPhase });
         if (cmd.on && !was) {
           s.combats = (s.combats || 0) + 1;
+          placeAttackCounters(s, ev); // Patch4: one attack counter per creature the turn player controls
           fire(s, ev, 'combat', null);
           stopAt(s, ev, 'combatStart'); // stop: combat started
         }
         if (!cmd.on && was) {
+          endCombatStatuses(s); // Patch4: unspent attack counters end with the combat phase
           s.turnEnding = true; // Q21: when combat ends, the turn ends (checkTurnEnd, once nothing is pending)
           fire(s, ev, 'combatEnd', null);
           stopAt(s, ev, 'combatEnd'); // stop: combat ended
@@ -230,7 +232,8 @@ Sim.def('dispatch', function (K) {
         const c = s.cards[cmd.iid],
           why = canAttack(s, c);
         if (why) return fail(why);
-        addStatus(s, c, { kind: 'attacked', expires: 'turnEnd' });
+        spendAttackCounter(s, c, 'spent: attacked'); // Patch4
+        addStatus(s, c, { kind: 'attacked', expires: 'turnEnd' }); // the record of the attack (the counter is the gate)
         declareAttack(s, c, ev); // the Attack goes on the stack first, its triggers above it
         break;
       }
@@ -271,11 +274,18 @@ Sim.def('dispatch', function (K) {
           why = c ? canActivate(s, c, cmd.ab) : 'Unknown card';
         if (why) return fail(why);
         const a = abDef(c).abilities[cmd.ab],
-          tgt = findTarget(s, c, a);
-        for (const k of a.cost || []) payCost(s, c, k, ev); // costs are paid on activation
-        pushObj(s, c, 'abilities', cmd.ab, ev, tgt ? tgt.iid : null);
-        s.priority = other(ctl(c)); // the opponent gets priority first
-        ev.push({ t: 'AbilityActivated', iid: c.iid, ab: cmd.ab, speed: a.speed });
+          G = a.targeting && TARGETINGS[a.targeting];
+        if (G) {
+          // Patch4: a targeting ability: the target is picked before the costs are paid (cmd.pick, or a choice when there are several)
+          const opts = G.options(s, c);
+          if (cmd.pick != null) {
+            if (!opts.includes(cmd.pick)) return fail('Illegal target');
+            activate(s, c, cmd.ab, cmd.pick, ev);
+          } else if (opts.length === 1) activate(s, c, cmd.ab, opts[0], ev);
+          else ask(s, ctl(c), c, 'abtarget', opts, o => G.label(s, c, o), G.prompt(c), { ab: cmd.ab }, ev);
+          break;
+        }
+        activate(s, c, cmd.ab, null, ev);
         break;
       }
       case 'EndTurn':
@@ -285,6 +295,7 @@ Sim.def('dispatch', function (K) {
         if (s.respond) return fail('Waiting for the response window');
         if (s.attackPhase) {
           s.attackPhase = false;
+          endCombatStatuses(s); // Patch4
           ev.push({ t: 'AttackPhaseChanged', on: false });
           s.turnEnding = true;
           fire(s, ev, 'combatEnd', null);
@@ -361,7 +372,8 @@ Sim.def('dispatch', function (K) {
   const hasAction = (s, p) => actionsOf(s, p).length > 0; // is there anything legal for p right now?
   return {
     exports: { actionsOf, dispatch, hasAction },
-    needs: ['RULES', 'historyBytes', 'ctl', 
+    needs: [ 'TARGETINGS', 'activate', 'ask', 'endCombatStatuses', 'placeAttackCounters', 'spendAttackCounter', // Patch4
+     'RULES', 'historyBytes', 'ctl', 
       'CH',
       'PL',
       'abDef',
@@ -405,6 +417,7 @@ Sim.def('dispatch', function (K) {
       'targetZones',
     ],
     link: () => {
+      ({ TARGETINGS, activate, ask, endCombatStatuses, placeAttackCounters, spendAttackCounter } = K); // Patch4
       ({ RULES, historyBytes } = K);
       ({ ctl } = K);
       ({

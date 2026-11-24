@@ -14,6 +14,7 @@ Last pass: 2026-11-22 (the owner answered every numbered question). What is left
 | C3 | Parriable | Not implemented. Ownership/ordering of simultaneous input windows. |
 | C4 | Throwing Bandages | "Seven points or seven total?" The question was unclear to the owner; **kept as is** (points). Rephrase if it matters later. |
 | C5 | Deep Sea Shark | Resolved in meaning: another Shark's ability can skip the second combat phase. Wording of the original question was unclear; nothing to decide. |
+| C6 | Vanguard | ATK/HP (placeholder 2/3) and the ability's stack HP (placeholder 1) were not given. Also: does non-lethal damage also hold a zone's HP bar? Built as yes. |
 
 ### Decided but not built yet
 These rulings differ from the prototype (or need new code). Each needs tests first, then code. Detail in `RULES.md` ("Rulings 2026-11-22").

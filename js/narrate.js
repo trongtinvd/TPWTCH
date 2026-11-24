@@ -332,7 +332,7 @@ const Narrate = (function () {
     // ---- zone changes and statuses, from the cards' own logs (written by this command), oldest first. A hidden card's statuses are hidden too.
     const n0 = pre.lseq || 0,
       later = [],
-      HIDE = ['entered', 'attacked', 'damage'];
+      HIDE = ['entered', 'attacked', 'damage', 'attackCounter'];
     for (const c of Object.values(post.cards))
       for (const l of c.logs || []) {
         if (l.n <= n0) continue;

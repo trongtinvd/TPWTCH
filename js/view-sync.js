@@ -747,7 +747,7 @@ function sync() {
           : [...new Set(ch.options.flatMap(o => o.split('#')))]
         : ch.kind === 'place'
           ? ch.options
-          : ['damage', 'pick', 'swap'].includes(ch.kind)
+          : ['damage', 'pick', 'swap', 'abtarget'].includes(ch.kind)
             ? ch.options
                 .map(i => (i.startsWith('Z:') ? i.slice(2) : game.cards[i] && game.cards[i].slot))
                 .filter(Boolean)

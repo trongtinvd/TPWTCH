@@ -41,7 +41,8 @@ Everything that changes a card or a player after it was printed/started is a **s
 | `shield` {color} | card | `red` = cannot be targeted; `blue` = unaffected by non-targeting spells/abilities. |
 | `ability` {to, link} | card | Ability layer (Avatar). The newest active one decides; `link` = the damage status that caused it. |
 | `nodamage` | card | Damage denied; expires at end of turn. |
-| `attacked` | card | Already attacked this phase; expires at end of turn or at a new combat phase. |
+| `attacked` | card | Record: it attacked this phase; expires at end of turn or at a new combat phase. |
+| `attackCounter` | card | **[proto, Patch4]** Put on each creature the turn player controls when a combat phase starts; an Attack spends one; `expires:'combatEnd'` (also at turn end). |
 | `revealed` {to, zone} | card in hand / extra deck | Revealed to that player while it stays in that zone (hand: Parasite; extra deck: Fusion cards). |
 | `vault` {card} | card | A card exiled by it (Heaven and Sun); removed when it leaves, or when taken. |
 | `extraPaid` | card | The optional additional cost was paid (War Drum). |
@@ -123,9 +124,20 @@ Enter the combat phase (an action point). Then the turn player's creatures attac
 - Any creature on the board can attack, including one in a back-row zone.
 - Damage to a player is a `damage` status on the player.
 
+## Attack counters [proto, Patch4]
+- When a combat phase starts (entering combat, or a second combat), each creature the turn player controls gets **one attack counter**. A creature that enters later in that phase gets none, so it cannot attack.
+- `Attack` spends one counter (it also records `attacked`). No counter = no normal attack. Extra attacks made by effects (Shark, Widow Maker, War Drum) need no counter.
+- Unspent counters end when the combat phase ends. A card may spend a counter as a cost (Vanguard).
+
 ## HP and damage
 Permanents die at **HP <= -1** (damage > HP). Damage = `damage` statuses (amount, source, type, turn). Types: combat, effect, retaliate. A card may remove chosen instances (Bandages: the controller picks instances; a partly removed one keeps `orig`).
 **[proto]** Death is checked by `recalc` after every command, from the folded values: a card at -1 HP inside an aura's columns lives, and dies when it leaves them.
+
+### Non-lethal and temporary damage [proto, Patch4]
+- **Non-lethal**: the newest live status that changes HP (damage, life, HP modifier, zone HP / zone damage) decides. While it is non-lethal damage, HP at or below the death line does not kill (a card, a zone bar). Any HP status entered afterwards (normal damage, +HP, -HP) takes over and can kill; a newer non-lethal damage keeps holding.
+- On the stack non-lethal changes nothing: stack HP <= -1 still counters the spell or ability.
+- **Temporary**: the damage status expires at the end of the turn (`expires:'turnEnd'`).
+- **Non-player HP targets** (`hp.js` registry `HPKINDS`): board cards with HP, zones with an HP bar (a black cloud counts and passes the effect down to the card beneath, else to the zone bar, else fizzles), spells and abilities on the stack (not Attacks). Never a player; red shields excluded. A new kind of HP thing is one registry entry.
 
 ### Life [proto]
 Gaining life adds a `life` status to a player (or +HP to a target card). Life total = 20 + life - damage - paid; uncapped both ways.

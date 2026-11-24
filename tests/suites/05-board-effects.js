@@ -308,7 +308,7 @@
       tk.def = VT;
       tk.atk = undefined;
       tk.token = true;
-      s.attackPhase = true;
+      Sim.enterCombat(s);
       AT(s, tk.iid);
       eq(
         'a token standing on the foe\u2019s front row hits the foe (1), not its own side',
@@ -320,7 +320,7 @@
         ob = take(s, 'Opponent', 'knight', 'board', 'Opponent|back|1');
       tb.def = VT;
       tb.token = true;
-      s.attackPhase = true;
+      Sim.enterCombat(s);
       AT(s, tb.iid);
       eq('...and damages the foe\u2019s back card in its column, not the player', [ndmg(ob), s.life.Opponent], [1, 20]);
       s = start(146);
@@ -328,7 +328,7 @@
         ally = take(s, 'Player', 'soldier', 'board', 'Opponent|front|1');
       ally.def = VT;
       ally.token = true;
-      s.attackPhase = true;
+      Sim.enterCombat(s);
       AT(s, av.iid);
       eq(
         'Vine Y (yours) standing in the foe\u2019s column blocks Vine X\u2019s attack: Y takes the damage, the player is untouched',

@@ -9,7 +9,7 @@
       let s = start(50);
       const hb = take(s, 'Opponent', 'hummingbird', 'board', 'Opponent|front|1'),
         g = take(s, 'Player', 'giant', 'board', 'Player|front|1');
-      s.attackPhase = true;
+      Sim.enterCombat(s);
       D(s, { type: 'Attack', iid: g.iid });
       check(
         'attack damage waits: the Attack stays on the stack under the trigger (nothing damaged yet)',
@@ -49,7 +49,7 @@
       s = start(51);
       const h2 = take(s, 'Opponent', 'hummingbird', 'board', 'Opponent|front|1'),
         g2 = take(s, 'Player', 'giant', 'board', 'Player|front|1');
-      s.attackPhase = true;
+      Sim.enterCombat(s);
       D(s, { type: 'Attack', iid: g2.iid });
       pass2(s);
       D(s, { type: 'Choose', player: 'Opponent', option: 'stay' });
@@ -63,7 +63,7 @@
       const h3 = take(s, 'Opponent', 'hummingbird', 'board', 'Opponent|front|0'),
         g3 = take(s, 'Player', 'giant', 'board', 'Player|front|0');
       Sim.markUnusable(s, 'Opponent|front|1', 'test');
-      s.attackPhase = true;
+      Sim.enterCombat(s);
       D(s, { type: 'Attack', iid: g3.iid });
       pass2(s);
       drain(s);
@@ -76,7 +76,7 @@
       const h4 = take(s, 'Opponent', 'hummingbird', 'board', 'Opponent|front|0'),
         g4 = take(s, 'Player', 'giant', 'board', 'Player|front|0');
       take(s, 'Opponent', 'soldier', 'board', 'Opponent|front|1');
-      s.attackPhase = true;
+      Sim.enterCombat(s);
       D(s, { type: 'Attack', iid: g4.iid });
       pass2(s);
       eq('an occupied neighbour is not offered either: no choice with both sides blocked', s.choice, null);
@@ -122,7 +122,7 @@
       take(s, 'Player', 'hummingbird', 'board', 'Player|front|0');
       const c = take(s, 'Player', 'soldier', 'board', 'Player|front|2');
       take(s, 'Opponent', 'hummingbird', 'board', 'Opponent|front|4');
-      s.attackPhase = true;
+      Sim.enterCombat(s);
       D(s, { type: 'Attack', iid: c.iid });
       eq(
         'trigger eligibility: own non-attacking Hummingbird does not trigger, the foe\u2019s does (Attack at the bottom)',
@@ -132,7 +132,7 @@
       s = start(61);
       const a = take(s, 'Player', 'hummingbird', 'board', 'Player|front|0');
       take(s, 'Opponent', 'hummingbird', 'board', 'Opponent|front|3');
-      s.attackPhase = true;
+      Sim.enterCombat(s);
       D(s, { type: 'Attack', iid: a.iid });
       eq(
         'simultaneous triggers (Player turn): the Attack is at the bottom, then Player\u2019s trigger, Opponent\u2019s on top, Opponent gets priority',
@@ -150,7 +150,7 @@
       s.priority = 'Opponent';
       take(s, 'Player', 'hummingbird', 'board', 'Player|front|0');
       const b = take(s, 'Opponent', 'hummingbird', 'board', 'Opponent|front|3');
-      s.attackPhase = true;
+      Sim.enterCombat(s);
       D(s, { type: 'Attack', iid: b.iid });
       eq(
         'simultaneous triggers (Opponent turn): the Attack, Opponent\u2019s trigger, Player\u2019s on top, Player gets priority',
@@ -166,7 +166,7 @@
       const q = start(70),
         av = take(q, 'Opponent', 'avatar', 'board', 'Opponent|front|1'),
         g = take(q, 'Player', 'giant', 'board', 'Player|front|1');
-      q.attackPhase = true;
+      Sim.enterCombat(q);
       D(q, { type: 'Attack', iid: g.iid });
       eq(
         'Avatar: any creature attacking puts its shift trigger above the Attack; damage waits',

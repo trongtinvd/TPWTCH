@@ -7,7 +7,7 @@
     // ================= combat: damage, trample, absorbing =================
     let s = start(30);
     const k = take(s, 'Player', 'knight', 'board', 'Player|front|0');
-    s.attackPhase = true;
+    Sim.enterCombat(s);
     const r = AT(s, k.iid);
     eq(
       'empty column: knight (ATK 4) deals 4 to the opponent and nothing to its controller',
@@ -26,7 +26,7 @@
     let v = take(s, 'Opponent', 'soldier', 'board', 'Opponent|front|1');
     const g = take(s, 'Player', 'giant', 'board', 'Player|front|1'),
       by = take(s, 'Opponent', 'guard', 'board', 'Opponent|front|2');
-    s.attackPhase = true;
+    Sim.enterCombat(s);
     AT(s, g.iid);
     check(
       'giant (ATK 6) destroys soldier (HP 3): it is in its owner\u2019s GY, zone freed, counters cleared',
@@ -37,7 +37,7 @@
     s = start(32);
     v = take(s, 'Opponent', 'soldier', 'board', 'Opponent|front|1');
     let k2 = take(s, 'Player', 'wolf', 'board', 'Player|front|1');
-    s.attackPhase = true;
+    Sim.enterCombat(s);
     AT(s, k2.iid);
     eq(
       'ATK == HP (3 vs 3): target survives at effective HP 0, no trample',
@@ -47,14 +47,14 @@
     s = start(33);
     v = take(s, 'Opponent', 'soldier', 'board', 'Opponent|front|1');
     k2 = take(s, 'Player', 'knight', 'board', 'Player|front|1');
-    s.attackPhase = true;
+    Sim.enterCombat(s);
     AT(s, k2.iid);
     eq('ATK == HP+1 (4 vs 3): target dies (HP -1), exactly 1 tramples', [v.loc, s.life.Opponent], ['gy', 19]);
     s = start(34);
     v = take(s, 'Opponent', 'soldier', 'board', 'Opponent|front|1');
     const kb = take(s, 'Opponent', 'knight', 'board', 'Opponent|back|1'),
       g2 = take(s, 'Player', 'giant', 'board', 'Player|front|1');
-    s.attackPhase = true;
+    Sim.enterCombat(s);
     AT(s, g2.iid);
     eq(
       'front-to-back trample: soldier dies, the back knight takes only the remaining 3 as one combat instance from the giant',
@@ -65,7 +65,7 @@
     const gd = take(s, 'Opponent', 'guard', 'board', 'Opponent|front|1'),
       br = take(s, 'Opponent', 'barrier', 'board', 'Opponent|back|1');
     const g3 = take(s, 'Player', 'giant', 'board', 'Player|front|1');
-    s.attackPhase = true;
+    Sim.enterCombat(s);
     AT(s, g3.iid);
     eq(
       'a front card that absorbs everything (6 vs HP 6) shields the back card: no damage instance on it, player untouched',
@@ -76,7 +76,7 @@
     v = take(s, 'Opponent', 'soldier', 'board', 'Opponent|front|1');
     dmg(s, v, 2);
     k2 = take(s, 'Player', 'wolf', 'board', 'Player|front|1');
-    s.attackPhase = true;
+    Sim.enterCombat(s);
     AT(s, k2.iid);
     eq(
       'a pre-damaged target absorbs only its remaining HP: soldier (HP 3, 2 damage) absorbs 1, wolf tramples 2',
@@ -86,7 +86,7 @@
     s = start(37);
     const b2 = take(s, 'Opponent', 'barrier', 'board', 'Opponent|back|1'),
       g4 = take(s, 'Player', 'giant', 'board', 'Player|front|1');
-    s.attackPhase = true;
+    Sim.enterCombat(s);
     AT(s, g4.iid);
     eq(
       'a back-row card with an empty front row is hit: barrier (HP 2) dies, 6-2=4 tramples',
@@ -95,7 +95,7 @@
     );
     s = start(38);
     const bk = take(s, 'Player', 'knight', 'board', 'Player|back|0');
-    s.attackPhase = true;
+    Sim.enterCombat(s);
     check(
       'a creature standing in a back-row zone can attack (current rule: attacks go down its own column)',
       Sim.canAttack(s, bk) === null
@@ -112,7 +112,7 @@
       bar = take(s, 'Player', 'barrier', 'board', 'Player|back|2'),
       o = take(s, 'Opponent', 'soldier', 'board', 'Opponent|front|3');
     rej('attack requires the attack phase', s, { type: 'Attack', iid: k.iid }, 'attack phase');
-    s.attackPhase = true;
+    Sim.enterCombat(s);
     rej('a non-creature permanent cannot attack', s, { type: 'Attack', iid: bar.iid }, 'Only creatures');
     rej('a creature in hand cannot attack', s, { type: 'Attack', iid: inHand.iid }, 'Only creatures');
     rej('the non-turn player\u2019s creature cannot attack', s, { type: 'Attack', iid: o.iid }, 'turn');
@@ -120,6 +120,7 @@
     rej('a creature cannot attack twice in a turn', s, { type: 'Attack', iid: k.iid }, 'Already attacked');
     const k3 = take(s, 'Player', 'knight', 'board', 'Player|front|1'),
       z = take(s, 'Player', 'zap', 'hand');
+    Sim.addStatus(s, k3, { kind: 'attackCounter', expires: 'combatEnd' }); // it entered mid-combat: give it a counter so only the stack blocks it
     D(s, { type: 'PlayCard', iid: z.iid });
     D(s, { type: 'Pass', player: 'Opponent' });
     rej('no attack while the stack is not empty', s, { type: 'Attack', iid: k3.iid }, 'Stack is not empty');
@@ -156,7 +157,7 @@
     const sc = take(s, 'Player', 'scout', 'board', 'Player|front|1'),
       os = take(s, 'Opponent', 'scout', 'board', 'Opponent|front|1'),
       hb = take(s, 'Opponent', 'hummingbird', 'board', 'Opponent|front|3');
-    s.attackPhase = true;
+    Sim.enterCombat(s);
     D(s, { type: 'Attack', iid: sc.iid });
     eq(
       'attack declared: the Attack and Hummingbird\u2019s trigger are TWO separate stack objects, damage is deferred',
@@ -199,7 +200,7 @@
       const av = take(s, 'Opponent', 'avatar', 'board', 'Opponent|front|1'),
         g = take(s, 'Player', 'giant', 'board', 'Player|front|1');
       dmg(s, av, 5, 'combat');
-      s.attackPhase = true;
+      Sim.enterCombat(s);
       D(s, { type: 'Attack', iid: g.iid });
       pass2(s);
       D(s, { type: 'Choose', player: 'Opponent', option: 'stay' });
@@ -220,7 +221,7 @@
         ke = take(q, 'Opponent', 'kingeye', 'board', 'Opponent|front|1'),
         hid = take(q, 'Opponent', 'soldier', 'board', 'Opponent|front|0'),
         av = take(q, 'Player', 'avatar', 'board', 'Player|front|1');
-      q.attackPhase = true;
+      Sim.enterCombat(q);
       check('King Eye cloud covers the soldier before the attack', !!Sim.cloudMap(q)['Opponent|front|0']);
       D(q, { type: 'Attack', iid: av.iid });
       pass2(q);
@@ -238,7 +239,7 @@
     {
       let s = start(220);
       const wf = take(s, 'Player', 'wolf', 'board', 'Player|front|1');
-      s.attackPhase = true;
+      Sim.enterCombat(s);
       D(s, { type: 'Attack', iid: wf.iid });
       check(
         'an Attack has no HP and keeps no snapshot of the attacker\u2019s power',
@@ -257,7 +258,7 @@
       s = start(221);
       const w2 = take(s, 'Player', 'wolf', 'board', 'Player|front|1'),
         bo = take(s, 'Opponent', 'bolt', 'hand');
-      s.attackPhase = true;
+      Sim.enterCombat(s);
       D(s, { type: 'Attack', iid: w2.iid });
       D(s, { type: 'PlayCard', iid: bo.iid });
       pass2(s);
@@ -271,7 +272,7 @@
       s = start(222);
       const w3 = take(s, 'Player', 'wolf', 'board', 'Player|front|1'),
         w4 = take(s, 'Player', 'knight', 'board', 'Player|front|2');
-      s.attackPhase = true;
+      Sim.enterCombat(s);
       D(s, { type: 'Attack', iid: w3.iid });
       rej(
         'a normal attack cannot be declared while the stack is not empty (a second attacker must wait)',
@@ -284,7 +285,7 @@
       let s = start(320);
       const wf = take(s, 'Player', 'wolf', 'board', 'Player|front|1'),
         rg = take(s, 'Player', 'rage', 'hand');
-      s.attackPhase = true;
+      Sim.enterCombat(s);
       rej('Rage needs an Attack on the stack', s, { type: 'PlayCard', iid: rg.iid }, 'Attack must be on the stack');
       D(s, { type: 'Attack', iid: wf.iid });
       s.priority = 'Player';
@@ -300,7 +301,7 @@
       s = start(322);
       const w3 = take(s, 'Player', 'wolf', 'board', 'Player|front|1'),
         z = take(s, 'Opponent', 'rage', 'hand');
-      s.attackPhase = true;
+      Sim.enterCombat(s);
       D(s, { type: 'Attack', iid: w3.iid });
       D(s, { type: 'PlayCard', iid: z.iid });
       pass2(s);
@@ -310,7 +311,7 @@
         k4 = take(s, 'Player', 'knight', 'board', 'Player|front|2'),
         g4 = take(s, 'Opponent', 'guard', 'board', 'Opponent|front|1'),
         rr = take(s, 'Player', 'rage', 'hand');
-      s.attackPhase = true;
+      Sim.enterCombat(s);
       D(s, { type: 'Attack', iid: w4.iid });
       s.priority = 'Player';
       D(s, { type: 'PlayCard', iid: rr.iid });
@@ -333,7 +334,7 @@
       wf = take(s, 'Player', 'wolf', 'board', 'Player|front|1'),
       ow = take(s, 'Opponent', 'wolf', 'board', 'Opponent|front|1');
     check('sword rule: no creature can attack outside the combat phase', Sim.canAttack(s, wf) !== null);
-    s.attackPhase = true;
+    Sim.enterCombat(s);
     check(
       'sword rule: in the combat phase the turn player\u2019s creature can attack, the other player\u2019s cannot',
       Sim.canAttack(s, wf) === null && Sim.canAttack(s, ow) !== null

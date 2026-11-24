@@ -48,7 +48,7 @@
     );
     s = start(1204);
     const wf = take(s, 'Player', 'wolf', 'board', 'Player|front|0');
-    s.attackPhase = true;
+    Sim.enterCombat(s);
     check('a creature may attack by default', Sim.canAttack(s, wf) === null);
     Sim.addStatus(s, wf, { kind: 'cannot', what: 'attack', srcName: 't' });
     rej('cannot attack: the Attack command is refused', s, { type: 'Attack', iid: wf.iid }, 'cannot attack');
@@ -61,7 +61,7 @@
     let s = start(1210);
     const wf = take(s, 'Player', 'wolf', 'board', 'Player|front|1'),
       rg = take(s, 'Player', 'rage', 'hand');
-    s.attackPhase = true;
+    Sim.enterCombat(s);
     D(s, { type: 'Attack', iid: wf.iid });
     const at = s.stack[0];
     check(

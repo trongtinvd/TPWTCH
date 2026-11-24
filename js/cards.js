@@ -61,6 +61,10 @@ const Fx = {
   gainLife: (amount, to) => ({ op: 'GainLife', amount, to }), // puts life counters on the controller (default) or on the target card
   draw: (n, who) => ({ op: 'Draw', n, who }),
   damageStack: amount => ({ op: 'DamageStack', amount }),
+  // Patch4: damage the picked non-player HP target (use with targeting: nonPlayerHp). mods: {nonLethal, temporary}
+  damageHp: (amount, mods) => ({ op: 'DamageHp', amount, nonLethal: !!(mods && mods.nonLethal), temporary: !!(mods && mods.temporary) }),
+  spendStatus: (kind, label) => ({ op: 'SpendStatus', kind, label }), // cost: remove one `kind` status from this card
+  spendAttackCounter: () => ({ op: 'SpendStatus', kind: 'attackCounter', label: 'attack counter' }),
   sacrificeSelf: () => ({ op: 'SacrificeSelf' }), // also usable as a cost
   repeat: (n, ...effects) => ({ op: 'Repeat', n, effects }), // composition: run effects n times
   // costs (paid on activation)
@@ -99,7 +103,7 @@ const Fx = {
     exInGY: 'exInGY', // an extra deck creature is in your graveyard
   },
   target: { opposingFront: 'opposingFront', attacker: 'attacker' },
-  targeting: { adjacentPair: 'adjacentPair' }, // trigger field: what it targets when it is put on the stack (the cost / targeting part: condition : cost / targeting ; effect)
+  targeting: { adjacentPair: 'adjacentPair', nonPlayerHp: 'nonPlayerHp' }, // trigger field: what it targets when it is put on the stack (the cost / targeting part: condition : cost / targeting ; effect)
   zoneTarget: { anyPermanent: 'anyPermanent', anyCreature: 'anyCreature' }, // spell target: a zone with a card (or a cloud) on it, chosen when the spell is played
   playerTarget: true, // spell flag: a player can be targeted (click a life bar)
   rider: { inheritAbilities: () => ({ op: 'InheritAbilities' }) }, // damage this card deals: the victim loses its abilities and gains this card's.
@@ -609,6 +613,20 @@ Cards.add(Fx =>
         Object.assign(Fx.trigger.enter(Fx.declareName()), { hp: 10 })
       ),
       withText('At the start of your turn: draw a card.', Fx.trigger.turnStart(Fx.draw(1))),
+    ],
+  })
+);
+Cards.add(Fx =>
+  Fx.creature('vanguard', 'Vanguard', 2, 3, {
+    // Patch4. Stats and stack HP are placeholders (OPEN_QUESTIONS C6)
+    abilities: [
+      Fx.fastAbility('Hold the Line', {
+        text: 'Fast. Spend an attack counter on this card, target something with HP that is not a player: deal 3 temporary non-lethal damage to it. (Stack HP 1)',
+        cost: [Fx.spendAttackCounter()],
+        targeting: Fx.targeting.nonPlayerHp,
+        hp: 1,
+        effects: [Fx.damageHp(3, { nonLethal: true, temporary: true })],
+      }),
     ],
   })
 );

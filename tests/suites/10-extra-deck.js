@@ -290,7 +290,7 @@
       so = take(s, 'Opponent', 'soldier', 'board', 'Opponent|front|1'),
       wf = take(s, 'Opponent', 'wolf', 'board', 'Opponent|back|1');
     take(s, 'Opponent', 'guard', 'board', 'Opponent|front|4');
-    s.attackPhase = true;
+    Sim.enterCombat(s);
     D(s, { type: 'Attack', iid: wm.iid });
     pass2(s);
     check(
@@ -307,7 +307,7 @@
       s1 = take(s, 'Opponent', 'soldier', 'board', 'Opponent|front|1'),
       s2 = take(s, 'Opponent', 'wolf', 'board', 'Opponent|back|1'),
       s3 = take(s, 'Opponent', 'guard', 'board', 'Opponent|front|2');
-    s.attackPhase = true;
+    Sim.enterCombat(s);
     D(s, { type: 'Attack', iid: w2.iid });
     eq(
       'several adjacent pairs: the controller picks one when the trigger is put on the stack (column neighbours and row neighbours)',
@@ -327,7 +327,7 @@
       r1 = take(s, 'Opponent', 'soldier', 'board', 'Opponent|front|1'),
       r2 = take(s, 'Opponent', 'wolf', 'board', 'Opponent|back|1');
     shield(s, r2, 'red');
-    s.attackPhase = true;
+    Sim.enterCombat(s);
     D(s, { type: 'Attack', iid: w3.iid });
     pass2(s);
     check(

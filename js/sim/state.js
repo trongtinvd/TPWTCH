@@ -125,10 +125,16 @@ Sim.def('state', function (K) {
   const giveZoneHp = (s, k, n, srcName) => {
     if (s.zones[k]) addStatus(s, s.zones[k], { kind: 'zonehp', amount: n, srcName });
   };
-  function damageZone(s, k, n, srcName, ev) {
+  function damageZone(s, k, n, srcName, ev, mods) {
     // false when the zone has no HP (nothing happens). At <= 0 recalc exiles its contents and the zone becomes unusable
     if (!zoneBar(s, k)) return false;
-    addStatus(s, s.zones[k], { kind: 'zonedmg', amount: n, srcName });
+    addStatus(s, s.zones[k], {
+      kind: 'zonedmg',
+      amount: n,
+      srcName,
+      ...(mods && mods.nonLethal ? { nonLethal: true } : null),
+      ...(mods && mods.temporary ? { temporary: true, expires: 'turnEnd' } : null),
+    }); // Patch4: non-lethal / temporary zone damage, like card damage
     ev.push({ t: 'ZoneDamaged', slot: k, amount: n });
     recalc(s, ev);
     return true;
@@ -222,7 +228,7 @@ Sim.def('state', function (K) {
         for (const k of Object.keys(s.zones)) {
           // a zone whose HP bar is used up: its contents are exiled (a rule, so even a blue card), the zone becomes unusable, the bar is gone
           const b = zoneBar(s, k);
-          if (!b || b.left > 0) continue;
+          if (!b || b.left > 0 || nonLethalHold(s.zones[k])) continue; // Patch4: newest HP status non-lethal = the bar holds
           if (s.slots[k]) exileFromBoard(s, s.cards[s.slots[k]], ev);
           markUnusable(s, k, 'zone HP');
           live(s.zones[k])
@@ -231,7 +237,7 @@ Sim.def('state', function (K) {
           ev.push({ t: 'ZoneUnusable', slot: k });
           zoneChanged = true;
         }
-        const dead = board.filter(c => c.loc === 'board' && totalDamage(c) > hpOf(c)); // only the final value decides: at -1 HP inside the columns a card lives, leave them and it dies
+        const dead = board.filter(c => c.loc === 'board' && totalDamage(c) > hpOf(c) && !nonLethalHold(c)); // Patch4: non-lethal holds. Only the final value decides: at -1 HP inside the columns a card lives, leave them and it dies
         if (!dead.length && !zoneChanged) break;
         dead.forEach(c => destroy(s, c, ev, 'rule')); // state-based: damage exceeds HP
       }
@@ -351,7 +357,8 @@ Sim.def('state', function (K) {
       sweepUnusable,
       zoneBar,
     },
-    needs: ['ctl', 
+    needs: [ 'nonLethalHold', // Patch4
+     'ctl', 
       'abDef',
       'addStatus',
       'byId',
@@ -372,6 +379,7 @@ Sim.def('state', function (K) {
       'totalDamage',
     ],
     link: () => {
+      ({ nonLethalHold } = K); // Patch4
       ({ ctl } = K);
       ({
         abDef,

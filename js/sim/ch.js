@@ -47,6 +47,7 @@ Sim.def('ch', function (K) {
       s.trg.R[k.p] = cmd.option.split(',').map(Number);
       advanceTrg(s, ev);
     },
+    abtarget: (s, k, c, cmd, ev) => activate(s, c, k.ab, cmd.option, ev), // Patch4: the ability's target was picked: pay the costs, put it on the stack
     trigtarget: (s, k, c, cmd, ev) => {
       s.trg.items[k.tk].tgt = cmd.option;
       advanceTrg(s, ev);
@@ -143,7 +144,8 @@ Sim.def('ch', function (K) {
   };
   return {
     exports: { CH },
-    needs: ['addAttackBonus', 'cancelAttackObj', 
+    needs: [ 'activate', // Patch4
+     'addAttackBonus', 'cancelAttackObj', 
       'THEN',
       'advanceTrg',
       'addStatus',
@@ -171,6 +173,7 @@ Sim.def('ch', function (K) {
       'upToAsk',
     ],
     link: () => {
+      ({ activate } = K); // Patch4
       ({ addAttackBonus, cancelAttackObj } = K);
       ({
         THEN,

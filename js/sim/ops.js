@@ -112,6 +112,11 @@ Sim.def('ops', function (K) {
         }
       }
     },
+    DamageHp: (x, e) => {
+      // Patch4: damage the picked non-player HP target (x.o.pick: a card, a zone / cloud, a stack object; see hp.js)
+      const ref = x.o && x.o.pick;
+      if (ref != null) damageHp(x.s, x.src, ref, e.amount, x.ev, { nonLethal: !!e.nonLethal, temporary: !!e.temporary });
+    },
     DamageStack: (x, e) => {
       const u = x.s.stack[x.s.stack.length - 1];
       if (u) hitStack(x.s, u, e.amount, x.ev);
@@ -420,6 +425,7 @@ Sim.def('ops', function (K) {
       s.attackPhase = true;
       s.turnEnding = false; // a second combat phase: the turn is not ending yet
       clearAttacked(s, 'new combat phase');
+      placeAttackCounters(s, x.ev); // Patch4: a new combat phase gives new attack counters
       s.combats = (s.combats || 0) + 1;
       x.ev.push({ t: 'AttackPhaseChanged', on: true });
       fire(s, x.ev, 'combat', null);
@@ -452,7 +458,8 @@ Sim.def('ops', function (K) {
   };
   return {
     exports: { OPS },
-    needs: ['addAttackBonus', 'cancelAttackObj', 'ctl', 
+    needs: [ 'damageHp', 'placeAttackCounters', // Patch4
+     'addAttackBonus', 'cancelAttackObj', 'ctl', 
       'CH',
       'PL',
       'addStatus',
@@ -497,6 +504,7 @@ Sim.def('ops', function (K) {
       'markUnusable',
     ],
     link: () => {
+      ({ damageHp, placeAttackCounters } = K); // Patch4
       ({ addAttackBonus, cancelAttackObj } = K);
       ({ ctl } = K);
       ({

@@ -10,7 +10,7 @@
     const w = take(s, 'Opponent', 'wolf', 'board', 'Player|front|0');
     w.controller = 'Player'; // what L4 does to a card it plays
     eq('Sim.ctl is the controller, else the owner', [Sim.ctl(w), Sim.ctl(take(s, 'Opponent', 'soldier', 'hand'))], ['Player', 'Opponent']);
-    s.attackPhase = true;
+    Sim.enterCombat(s);
     check('a card under my control can attack on my turn (the controller decides, not the owner)', Sim.canAttack(s, w) === null);
     check('...and shows in my actions', Sim.actionsOf(s, 'Player').some(a => a.kind === 'attack' && a.iid === w.iid));
     AT(s, w.iid);
@@ -28,7 +28,7 @@
     const g = take(s, 'Opponent', 'giant', 'board', 'Opponent|front|2');
     s.active = 'Opponent';
     s.priority = 'Opponent';
-    s.attackPhase = true;
+    Sim.enterCombat(s);
     D(s, { type: 'Attack', iid: g.iid });
     eq('triggers follow the controller: the foe\u2019s attack triggers a Hummingbird I control, on the stack under my name', s.stack.filter(o => o.kind === 'ability').map(o => o.controller), ['Player']);
   });
@@ -39,7 +39,7 @@
       const s = start(1310),
         w1 = take(s, 'Player', 'wolf', 'board', 'Player|front|1'),
         w2 = take(s, 'Player', 'knight', 'board', 'Player|front|2');
-      s.attackPhase = true;
+      Sim.enterCombat(s);
       D(s, { type: 'Attack', iid: w1.iid });
       s.stack.push({ sid: ++s.sid, kind: 'attack', iid: w2.iid, src: w2.iid, controller: 'Player', hp: null, name: 'Attack: Knight', slotAt: w2.slot, statuses: [] }); // an extra attack (War Drum, Widow Maker)
       return { s, w1, w2 };
@@ -67,7 +67,7 @@
     s = start(1311);
     const w3 = take(s, 'Player', 'wolf', 'board', 'Player|front|1'),
       r3 = take(s, 'Player', 'rage', 'hand');
-    s.attackPhase = true;
+    Sim.enterCombat(s);
     D(s, { type: 'Attack', iid: w3.iid });
     s.priority = 'Player';
     D(s, { type: 'PlayCard', iid: r3.iid });

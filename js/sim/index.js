@@ -67,6 +67,7 @@ Sim.boot(K => {
     passives: K.PASSIVES,
     conds: K.COND,
     exConds: K.EXCOND,
+    hpKinds: K.HPKINDS, // Patch4: non-player things with HP
   };
   return {
     addStatus,
@@ -120,6 +121,12 @@ Sim.boot(K => {
     observe,
     observeEvents,
     historyBytes,
+    HPKINDS: K.HPKINDS, // Patch4
+    hpRefs: K.hpRefs,
+    hpResolve: K.hpResolve,
+    damageHp: K.damageHp,
+    enterCombat: K.enterCombat,
+    nonLethalHold: K.nonLethalHold,
     API: Object.fromEntries(Object.entries(REGISTRIES).map(([kind, reg]) => [kind, Object.keys(reg)])),
     create: K.createGame,
   };

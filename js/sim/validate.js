@@ -32,6 +32,7 @@ const apiErrors = () => {
       walk(d.id, a.cost, 'costs');
       (a.req || []).forEach(r => A.requirements.includes(r) || bad.push(d.id + ': unknown requirement ' + r));
       if (a.target && !A.targets.includes(a.target)) bad.push(d.id + ': unknown target ' + a.target);
+      if (a.targeting && !A.targetings.includes(a.targeting)) bad.push(d.id + ': unknown targeting ' + a.targeting); // Patch4
     });
   });
   // Fx and Sim cannot drift: every Fx builder is called with no arguments and must name a published op / trigger,

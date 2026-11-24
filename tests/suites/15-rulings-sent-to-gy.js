@@ -9,7 +9,7 @@
     let s = start(1500);
     const so = take(s, 'Opponent', 'soldier', 'board', 'Opponent|front|1'),
       gi = take(s, 'Player', 'giant', 'board', 'Player|front|1');
-    s.attackPhase = true;
+    Sim.enterCombat(s);
     D(s, { type: 'Attack', iid: gi.iid });
     let ev = [];
     for (let n = 0; n < 6 && s.stack.length; n++) ev = ev.concat(D(s, { type: 'Pass', player: s.priority }).events);

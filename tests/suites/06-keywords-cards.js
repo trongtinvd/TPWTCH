@@ -20,7 +20,7 @@
       const s = start(181),
         sg = take(s, 'Opponent', 'shieldguard', 'board', 'Opponent|front|1'),
         w = take(s, 'Player', 'wolf', 'board', 'Player|front|1');
-      s.attackPhase = true;
+      Sim.enterCombat(s);
       AT(s, w.iid);
       eq(
         'Retaliate: Shieldguard takes 3 and hits the attacker back for 5 (wolf HP 3 dies)',
@@ -37,7 +37,7 @@
       check('Red shield: its zone is not a legal target', !Sim.targetZones(s, sb).includes('Opponent|front|1'));
       Sim.live(v).forEach(x => Sim.removeStatus(s, x, 'test'));
       shield(s, v, 'blue');
-      s.attackPhase = true;
+      Sim.enterCombat(s);
       AT(s, g.iid);
       eq('Blue shield: attacks still hit it (soldier dies, 3 tramples)', [v.loc, s.life.Opponent], ['gy', 17]);
     }
@@ -60,7 +60,7 @@
         sg = take(s, 'Opponent', 'shieldguard', 'hand'),
         ally = take(s, 'Opponent', 'soldier', 'board', 'Opponent|front|1'),
         w = take(s, 'Player', 'wolf', 'board', 'Player|front|1');
-      s.attackPhase = true;
+      Sim.enterCombat(s);
       D(s, { type: 'Attack', iid: w.iid });
       check(
         'Shieldguard: the Attack is on the stack, the defender has priority first, damage waits',
@@ -239,7 +239,7 @@
       q2 = take(s, 'Player', 'intuition', 'hand');
     D(s, { type: 'PlayCard', iid: q2.iid, zone: 'Opponent|front|1' });
     pass2(s);
-    s.attackPhase = true;
+    Sim.enterCombat(s);
     AT(s, gi.iid);
     eq(
       'damage to the protected creature is denied (it still absorbs its HP: 6 - 3 tramples)',
@@ -249,7 +249,7 @@
     s = start(207);
     const q3 = take(s, 'Opponent', 'intuition', 'gy'),
       wf = take(s, 'Player', 'wolf', 'board', 'Player|front|1');
-    s.attackPhase = true;
+    Sim.enterCombat(s);
     D(s, { type: 'Attack', iid: wf.iid });
     check(
       'the defender gets priority on the Attack and can answer it with Cancel Attack from the GY',

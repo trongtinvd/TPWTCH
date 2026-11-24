@@ -45,7 +45,7 @@
     const h = start(1402),
       hb = take(h, 'Opponent', 'hummingbird', 'board', 'Opponent|front|1'),
       g = take(h, 'Player', 'giant', 'board', 'Player|front|1');
-    h.attackPhase = true;
+    Sim.enterCombat(h);
     D(h, { type: 'Attack', iid: g.iid });
     pass2(h);
     const mine = Sim.observe(h, 'Opponent').choice,
@@ -148,7 +148,7 @@
     check('a permanent entering: summoned, THEN its trigger goes on the stack (the view plays them in this order)', t.indexOf('PermanentSummoned') >= 0 && t.indexOf('PermanentSummoned') < t.indexOf('StackObjectCreated'), t.join());
     Tests.ctx.drain(s);
     const w = take(s, 'Player', 'wolf', 'board', 'Player|front|0');
-    s.attackPhase = true;
+    Sim.enterCombat(s);
     const a = D(s, { type: 'Attack', iid: w.iid }).events.map(e => e.t);
     check('an attack: declared, then put on the stack', a.indexOf('CreatureAttackDeclared') < a.indexOf('StackObjectCreated'), a.join());
   });

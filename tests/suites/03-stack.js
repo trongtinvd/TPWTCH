@@ -177,7 +177,7 @@
         wf = take(s, 'Player', 'wolf', 'board', 'Player|front|1');
       D(s, { type: 'Activate', iid: sc3.iid, ab: 0 });
       pass2(s);
-      s.attackPhase = true;
+      Sim.enterCombat(s);
       AT(s, wf.iid);
       eq(
         'damage instances add up across sources: Scout 3 + Wolf 3 kills Soldier (HP 3), counters are cleared, wolf tramples 3',

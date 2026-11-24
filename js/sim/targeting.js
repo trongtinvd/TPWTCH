@@ -58,12 +58,21 @@ Sim.def('targeting', function (K) {
       label: (s, c, o) => pairLabel(s, ctl(c), o),
       prompt: c => c.def.name + ': target two adjacent cards your opponent controls.',
     },
+    // Patch4: anything with active HP except a player (hp.js HPKINDS: board cards, zones with HP or a cloud, spells / abilities on the stack)
+    nonPlayerHp: {
+      options: s => hpRefs(s),
+      label: (s, c, o) => hpLabel(s, o),
+      prompt: c => c.def.name + ': target something with HP that is not a player.',
+      legal: (s, c, o) => !!hpResolve(s, o), // re-checked when it resolves: an illegal target fizzles it
+    },
   };
   const findTarget = (s, c, a) => (a.target && TARGETS[a.target] ? TARGETS[a.target](s, c) : null);
   return {
     exports: { COLTARGETS, TARGETINGS, TARGETS, ZONETARGETS, findTarget, pendingAtk, targetColumns, targetZones },
-    needs: ['ctl', 'cloudMap', 'colKeys', 'has', 'isUnusable', 'other', 'pairLabel', 'pairOptions'],
+    needs: [ 'hpLabel', 'hpRefs', 'hpResolve', // Patch4
+     'ctl', 'cloudMap', 'colKeys', 'has', 'isUnusable', 'other', 'pairLabel', 'pairOptions'],
     link: () => {
+      ({ hpLabel, hpRefs, hpResolve } = K); // Patch4
       ({ ctl } = K);
       ({ cloudMap, colKeys, has, isUnusable, other, pairLabel, pairOptions } = K);
     },
