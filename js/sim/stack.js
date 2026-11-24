@@ -4,7 +4,7 @@ Sim.def('stack', function (K) {
   let ctl; // added by Patch3
   let byId, isPerm, other, slotRow, slowish; // util
   let gainAP, hasAP; // ap
-  let PL, abDef, clearAttacked, expiresAtTurnEnd, has, hasSt, live, removeStatus; // statuses
+  let PL, abDef, clearAttacked, expiresAtTurnEnd, has, hasKw, hasSt, live, removeStatus; // statuses
   let freeSlots; // state
   let COLTARGETS, TARGETINGS, targetColumns, targetZones; // targeting
   let REQS; // reqs
@@ -17,13 +17,13 @@ Sim.def('stack', function (K) {
     if (s.phase !== 'play') return 'The game has not started';
     if (c.loc !== 'hand') return 'Not in hand';
     if (c.owner !== s.priority) return 'Not this player\u2019s priority';
-    if (s.attackPhase && !c.def.flash && (isPerm(c) || c.def.timing !== 'Quick'))
+    if (s.attackPhase && !hasKw(c, 'flash') && (isPerm(c) || c.def.timing !== 'Quick'))
       return 'Only Quick spells during the battle phase';
     if (slowish(c) && c.owner !== s.active) return 'Slow cards: turn player only';
     if (slowish(c) && s.respond) return 'Slow cards: only in an open game state';
     if (slowish(c) && !hasAP(s, c.owner)) return 'No action point left';
     if (isPerm(c)) {
-      if (s.stack.length && !c.def.flash) return 'Only when the stack is empty';
+      if (s.stack.length && !hasKw(c, 'flash')) return 'Only when the stack is empty';
       if (!freeSlots(s, c).length) return 'No free ' + slotRow(c) + ' zone';
     } else {
       if (c.def.timing === 'Slow' && s.stack.length) return 'Slow spells need an empty stack';
@@ -146,7 +146,14 @@ Sim.def('stack', function (K) {
     if (!hits.length) return;
     // 2) the triggers wait in s.trg: each player with several of them may order them (a choice, non-turn player first; only when the host turned
     //    it on), every trigger with a targeting picks its targets, then they go on the stack: turn player's first, so the other player's resolve first.
-    s.trg = { items: hits.map(h => ({ iid: h.c.iid, i: h.i, owner: ctl(h.c), optional: h.optional })), R: {} };
+    const items = hits.map(h => ({ iid: h.c.iid, i: h.i, owner: ctl(h.c), optional: h.optional }));
+    if (s.trg) {
+      // Patch5: triggers are still waiting (a choice is pending): the new ones join them; their owners order again
+      items.forEach(it => {
+        s.trg.items.push(it);
+        if (!it.optional) delete s.trg.R[it.owner];
+      });
+    } else s.trg = { items, R: {} };
     advanceTrg(s, ev);
   }
   const permutations = a =>
@@ -173,7 +180,7 @@ Sim.def('stack', function (K) {
               .split(',')
               .map(k => nm(+k))
               .join(' \u2192 '),
-          'Order your triggers (the top one resolves first).',
+          'Order your triggers (the bottom one resolves first, like the stack).',
           { p, items: mine.map(k => ({ k, name: nm(k), text: def(k).text || '' })) },
           ev
         );
@@ -194,10 +201,12 @@ Sim.def('stack', function (K) {
       if (it.tgt !== undefined) continue;
       const c = s.cards[it.iid],
         t = abDef(c).triggers[it.i];
-      if (!t.targeting || s.choice) {
-        it.tgt = null; // no targeting (or a choice of another effect is pending): nothing is picked now
+      if (!t.targeting) {
+        it.tgt = null; // no targeting: nothing is picked now
         continue;
       }
+      if (s.choice) return; // Patch5: targeting is part of the COST (Yu-Gi-Oh: condition : cost / targeting ; effect), so it is never moved to the
+      // resolution: while another choice is pending the triggers wait in s.trg; dispatch('Choose') carries on (advanceTrg) once nothing is pending
       const G = TARGETINGS[t.targeting],
         opts = G.options(s, c);
       if (!opts.length)
@@ -236,7 +245,12 @@ Sim.def('stack', function (K) {
       ev.push({ t: 'StackObjectFizzled', sid: o.sid });
       return;
     } // target became illegal
-    if (def.targeting && o.pick != null && TARGETINGS[def.targeting].legal && !TARGETINGS[def.targeting].legal(s, src, o.pick)) {
+    if (
+      def.targeting &&
+      o.pick != null &&
+      TARGETINGS[def.targeting].legal &&
+      !TARGETINGS[def.targeting].legal(s, src, o.pick)
+    ) {
       ev.push({ t: 'StackObjectFizzled', sid: o.sid });
       return;
     } // Patch4: the picked target is no longer legal
@@ -266,7 +280,16 @@ Sim.def('stack', function (K) {
   }
   function checkTurnEnd(s, ev) {
     // Q21: combat ended, so the turn ends: as soon as nothing is pending, the end step window opens
-    if (!s.turnEnding || s.phase !== 'play' || s.attackPhase || s.stack.length || s.choice || s.respond || s.trg || s.resolving)
+    if (
+      !s.turnEnding ||
+      s.phase !== 'play' ||
+      s.attackPhase ||
+      s.stack.length ||
+      s.choice ||
+      s.respond ||
+      s.trg ||
+      s.resolving
+    )
       return;
     s.turnEnding = false;
     openRespond(s, ev, 'end');
@@ -279,7 +302,13 @@ Sim.def('stack', function (K) {
     openRespond(s, ev, kind);
   }
   function endTurn(s, ev) {
-    for (const o of [...Object.values(s.cards), PL(s, 'Player'), PL(s, 'Opponent'), ...Object.values(s.zones), ...s.stack])
+    for (const o of [
+      ...Object.values(s.cards),
+      PL(s, 'Player'),
+      PL(s, 'Opponent'),
+      ...Object.values(s.zones),
+      ...s.stack,
+    ])
       live(o)
         .filter(x => expiresAtTurnEnd(x, s.active)) // 'turnEnd', or {turns, whose}: only the turns that count are counted down (Q11)
         .forEach(x => removeStatus(s, x, 'expired')); // end of turn: expiring statuses go
@@ -314,9 +343,13 @@ Sim.def('stack', function (K) {
       stopAt,
       stopWants,
     },
-    needs: [ 'expireStatuses', 'findTarget', 'payCost', // Patch4
-     'ctl', 
+    needs: [
+      'expireStatuses',
+      'findTarget',
+      'payCost', // Patch4
+      'ctl',
       'expiresAtTurnEnd',
+      'hasKw',
       'hasSt',
       'COLTARGETS',
       'TARGETINGS',
@@ -347,7 +380,7 @@ Sim.def('stack', function (K) {
     link: () => {
       ({ expireStatuses, findTarget, payCost } = K); // Patch4
       ({ ctl } = K);
-      ({ expiresAtTurnEnd, hasSt } = K);
+      ({ expiresAtTurnEnd, hasKw, hasSt } = K);
       ({
         COLTARGETS,
         TARGETINGS,

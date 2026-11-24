@@ -4,30 +4,33 @@ Settle **before the card pool grows**; record decisions in `RULES.md`.
 Last pass: 2026-11-22 (the owner answered every numbered question). What is left open is at the top; everything decided is below, with the ruling.
 
 ## Still open
+
 - (nothing numbered is open; the card-specific points below remain)
 
 ### Card-specific (numbered)
-| # | Card | Open point |
-|---|---|---|
-| C1 | Fracture Ground | Not implemented. "Each zone": permanent zones only, or deck/hand/GY/exile/stack too? |
-| C2 | The Seven Steves | Not implemented. Damage per creature unspecified. |
-| C3 | Parriable | Not implemented. Ownership/ordering of simultaneous input windows. |
-| C4 | Throwing Bandages | "Seven points or seven total?" The question was unclear to the owner; **kept as is** (points). Rephrase if it matters later. |
-| C5 | Deep Sea Shark | Resolved in meaning: another Shark's ability can skip the second combat phase. Wording of the original question was unclear; nothing to decide. |
-| C6 | Vanguard | ATK/HP (placeholder 2/3) and the ability's stack HP (placeholder 1) were not given. Also: does non-lethal damage also hold a zone's HP bar? Built as yes. |
+
+| #   | Card              | Open point                                                                                                                                                |
+| --- | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| C1  | Fracture Ground   | Not implemented. "Each zone": permanent zones only, or deck/hand/GY/exile/stack too?                                                                      |
+| C2  | The Seven Steves  | Not implemented. Damage per creature unspecified.                                                                                                         |
+| C3  | Parriable         | Not implemented. Ownership/ordering of simultaneous input windows.                                                                                        |
+| C4  | Throwing Bandages | "Seven points or seven total?" The question was unclear to the owner; **kept as is** (points). Rephrase if it matters later.                              |
+| C5  | Deep Sea Shark    | Resolved in meaning: another Shark's ability can skip the second combat phase. Wording of the original question was unclear; nothing to decide.           |
+| C6  | Vanguard          | ATK/HP (placeholder 2/3) and the ability's stack HP (placeholder 1) were not given. Also: does non-lethal damage also hold a zone's HP bar? Built as yes. |
 
 ### Decided but not built yet
+
 These rulings differ from the prototype (or need new code). Each needs tests first, then code. Detail in `RULES.md` ("Rulings 2026-11-22").
+
 - Built (group 1, Patch1; tagged [proto] in RULES.md): Q19, Q21, Q49, Q50, Q7.
 - Built (group 2, Patch2; tagged [proto] in RULES.md): Q8, Q37 (rule statuses `cannot` / `can`), Q33 / Q34 (statuses on stack objects and zones), Q11 (`expires:{turns, whose}`), Q10 (zone HP bar, no card yet).
 - Built (groups 3-6, Patch3; tagged [proto] in RULES.md): Q56 (owner / controller), Q41 (attack picks), Q39 / Q44 (`Sim.observe`, `Sim.observeEvents`, narrate leak tests), Q43 (history cap), Q13 (flat ordered event array, tested), Q40 (`self` picks).
-
-
 
 - Q1 Zone moves are described by from / to / how / why, not by keywords.
 - Q16 The Vine's text says it may create tokens in back-row zones (card text updated 2026-11-22).
 
 ## Resolved
+
 - [x] **30. Attack response window and hidden information.** The window is gone. An Attack is a stack object and the defender always gets priority on it.
 - [x] **Where do creatures / enchantments go?** Creatures front, enchantments back, unless a card says otherwise.
 - [x] **Normal attacks and the stack.** Need an empty stack unless a card says otherwise.
@@ -37,6 +40,7 @@ These rulings differ from the prototype (or need new code). Each needs tests fir
 - [x] 22. Win/loss: lose at life <= -1; both at once = draw; first decision stands.
 
 ### Rules definitions
+
 - [x] 1. "Destroy" and the other ways to leave the board (destroyed -> GY, bounced -> hand, spun -> deck, exiled -> exile) are only descriptions of what a card does, **not keywords**. The game cares about from where to where, how and why.
 - [x] 2. Statuses survive a zone change only with `keep`. **Kept.**
 - [x] 3. What an unusable zone prevents: **kept** as built.
@@ -56,6 +60,7 @@ These rulings differ from the prototype (or need new code). Each needs tests fir
 - [x] 29. Creeping Parasite: any unlocked mode. **Kept.**
 
 ### Statuses
+
 - [x] 32. Removed statuses stay forever. **Kept.** (Size is bounded by the 200 MB cap, Q43.)
 - [x] 33. Stack objects also use `statuses[]`.
 - [x] 34. Clouds and unusable zones are statuses on the zones. Action points are their own objects. Attacks are unique stack objects (not cards) with `statuses[]`.
@@ -71,6 +76,7 @@ These rulings differ from the prototype (or need new code). Each needs tests fir
 - [x] 44. Each player's log shows only what is public to them (see 39).
 
 ### Timing and ordering
+
 - [x] 6. Simultaneous triggers: **kept** (turn player's first on the stack, so the other player's resolve first; creation order within a player).
 - [x] 7. Mandatory effects go on the stack first; mandatory ones can be rearranged among themselves.
 - [x] 8. Contradicting modifiers are statuses; they fold in list order; later-entered effects win.
@@ -79,7 +85,7 @@ These rulings differ from the prototype (or need new code). Each needs tests fir
 - [x] 13. The sim emits its results as a 1D array of events; the view reads it in order to play animations.
 - [x] 17. What ends an effect: **kept**.
 - [x] 19. Slow abilities are free unless the card says otherwise. Slow/Fast is declared per card.
-- [x] 21. Combat ends, then the turn ends. Entering combat and not attacking is legal.
+- [x] 21. ~~Combat ends, then the turn ends.~~ Rule update 2026-11-24: ending combat goes back to the main phase; another combat costs another action point (Patch5). Entering combat and not attacking is legal.
 - [x] 45. "Destroy" is only a description of a card being sent from the field to the graveyard, not a keyword. The move records from / to / by (`rule`: lethal damage or a zone that is gone; `effect`; `cost`). A rule-sent card is sent exactly like an effect-sent one: anything that triggers on a card sent from the field to the graveyard triggers for all of them; "by an effect" wording ignores `by:'rule'` moves. **[proto since Patch4]**
 - [x] 46. Win and loss at the same time: whichever resolves first; if simultaneous, a draw.
 - [x] 47. Continuing a decided game does not change who won.
@@ -88,10 +94,12 @@ These rulings differ from the prototype (or need new code). Each needs tests fir
 - [x] 50. Stops: Arena style (per-player setting).
 
 ### Combat
+
 - [x] 20. ATK = HP + 1 both kills and tramples 1. **Kept.**
 - [x] 31. Friendly cards ahead of a back-row attacker do **not** absorb.
 
 ### Action points and the extra deck
+
 - [x] 51. No cap; a player gets one point when their turn starts.
 - [x] 52. Opening hands do not count as drawn.
 - [x] 53. A revealed extra deck card stays revealed until it leaves the extra deck.
@@ -102,17 +110,18 @@ These rulings differ from the prototype (or need new code). Each needs tests fir
 - [x] 58. Material checks ("same power / same HP") use current values. **Kept.**
 
 ### Card-specific, resolved
-| Card | Ruling |
-|---|---|
-| The Vine | Back-row zones allowed (text updated); picks are sequential (Q27). |
-| Maximum Damage | Uses the turn-kind rule of Q11. |
-| Creeping Parasite | Any unlocked mode (Q29). |
-| Heaven and Sun | Intended: if it leaves play its `vault` statuses are removed and the exiled cards cannot be retrieved. |
-| Spirit of the Sand | Kept (later cards get no shield; `nogain` also blocks card life statuses). |
-| War Drum | The extra cost can be paid on any turn. Kept. |
-| Quick Intuition | Kept (denial expires at the end of the turn it was cast). |
-| Underworld Fusion | Kept (only materials still in exile; the exiled Fusion itself is the cost). |
-| Depth Sea Fusion | Q54, Q55: answered. |
-| Widow Maker | Kept (with one targetable card left it is sent without a choice). |
-| L4: The Librarian | Kept (Q52, Q56). |
-| Ambush of the Night | Answered (Q40). |
+
+| Card                | Ruling                                                                                                 |
+| ------------------- | ------------------------------------------------------------------------------------------------------ |
+| The Vine            | Back-row zones allowed (text updated); picks are sequential (Q27).                                     |
+| Maximum Damage      | Uses the turn-kind rule of Q11.                                                                        |
+| Creeping Parasite   | Any unlocked mode (Q29).                                                                               |
+| Heaven and Sun      | Intended: if it leaves play its `vault` statuses are removed and the exiled cards cannot be retrieved. |
+| Spirit of the Sand  | Kept (later cards get no shield; `nogain` also blocks card life statuses).                             |
+| War Drum            | The extra cost can be paid on any turn. Kept.                                                          |
+| Quick Intuition     | Kept (denial expires at the end of the turn it was cast).                                              |
+| Underworld Fusion   | Kept (only materials still in exile; the exiled Fusion itself is the cost).                            |
+| Depth Sea Fusion    | Q54, Q55: answered.                                                                                    |
+| Widow Maker         | Kept (with one targetable card left it is sent without a choice).                                      |
+| L4: The Librarian   | Kept (Q52, Q56).                                                                                       |
+| Ambush of the Night | Answered (Q40).                                                                                        |

@@ -20,11 +20,20 @@ function passByRightClick() {
     return true;
   }
   const b = FN.find(x => x.id === 'pass');
-  if (!b || !b.on()) return false;
-  closeMenu();
-  b.run();
-  return true;
-} // right click on empty space = the Pass button
+  if (b && b.on()) {
+    closeMenu();
+    b.run();
+    return true;
+  }
+  // Patch5: no action point left and nothing on the stack: right click / double tap on empty space = the End turn button
+  const e = FN.find(x => x.id === 'endturn');
+  if (e && e.on() && !game.stack.length && !Sim.hasAP(game, ui.view)) {
+    closeMenu();
+    e.run();
+    return true;
+  }
+  return false;
+} // right click on empty space = the Pass button (or End turn, see above)
 addEventListener(
   'pointerdown',
   e => {
@@ -146,7 +155,7 @@ addEventListener('pointerup', e => {
       ui.lastEmptyTap = 0;
       if (passByRightClick()) return;
     } else ui.lastEmptyTap = now;
-  } // phone: double tap on empty space = Pass   // (a right-drag pan moved > 6px and never gets here)
+  } // phone: double tap on empty space = Pass (or End turn)   // (a right-drag pan moved > 6px and never gets here)
   if (game.choice && !foeChoice() && isPairChoice(game.choice)) {
     // two adjacent cards (Widow Maker): click the first, then the second; a click on the first again undoes it
     const k = game.choice,

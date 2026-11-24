@@ -26,7 +26,8 @@ Sim.def('hp', function (K) {
         return c && c.loc === 'board' && c.def.hp != null && !has(c, 'red') ? { kind: 'card', obj: c } : null;
       },
       damage: (s, src, c, n, ev, mods) => dealDamage(s, src, c, n, ev, 'effect', true, mods),
-      label: (s, ref, c = s.cards[ref]) => c.def.name + ' (' + zoneName(c.slot) + ', HP ' + (hpOf(c) - totalDamage(c)) + ')',
+      label: (s, ref, c = s.cards[ref]) =>
+        c.def.name + ' (' + zoneName(c.slot) + ', HP ' + (hpOf(c) - totalDamage(c)) + ')',
     },
     zone: {
       // a zone with an active HP bar, or a black cloud (it stands for whatever lies beneath: it passes the effect down or fizzles)

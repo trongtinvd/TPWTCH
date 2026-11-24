@@ -474,13 +474,18 @@ const isPairChoice = k =>
       .map(o => o.split('#'))
       .filter(p => p.includes(z))
       .map(p => (p[0] === z ? p[1] : p[0]));
+// Engine rule (Patch5): a choice whose CARD options are all cards the player can see and click (on the board, not under a cloud,
+// or in a visible hand) is answered by clicking them, never with a list. Options that are not cards ('done', 'no'...) stay as buttons.
+const choiceCards = k => k.options.filter(o => game.cards[o]),
+  choiceButtons = k => k.options.filter(o => !game.cards[o]);
 function boardPick(k) {
-  // a choice whose options are ALL cards the player can see and click (on the board, not under a cloud, or in a visible hand): no list, click them
-  return !!(
-    k &&
-    k.labels &&
-    k.options.length &&
-    k.options.every(o => {
+  if (!k || !k.labels || k.kind === 'trigorder' || k.kind === 'declare' || isPairChoice(k)) return false;
+  const cs = choiceCards(k),
+    rest = choiceButtons(k);
+  return (
+    cs.length > 0 &&
+    rest.every(o => !/^[ZP]:/.test(o)) && // zones / players are not card clicks: keep the list
+    cs.every(o => {
       const m = meshes.get(o);
       return !!(m && m.userData.card && m.visible);
     })
@@ -488,13 +493,16 @@ function boardPick(k) {
 }
 function trigOrderUI(pk, k) {
   const key = k.player + '|' + k.options[0];
-  if (!ui.trigOrder || ui.trigOrder.key !== key) ui.trigOrder = { key, order: k.options[0].split(',').map(Number) };
+  // the option lists the triggers in RESOLUTION order; the panel shows them like the stack panel: the bottom row resolves first
+  if (!ui.trigOrder || ui.trigOrder.key !== key)
+    ui.trigOrder = { key, order: k.options[0].split(',').map(Number).reverse() };
   const T = ui.trigOrder,
     info = Object.fromEntries(k.items.map(x => [x.k, x])),
     note = document.createElement('div');
   note.className = 'note';
   note.style.margin = '0';
-  note.textContent = 'The top one resolves first. Drag a row (or use the arrows) to reorder, then confirm.';
+  note.textContent =
+    'Like the stack: the bottom one resolves first. Drag a row (or use the arrows) to reorder, then confirm.';
   pk.appendChild(note);
   const move = (i, j) => {
     if (j < 0 || j >= T.order.length || i === j) return;
@@ -507,7 +515,9 @@ function trigOrderUI(pk, k) {
     r.className = 'row trg';
     r.draggable = true;
     r.innerHTML =
-      '<span class="pos">' + (i + 1) + '</span><span class="nm"><b></b><small></small></span><span class="mv"></span>';
+      '<span class="pos">' +
+      (T.order.length - i) +
+      '</span><span class="nm"><b></b><small></small></span><span class="mv"></span>';
     r.querySelector('b').textContent = x.name;
     r.querySelector('small').textContent = x.text;
     r.addEventListener('dragstart', e => e.dataTransfer.setData('text/plain', String(i)));
@@ -537,7 +547,7 @@ function trigOrderUI(pk, k) {
   ok.textContent = 'Confirm';
   ok.onclick = () => {
     ui.trigOrder = null;
-    send({ type: 'Choose', player: k.player, option: T.order.join(',') });
+    send({ type: 'Choose', player: k.player, option: T.order.slice().reverse().join(',') });
   };
   pk.appendChild(ok);
 }
@@ -622,7 +632,9 @@ function buildStack() {
     el.style.setProperty('--tc', cardColor(d));
     el.innerHTML =
       '<b></b><div class="sm"><span>' +
-      (o.kind === 'attack' ? 'Attack (no HP)' + (Sim.bonusOf(o) ? ' +' + Sim.bonusOf(o) + ' damage' : '') : 'HP ' + o.hp) +
+      (o.kind === 'attack'
+        ? 'Attack (no HP)' + (Sim.bonusOf(o) ? ' +' + Sim.bonusOf(o) + ' damage' : '')
+        : 'HP ' + o.hp) +
       (o.hp != null && o.hp <= -1 ? ' \u2716 countered on resolve' : '') +
       '</span><span></span></div>';
     el.firstChild.textContent = stackName(o);
@@ -685,7 +697,7 @@ function sync() {
         : {
             pw: t.c.def.type === 'creature' ? [Sim.atkOf(t.c), t.c.def.atk] : null,
             hp: [effHp(t.c), t.c.def.hp],
-            opp: !!t.rot,
+            opp: ui.view === 'Opponent', // Patch5: the stats face the VIEWER (power bottom left, HP bottom right on every card), whoever controls it
           }
     );
     setSword(
@@ -886,7 +898,11 @@ function sync() {
   }
   const pk = document.getElementById('pick'),
     pkc =
-      game.choice && game.choice.labels && !foeChoice() && !boardPick(game.choice) && !isPairChoice(game.choice)
+      game.choice &&
+      game.choice.labels &&
+      !foeChoice() &&
+      !isPairChoice(game.choice) &&
+      (!boardPick(game.choice) || choiceButtons(game.choice).length) // a click choice keeps its non-card buttons (Done)
         ? game.choice
         : null;
   if (ui.extraAsk && !ui.placing) ui.extraAsk = null;
@@ -915,7 +931,7 @@ function sync() {
     if (pkc.kind === 'trigorder') trigOrderUI(pk, pkc);
     else if (pkc.kind === 'declare') declareUI(pk, pkc);
     else
-      pkc.options.forEach(o => {
+      (boardPick(pkc) ? choiceButtons(pkc) : pkc.options).forEach(o => {
         const b = document.createElement('button');
         b.className = 'abtn';
         b.textContent = pkc.labels[o];
@@ -925,6 +941,7 @@ function sync() {
   }
   if (ui.openList) buildList();
   if (ui.selected && ui.selected.loc === 'hand' && ui.selected.owner !== ui.view) ui.selected = null;
+  refreshMenu(); // Patch5: the open action menu follows the game
   refreshInspect();
   ui.dirty = true;
   ui.hoverDirty = true;

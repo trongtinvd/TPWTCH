@@ -219,7 +219,10 @@ function settingsDialog() {
         ['end', 'End step'],
       ]),
       cur = Settings.get('stops') ? JSON.parse(JSON.stringify(Settings.get('stops'))) : null,
-      st = cur || { Player: { opp: Object.assign({}, STOPS_ON), own: {} }, Opponent: { opp: Object.assign({}, STOPS_ON), own: {} } };
+      st = cur || {
+        Player: { opp: Object.assign({}, STOPS_ON), own: {} },
+        Opponent: { opp: Object.assign({}, STOPS_ON), own: {} },
+      };
     box.appendChild(mkEl('h2')).textContent = 'Stops';
     for (const p of ['Player', 'Opponent'])
       for (const [role, list, title] of [

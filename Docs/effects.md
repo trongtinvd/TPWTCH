@@ -1,32 +1,35 @@
 # Effects (three.js prototype, current implementation)
 
 Documents what is built, not the full design. Cards are plain data; simulation interprets it; cards contain no logic.
+
 ```
 Card factory -> Fx builders -> plain {op:...} -> Sim.dispatch -> stack object -> OPS[op](ctx, effect) -> events
 ```
 
-| Piece | Side | Role |
-|---|---|---|
-| `Fx` | Content | Builders returning plain effect/cost/trigger/req/target data. |
-| `OPS` | Sim | Effect handlers by `op`. |
-| `COSTS` | Sim | `check` (payable?) and `pay` (mutates). |
-| `REQS` | Sim | Return reason string, or `null` if satisfied. |
-| `TARGETS` | Sim | Target finders. |
-| `TARGETINGS` | Sim | What a trigger or an activated ability targets when it is put on the stack (`adjacentPair`, `nonPlayerHp`): `options`, `label`, `prompt`, optional `legal` (re-checked at resolution: illegal = fizzle). Field `targeting`. An ability with several options asks an `abtarget` choice before its costs are paid (or takes `cmd.pick`). |
-| `HPKINDS` | Sim | **Patch4** (`hp.js`): every non-player thing with active HP (`card`, `zone`, `stack`): `refs`, `resolve` (null = illegal), `damage`, `label`. Refs: card iid, `Z:<slot>`, `S:<sid>`. |
-| `COND` | Sim | Trigger conditions (`ownInAttackCol`, `extraPaid`, `firstCombat`, `foeAdjacent`, `usedMat`). |
-| `EXCOND` | Sim | Conditions of extra deck creatures (`LostLife`, `BothDrewMoreThan`); read by Fusion effects. |
-| `CH` / `THEN` | Sim | Answers to `Choose` and the "then" actions of `PickCard`. |
-| Status API | Sim | `addStatus`, `removeStatus`, `statusLines`, `hpOf`, `atkOf`, `lifeOf`, `hasSt`, `isRevealed`. See below. |
-| `Sim.API` | Sim | Published list of all names above, plus trigger and passive names. |
-| `apiErrors()` | Validation | At load every card is checked against `Sim.API`; unknown names fail loudly. Nested `modes` effects are not walked yet. |
+| Piece         | Side       | Role                                                                                                                                                                                                                                                                                                                                   |
+| ------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Fx`          | Content    | Builders returning plain effect/cost/trigger/req/target data.                                                                                                                                                                                                                                                                          |
+| `OPS`         | Sim        | Effect handlers by `op`.                                                                                                                                                                                                                                                                                                               |
+| `COSTS`       | Sim        | `check` (payable?) and `pay` (mutates).                                                                                                                                                                                                                                                                                                |
+| `REQS`        | Sim        | Return reason string, or `null` if satisfied.                                                                                                                                                                                                                                                                                          |
+| `TARGETS`     | Sim        | Target finders.                                                                                                                                                                                                                                                                                                                        |
+| `TARGETINGS`  | Sim        | What a trigger or an activated ability targets when it is put on the stack (`adjacentPair`, `nonPlayerHp`): `options`, `label`, `prompt`, optional `legal` (re-checked at resolution: illegal = fizzle). Field `targeting`. An ability with several options asks an `abtarget` choice before its costs are paid (or takes `cmd.pick`). |
+| `HPKINDS`     | Sim        | **Patch4** (`hp.js`): every non-player thing with active HP (`card`, `zone`, `stack`): `refs`, `resolve` (null = illegal), `damage`, `label`. Refs: card iid, `Z:<slot>`, `S:<sid>`.                                                                                                                                                   |
+| `COND`        | Sim        | Trigger conditions (`ownInAttackCol`, `extraPaid`, `firstCombat`, `foeAdjacent`, `usedMat`).                                                                                                                                                                                                                                           |
+| `EXCOND`      | Sim        | Conditions of extra deck creatures (`LostLife`, `BothDrewMoreThan`); read by Fusion effects.                                                                                                                                                                                                                                           |
+| `CH` / `THEN` | Sim        | Answers to `Choose` and the "then" actions of `PickCard`.                                                                                                                                                                                                                                                                              |
+| Status API    | Sim        | `addStatus`, `removeStatus`, `statusLines`, `hpOf`, `atkOf`, `lifeOf`, `hasSt`, `isRevealed`. See below.                                                                                                                                                                                                                               |
+| `Sim.API`     | Sim        | Published list of all names above, plus trigger and passive names.                                                                                                                                                                                                                                                                     |
+| `apiErrors()` | Validation | At load every card is checked against `Sim.API`; unknown names fail loudly. Nested `modes` effects are not walked yet.                                                                                                                                                                                                                 |
 
 Runtime `runFx` silently skips unknown ops. Definitions are deep-frozen; runtime state lives on instances: `{iid, def, owner, loc, slot, statuses[], logs[]}`. To add a block: add a handler entry + matching `Fx` builder. Each card is a factory `Cards.add(Fx => ({...}))` built with the Fx card shapes (`Fx.creature`, `Fx.enchantment`, `Fx.quick`, `Fx.slow`, `Fx.fastAbility`, `Fx.slowAbility`; a spell may give `say` and get "<Timing>. <say> (Stack HP n)" as text). Effect handlers live in `js/sim/ops.js` (the registry), and `Sim.API` is generated from the registries, so `apiErrors()` fails at load if a card or an Fx builder names something missing.
 
-Card `type`: `creature`, `enchantment` (any non-creature permanent), `spell` (`timing` Quick or Slow); `ability` is internal (stack tokens). Flags: `flash:true`, `retaliate:true`, `extraCost:{ap:true}` (optional additional cost: spend an action point), `extra:true` (extra deck creature, see `RULES.md`; with `materials` / `conditions` data). An ability `zone` is one of `board`, `hand`, `gy`, `deck` or a list of them.
+Card `type`: `creature`, `enchantment` (any non-creature permanent), `spell` (`timing` Quick or Slow); `ability` is internal (stack tokens). Keywords are passives: `Fx.keyword('flash')`, `Fx.keyword('retaliate')` (Patch5; read by `Sim.hasKw` through the ability layer, so losing abilities loses them). Flags: `extraCost:{ap:true}` (optional additional cost: spend an action point), `extra:true` (extra deck creature, see `RULES.md`; with `materials` / `conditions` data). An ability `zone` is one of `board`, `hand`, `gy`, `deck` or a list of them.
 
 ## Statuses
+
 One ordered list per card (`card.statuses`) and per player (`state.players[p].statuses`); see `RULES.md` for the rules and the kind table.
+
 - `Sim.addStatus(s, owner, {kind, ...})` appends (id = `++s.seq`, `turn`, `removed:null`). Optional fields: `expires` (`'turnEnd'` or `{turns, whose:'any'|'self'|'foe'}`, with `by` = the controller; counted down at each turn end), `zone` (default `'board'`; the status is removed when the card is not in that zone, unless `keep:true`), `aura` + `src` + `idx` (re-checked each recalc), `link` (seq of another status on the card), `expires:'turnEnd'`.
 - `Sim.removeStatus(s, st, why)` sets `removed:{why,turn,seq}`. It is never deleted. All folds skip removed statuses.
 - `recalc(s, ev)` runs after every command (and inside many ops): removes statuses that left their zone / failed their requirement / lost their link, adds `entered`, adds aura `mod` statuses (oldest source first), kills cards with damage > HP, refreshes the `state.life` cache.
@@ -35,117 +38,130 @@ One ordered list per card (`card.statuses`) and per player (`state.players[p].st
 - Effects write statuses; they never edit fields: `dealDamage` -> `damage`, `gainLife` -> `life`, `doublePower` -> `atkMul`, `shieldAll` -> `shield`, `noLifeGain` -> `cannot gainLife`, `noDamage` -> `nodamage` (turnEnd), `skipFoeCombat` -> `skipCombat` on the foe, `payLife` cost -> `paid`, `vaultFromDeck` -> `vault`, `pickCard foeHand` -> `revealed`, rider `inheritAbilities` -> linked `ability`.
 
 ## Effect sources
-| Source | Field | Runs |
-|---|---|---|
-| Spell | `effects: [...]` | On resolving off stack |
+
+| Source            | Field                                                              | Runs                                                        |
+| ----------------- | ------------------------------------------------------------------ | ----------------------------------------------------------- |
+| Spell             | `effects: [...]`                                                   | On resolving off stack                                      |
 | Activated ability | `abilities: [{name, speed, zone, req, cost, target, hp, effects}]` | Activate -> stack -> resolve. `zone`: `board`, `gy`, `hand` |
-| Triggered ability | `triggers: [{on, by, zone, cond, hp, effects}]` | Event -> stack -> resolve |
-| Passive | `passives: [obscure(), aura(...)]` | Read continuously (clouds; aura statuses) |
-| Cost | `cost: [...]` in ability | Paid on activation |
+| Triggered ability | `triggers: [{on, by, zone, cond, hp, effects}]`                    | Event -> stack -> resolve                                   |
+| Passive           | `passives: [obscure(), aura(...)]`                                 | Read continuously (clouds; aura statuses)                   |
+| Cost              | `cost: [...]` in ability                                           | Paid on activation                                          |
 
 Spells/abilities/triggers are stack objects with HP. Abilities/triggers are wrapped in a temp token card (`type:'ability'`, `loc:'stack'`) -> `loc:'gone'` after resolve/counter. An **Attack** is a stack object of `kind:'attack'` (no HP, no token card).
 
 ## Ops
-- **Patch4** `DamageHp {amount, nonLethal, temporary}`: damages the picked non-player HP target (`x.o.pick`) through `HPKINDS`.
-Handlers get `x = {s, ev, src, t, who, foe, ...}`. Effects run in list order. An op that opens a choice suspends the rest of the list as a continuation; `Choose` resumes it.
 
-| Builder | Behavior |
-|---|---|
-| `dealDamage(to, n)` | `'target'`: `damage` status on the target card (or a targeted player). `'player'`: on the controller's opponent. Target damage passes blue shields. Denied by `nodamage`. |
-| `gainLife(n, to?)` | `life` status on the controller (default) or target card (+HP). Blocked by a `cannot gainLife` rule status. |
-| `draw(n, who?)`, `drawUntil(n)` | Deck -> hand one at a time (`who:'foe'` = the opponent); empty deck = no draw. `drawUntil`: until n cards in hand. |
-| `damageStack(n)` | Damages the top stack object. **No effect on an Attack.** |
-| **`addAttackDamage(n, whose?)`** | **Adds n to the `bonus` of the topmost Attack object on the stack** (`whose`: `'mine'` / `'foe'` / `'any'` (default), relative to the effect's controller). The bonus is read when the Attack resolves and still lands if the attacker left. Requirement `attackOnStack` is available. |
-| `cancelAttack()` | Removes the targeted Attack object from the stack (target finder `attacker`). |
-| `noDamage()` | Target creature (or stack spell): damage to it is denied until end of turn (`nodamage` status, `expires:'turnEnd'`). |
-| `sacrificeSelf()` | Destroys source if still on board. |
-| `shiftAdjacent()` | Choice: `stay` + empty adjacent same-row slots. None free: nothing. |
-| `repeat(n, ...fx)` | Runs nested effects n times. |
-| `mill`, `fetch`, `doublePower` | Mill target player; fetch a named card; `doublePower` adds an `atkMul` x2 status. |
-| `nearestZone`, `destroyOnZone`, `createToken` | The Vine (re-evaluated each repetition). |
-| `placeToken(t)` | The controller picks a free **front** zone for a token (auto if one). Used by War Drum. |
-| `exileColumn`, `makeColumnUnusable`, `returnToHand` | Infinity Wall. `makeColumnUnusable` puts an `unusable` status on each zone of the column. |
-| `addAttackDamage`, `cancelAttack` with several Attacks | Q41: the controller is asked which Attack (`attackpick` choice, one option per Attack). |
-| `upTo(who, from, then, n, types, self)` with `self` | Q40: the resolving spell is offered from its graveyard and may pick itself (it then goes to the hand). |
-| `giveZoneHp(n)`, `damageZone(n)` | Zone HP (Q10): the picked zone (a spell's target zone) gets n zone HP / takes n zone damage. Every `giveZoneHp` adds to ONE bar; with no HP `damageZone` does nothing; at 0 the contents are exiled and the zone is unusable. No card uses them yet. |
-| `removeDamage(n)`, `damageAnother(n)` | Bandages / Avatar. Bandages asks which `damage` status to reduce; a fully removed one is greyed. |
-| `obscure()`, `aura(who, atk, hp)` (passives) | Clouds; aura: cards of `'own'`/`'foe'` in the source's column and adjacent columns hold a `mod` status while in range. |
-| `modes`, `mode` | Controller picks one mode whose `[min,max]` fits the opponent's creature count. |
-| `pickCard(from, then, amount?)` | `from`: `foeHand` (adds `revealed`), `foeBoard`, `anyTarget`, `myCreatures`, `myGYCreatures`, `myGYEx` (extra deck creatures in your GY), `myBoardCreatures` (targetable creatures you control). `then`: `toGY`, `toHand`, `damage`, `summon`, `summonAttack` (put into play, then it attacks at once as an extra Attack), `attack` (an extra Attack), `returnEx` (back to the extra deck, the materials used come back from exile to the hand). |
-| `upTo(who, from, then, n, types?)` | Up to n picks (with Done): `then` `toHand` or `play`. The resolving card is not offered. |
-| `destroyAll`, `drawPerFoeCreature` | Parasite. |
-| `vaultFromDeck(n)` / `revealVault()` | Heaven and Sun: `vault` statuses on the card. |
-| `swapIn()` | Shieldguard (reads the Attack on the stack). |
-| `fusion({from, pay, summon, pick, cond})` | Reveal an extra deck creature, choose its materials in the `from` zones, pay them (`gy` / `exile` / `hand`), summon it. See `RULES.md` (Extra deck); implemented in `js/sim/fusion.js`. |
-| `selfToHand()` | This card goes from the deck or GY to its owner's hand (Depth Sea Fusion). |
-| `sendAdjacentPair()` | Target two adjacent cards the opponent controls (zones under the foe's clouds are offered whatever is under them); the opponent sends one of them to the GY (Widow Maker). |
-| `reorderTop(who, n)`, `declareName()` | L4: look at the top n cards of a deck and reorder them; declare a card name, look at the opponent's top card, play it if it matches (temporary control) and repeat. |
-| `shieldAll(color)`, `noLifeGain()` | `shield` statuses on your board cards; a `cannot gainLife` rule status on you. |
-| `winGame(who?)` | The controller wins the game (`who:'foe'`: the opponent). Sets `state.result` (why `effect`); ignored when the game is already decided. |
-| `skipFoeCombat(pay)`, `secondCombat()` | Shark: pay life, `skipCombat` on the foe; second combat (foe draws 5 as a cost; if you hold a `skipCombat` status it is used up instead). |
+- **Patch4** `DamageHp {amount, nonLethal, temporary}`: damages the picked non-player HP target (`x.o.pick`) through `HPKINDS`.
+  Handlers get `x = {s, ev, src, t, who, foe, ...}`. Effects run in list order. An op that opens a choice suspends the rest of the list as a continuation; `Choose` resumes it.
+
+| Builder                                                | Behavior                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `dealDamage(to, n)`                                    | `'target'`: `damage` status on the target card (or a targeted player). `'player'`: on the controller's opponent. Target damage passes blue shields. Denied by `nodamage`.                                                                                                                                                                                                                                                                        |
+| `gainLife(n, to?)`                                     | `life` status on the controller (default) or target card (+HP). Blocked by a `cannot gainLife` rule status.                                                                                                                                                                                                                                                                                                                                      |
+| `draw(n, who?)`, `drawUntil(n)`                        | Deck -> hand one at a time (`who:'foe'` = the opponent); empty deck = no draw. `drawUntil`: until n cards in hand.                                                                                                                                                                                                                                                                                                                               |
+| `damageStack(n)`                                       | Damages the top stack object. **No effect on an Attack.**                                                                                                                                                                                                                                                                                                                                                                                        |
+| **`addAttackDamage(n, whose?)`**                       | **Adds n to the `bonus` of the topmost Attack object on the stack** (`whose`: `'mine'` / `'foe'` / `'any'` (default), relative to the effect's controller). The bonus is read when the Attack resolves and still lands if the attacker left. Requirement `attackOnStack` is available.                                                                                                                                                           |
+| `cancelAttack()`                                       | Removes the targeted Attack object from the stack (target finder `attacker`).                                                                                                                                                                                                                                                                                                                                                                    |
+| `noDamage()`                                           | Target creature (or stack spell): damage to it is denied until end of turn (`nodamage` status, `expires:'turnEnd'`).                                                                                                                                                                                                                                                                                                                             |
+| `sacrificeSelf()`                                      | Destroys source if still on board.                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `shiftAdjacent()`                                      | Choice: `stay` + empty adjacent same-row slots. None free: nothing.                                                                                                                                                                                                                                                                                                                                                                              |
+| `repeat(n, ...fx)`                                     | Runs nested effects n times.                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `mill`, `fetch`, `doublePower`                         | Mill target player; fetch a named card; `doublePower` adds an `atkMul` x2 status.                                                                                                                                                                                                                                                                                                                                                                |
+| `nearestZone`, `destroyOnZone`, `createToken`          | The Vine (re-evaluated each repetition).                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `placeToken(t)`                                        | The controller picks a free **front** zone for a token (auto if one). Used by War Drum.                                                                                                                                                                                                                                                                                                                                                          |
+| `exileColumn`, `makeColumnUnusable`, `returnToHand`    | Infinity Wall. `makeColumnUnusable` puts an `unusable` status on each zone of the column.                                                                                                                                                                                                                                                                                                                                                        |
+| `addAttackDamage`, `cancelAttack` with several Attacks | Q41: the controller is asked which Attack (`attackpick` choice, one option per Attack).                                                                                                                                                                                                                                                                                                                                                          |
+| `upTo(who, from, then, n, types, self)` with `self`    | Q40: the resolving spell is offered from its graveyard and may pick itself (it then goes to the hand).                                                                                                                                                                                                                                                                                                                                           |
+| `giveZoneHp(n)`, `damageZone(n)`                       | Zone HP (Q10): the picked zone (a spell's target zone) gets n zone HP / takes n zone damage. Every `giveZoneHp` adds to ONE bar; with no HP `damageZone` does nothing; at 0 the contents are exiled and the zone is unusable. No card uses them yet.                                                                                                                                                                                             |
+| `removeDamage(n)`, `damageAnother(n)`                  | Bandages / Avatar. Bandages asks which `damage` status to reduce; a fully removed one is greyed.                                                                                                                                                                                                                                                                                                                                                 |
+| `obscure()`, `aura(who, atk, hp)` (passives)           | Clouds; aura: cards of `'own'`/`'foe'` in the source's column and adjacent columns hold a `mod` status while in range.                                                                                                                                                                                                                                                                                                                           |
+| `modes`, `mode`                                        | Controller picks one mode whose `[min,max]` fits the opponent's creature count.                                                                                                                                                                                                                                                                                                                                                                  |
+| `pickCard(from, then, amount?)`                        | `from`: `foeHand` (adds `revealed`), `foeBoard`, `anyTarget`, `myCreatures`, `myGYCreatures`, `myGYEx` (extra deck creatures in your GY), `myBoardCreatures` (targetable creatures you control). `then`: `toGY`, `toHand`, `damage`, `summon`, `summonAttack` (put into play, then it attacks at once as an extra Attack), `attack` (an extra Attack), `returnEx` (back to the extra deck, the materials used come back from exile to the hand). |
+| `upTo(who, from, then, n, types?)`                     | Up to n picks (with Done): `then` `toHand` or `play`. The resolving card is not offered.                                                                                                                                                                                                                                                                                                                                                         |
+| `destroyAll`, `drawPerFoeCreature`                     | Parasite.                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `vaultFromDeck(n)` / `revealVault()`                   | Heaven and Sun: `vault` statuses on the card.                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `swapIn()`                                             | Shieldguard (reads the Attack on the stack).                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `fusion({from, pay, summon, pick, cond})`              | Reveal an extra deck creature, choose its materials in the `from` zones, pay them (`gy` / `exile` / `hand`), summon it. See `RULES.md` (Extra deck); implemented in `js/sim/fusion.js`.                                                                                                                                                                                                                                                          |
+| `selfToHand()`                                         | This card goes from the deck or GY to its owner's hand (Depth Sea Fusion).                                                                                                                                                                                                                                                                                                                                                                       |
+| `sendAdjacentPair()`                                   | Target two adjacent cards the opponent controls (zones under the foe's clouds are offered whatever is under them); the opponent sends one of them to the GY (Widow Maker).                                                                                                                                                                                                                                                                       |
+| `reorderTop(who, n)`, `declareName()`                  | L4: look at the top n cards of a deck and reorder them; declare a card name, look at the opponent's top card, play it if it matches (temporary control) and repeat.                                                                                                                                                                                                                                                                              |
+| `shieldAll(color)`, `noLifeGain()`                     | `shield` statuses on your board cards; a `cannot gainLife` rule status on you.                                                                                                                                                                                                                                                                                                                                                                   |
+| `winGame(who?)`                                        | The controller wins the game (`who:'foe'`: the opponent). Sets `state.result` (why `effect`); ignored when the game is already decided.                                                                                                                                                                                                                                                                                                          |
+| `skipFoeCombat(pay)`, `secondCombat()`                 | Shark: pay life, `skipCombat` on the foe; second combat (foe draws 5 as a cost; if you hold a `skipCombat` status it is used up instead).                                                                                                                                                                                                                                                                                                        |
 
 ## Costs (paid at activation, never refunded if countered/fizzled)
+
 `spendStatus(kind)` / `spendAttackCounter()` (**Patch4**: removes one such status from the card), `payLife(n)` (`paid` status), `exileFromGY(n)`, `exileSelf()`, `sacrificeSelf()` (destroys immediately). `spendAP()` (spends one of the owner's action points, any turn). Optional card cost `extraCost:{ap:true}` (War Drum): asked on play, payable whenever the owner has a point; adds `extraPaid`.
 
 ## Requirements / targets
+
 `front`, `hurt`, `target`, `stack`, `foeAttacking`, `attackedCol`, `attackOnStack`, `fusionOK` (the card's Fusion effect has a creature it can summon), `exInGY` (an extra deck creature in your GY). Targets: `opposingFront`, `attacker` (the topmost Attack the opponent controls). Zone targets `anyPermanent`, `anyCreature`; `colTarget` `fullColumn`; `playerTarget`; `optionalTarget`, `stackTarget` (Quick Intuition).
 **Fizzle:** target gone at resolution (or a red-shielded zone target) -> no effects, `StackObjectFizzled`; costs stay paid.
 
 ## Activation (`canActivate` order)
+
 1. Zone. 2. Reqs. 3. Priority. 4. Speed (`Slow`: own turn, empty stack, no open window, no attack phase, no point needed unless a `spendAP` cost says so; `Fast`: free). 5. Costs payable. After any activation the opponent gets priority first.
 
 ## Playing cards and priority
+
 See `RULES.md`. Flash permanents need only priority and a free zone.
 
 ## Triggers
-| Trigger | Fires for |
-|---|---|
-| `enter` | Only the card that entered; with `by:['foe']` (`foeEnter`) a card the opponent controls that entered (Widow Maker; `cond:'foeAdjacent'`: it stands next to another card its controller has). |
-| `attack(by, ...)` | `'self'`, `'foe'` or `'any'`; fired when the Attack is declared; goes above the Attack. |
-| `damaged` | The card that takes combat damage. |
-| `combat` | Beginning of its controller's combat step. |
-| `combatEnd` | After its controller's combat phase ends (`cond:'firstCombat'` = the first one this turn). Also fires when End turn ends combat. |
-| `turnStart` | Start of its controller's turn. |
+
+| Trigger           | Fires for                                                                                                                                                                                    |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `enter`           | Only the card that entered; with `by:['foe']` (`foeEnter`) a card the opponent controls that entered (Widow Maker; `cond:'foeAdjacent'`: it stands next to another card its controller has). |
+| `attack(by, ...)` | `'self'`, `'foe'` or `'any'`; fired when the Attack is declared; goes above the Attack.                                                                                                      |
+| `damaged`         | The card that takes combat damage.                                                                                                                                                           |
+| `combat`          | Beginning of its controller's combat step.                                                                                                                                                   |
+| `combatEnd`       | After its controller's combat phase ends (`cond:'firstCombat'` = the first one this turn). Also fires when End turn ends combat. Since Patch5 ending combat goes back to the main phase.     |
+| `turnStart`       | Start of its controller's turn.                                                                                                                                                              |
 
 Optional fields: `hp`, `zone`, `cond`, `optional:true` (goes on the stack after all mandatory triggers, not reorderable). `fire()` collects all matches, turn player's first, then priority to the non-turn player.
 
 ## Attack objects
+
 `declareAttack(s, c, ev, extra)` pushes `{kind:'attack', iid, controller, hp:null, slotAt, bonus:0}`, fires attack triggers above it, gives the defender priority. `resolveAttack`: damage = `atkOf(attacker)` if on board else 0, plus `bonus`, down the column (`slotAt` if the attacker left). Normal `Attack` command needs an empty stack; extra attacks come from effects.
 
 ## Choices
+
 `state.choice = {player, iid, kind, options, labels?, prompt, cont?}`; only `Choose` is accepted. Kinds: `trigorder` (order your simultaneous triggers; options are permutations "1,0"), `trigtarget` (a trigger's target, picked when it is put on the stack), shift (no kind), `damage`, `counter` (options are `damage` status ids), `mode`, `pick`, `place`, `swap`, `vault`, `vaultpick`, `upto`, and for the extra deck cards `fusepick` (reveal), `fusemat` (a material), `pair` / `pairsend` (Widow Maker: the controller picks two adjacent cards, the opponent picks which one goes), `reorder`, `declare`, `libplay`, `libseen` (L4). Without `labels` it is answered by clicking the board; with `labels` the picker panel shows.
 
 ## Stack HP
+
 `hitStack` subtracts; **<= -1 countered, 0 resolves**. An Attack ignores it. Countered spell -> GY; countered ability token removed. Stack objects have `statuses[]` (Q33): `nodamage` (Quick Intuition on a spell) and, on an Attack, `bonus` (`addAttackDamage`).
 
 ## Current cards (29 main deck + 2 extra deck; one of each per deck)
-| Card | Effect |
-|---|---|
-| Vanguard | **Patch4.** 2/3 creature. Fast: spend an attack counter on it, target a non-player HP thing (`nonPlayerHp`): `damageHp(3, {nonLethal, temporary})`. Stats / stack HP are placeholders (C6). |
-| Heal / Zap / Bolt / Superbolt / GrainFall | As before: +3 life / 1 damage / 3 damage to the stack object below / 20 damage to any target / mill 10 |
-| Throwing Bandages | Quick, HP 10: remove 7 damage points from a permanent |
-| Infinity Wall | Quick, HP 6: exile a full column, make it unusable, back to hand |
-| Spirit of the Sand | Quick, HP 0: red or blue `shield` on each of your cards + `cannot gainLife` |
-| Quick Intuition | Quick, HP 4: `drawUntil(7)`, optional target creature/spell gets `noDamage`. GY, Fast, when the foe attacks: exile this; `cancelAttack` |
-| Ambush of the Night | Slow, HP 0: you draw 2, return <=2 GY cards, put <=2 creatures/enchantments from hand into play; then the foe returns <=2, puts <=2 from their GY into play, draws 2 |
-| Ward, Charm, Heaven and Sun | Enchantments (see card text) |
-| War Drum (ench., Flash, HP 0) | Passive `aura('foe',-1,-1)`. Enter: `placeToken('drummer')` (3/3 with `aura('own',1,1)`). Optional extra cost (an action point, any turn): enter also puts a creature from your GY into play and it attacks at once |
-| Archer, Scout, Red Hummingbird, King Eye, The Vine, Avatar of Rabies, Black Hawk, Bolt Master | As before (Black Hawk: five `atkMul` statuses) |
-| Underworld Fusion (Quick, HP 10) | `req fusionOK`. Fusion from the GY: reveal an extra deck creature whose conditions are met, exile its materials from the GY, summon it. GY, Fast, HP 1: exile this; `pickCard('myGYEx','returnEx')`. |
-| Depth Sea Fusion (Quick, HP 7) | Fusion: materials from field / hand / deck go to the GY; summoned if the conditions are met, ignored when only hand and field cards were used. Deck or GY, Fast, HP 1: cost `spendAP`; add this card to your hand. |
-| Biology Cultivator (4/9) | Enter, HP 1: reveal an extra deck creature; if its conditions are met, its materials go from your deck to your hand. |
-| Widow Maker (ex, 6/7) | Conditions: a player has lost life. Materials: 2 creatures with the same power or HP. Enter / attack, HP 1: `sendAdjacentPair`. When a card the opponent controls enters next to another one of theirs (HP 0): a creature you control attacks. |
-| L4: The Librarian (ex, 10/10) | Conditions: both players drew more than 7 cards. Materials: a creature and an enchantment. Enter, if summoned using Heaven and Sun (HP 5): `reorderTop('foe', 3)`. Enter (HP 10): `declareName`. Your turn start: draw 1. |
-| Deep Sea Shark (6/4) | Enter: may pay 3 life, foe gets `skipCombat`. After your first combat phase: foe draws 5 (cost), second combat phase |
-| Creeping Parasite (0/0, Flash) | Enter: mode by foe creature count (every unlocked mode selectable) |
-| Shieldguard (5/15, Retaliate) | Hand ability Swap In: Fast, `attackedCol` (reads the Attack on the stack) |
+
+| Card                                                                                          | Effect                                                                                                                                                                                                                                         |
+| --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Vanguard                                                                                      | **Patch4.** 2/3 creature. Fast: spend an attack counter on it, target a non-player HP thing (`nonPlayerHp`): `damageHp(3, {nonLethal, temporary})`. Stats / stack HP are placeholders (C6).                                                    |
+| Heal / Zap / Bolt / Superbolt / GrainFall                                                     | As before: +3 life / 1 damage / 3 damage to the stack object below / 20 damage to any target / mill 10                                                                                                                                         |
+| Throwing Bandages                                                                             | Quick, HP 10: remove 7 damage points from a permanent                                                                                                                                                                                          |
+| Infinity Wall                                                                                 | Quick, HP 6: exile a full column, make it unusable, back to hand                                                                                                                                                                               |
+| Spirit of the Sand                                                                            | Quick, HP 0: red or blue `shield` on each of your cards + `cannot gainLife`                                                                                                                                                                    |
+| Quick Intuition                                                                               | Quick, HP 4: `drawUntil(7)`, optional target creature/spell gets `noDamage`. GY, Fast, when the foe attacks: exile this; `cancelAttack`                                                                                                        |
+| Ambush of the Night                                                                           | Slow, HP 0: you draw 2, return <=2 GY cards, put <=2 creatures/enchantments from hand into play; then the foe returns <=2, puts <=2 from their GY into play, draws 2                                                                           |
+| Ward, Charm, Heaven and Sun                                                                   | Enchantments (see card text)                                                                                                                                                                                                                   |
+| War Drum (ench., Flash, HP 0)                                                                 | Passive `aura('foe',-1,-1)`. Enter: `placeToken('drummer')` (3/3 with `aura('own',1,1)`). Optional extra cost (an action point, any turn): enter also puts a creature from your GY into play and it attacks at once                            |
+| Archer, Scout, Red Hummingbird, King Eye, The Vine, Avatar of Rabies, Black Hawk, Bolt Master | As before (Black Hawk: five `atkMul` statuses)                                                                                                                                                                                                 |
+| Underworld Fusion (Quick, HP 10)                                                              | `req fusionOK`. Fusion from the GY: reveal an extra deck creature whose conditions are met, exile its materials from the GY, summon it. GY, Fast, HP 1: exile this; `pickCard('myGYEx','returnEx')`.                                           |
+| Depth Sea Fusion (Quick, HP 7)                                                                | Fusion: materials from field / hand / deck go to the GY; summoned if the conditions are met, ignored when only hand and field cards were used. Deck or GY, Fast, HP 1: cost `spendAP`; add this card to your hand.                             |
+| Biology Cultivator (4/9)                                                                      | Enter, HP 1: reveal an extra deck creature; if its conditions are met, its materials go from your deck to your hand.                                                                                                                           |
+| Widow Maker (ex, 6/7)                                                                         | Conditions: a player has lost life. Materials: 2 creatures with the same power or HP. Enter / attack, HP 1: `sendAdjacentPair`. When a card the opponent controls enters next to another one of theirs (HP 0): a creature you control attacks. |
+| L4: The Librarian (ex, 10/10)                                                                 | Conditions: both players drew more than 7 cards. Materials: a creature and an enchantment. Enter, if summoned using Heaven and Sun (HP 5): `reorderTop('foe', 3)`. Enter (HP 10): `declareName`. Your turn start: draw 1.                      |
+| Deep Sea Shark (6/4)                                                                          | Enter: may pay 3 life, foe gets `skipCombat`. After your first combat phase: foe draws 5 (cost), second combat phase                                                                                                                           |
+| Creeping Parasite (0/0, Flash)                                                                | Enter: mode by foe creature count (every unlocked mode selectable)                                                                                                                                                                             |
+| Shieldguard (5/15, Retaliate)                                                                 | Hand ability Swap In: Fast, `attackedCol` (reads the Attack on the stack)                                                                                                                                                                      |
 
 Test-only fixtures (not in decks): Soldier 2/3, Knight 4/5, Giant 6/8, Guard 1/6, Wolf 3/3, Barrier, Aura, Banner, Trap, Mend, Fireball, Rally, Blast, **Rage** (Quick, HP 2, `req attackOnStack`: `addAttackDamage(4)`).
 
 ## Tests
+
 `tests/selftest.js` (`node tests/run.js`, or `cardGame.selfTest()` in the console; headless, no THREE/DOM): 428 checks. Added: status order and folds, removal on leaving the board (kept in the list), `keep`, zone-bound statuses, expiry, aura enter/leave/return, linked ability status, player list folds, `nogain`, Heaven and Sun vault, `revealed`, and the Attack bonus (resolves, stays after the attacker leaves, defender can boost). Not yet covered: Creeping Parasite modes other than 0, Shark's second-combat edge cases with statuses.
 
 ## Not implemented
+
 - Base/Current stat layers and equipment (only the status fold exists), durations other than `turnEnd`, Maximum Damage.
 - Zone HP (Fracture Ground), column state beyond "unusable".
 - The view and the bot read the full state, not an Observation (`Sim.observe` exists and is tested).
@@ -155,7 +171,9 @@ Test-only fixtures (not in decks): Soldier 2/3, Knight 4/5, Giant 6/8, Guard 1/6
 - Silent no-ops: `draw` on empty deck; `shiftAdjacent` with no free slot.
 
 ## Card text
-The text of a card is **derived** from its abilities: every trigger, activated ability, passive and rider carries its own `text` (`withText(text, trigger)` in `cards.js`), a keyword line is `kw`, the text of a spell is `body`. `textParts(def)` lists the parts in display order and `def.text` is those parts joined (`Cards.add` builds it). The inspector shows every part separately:
+
+The text of a card is **derived** from its abilities **[Patch5]**: `translate(abilities[])` (`Translate` in `cards.js`) turns the ability data into English, one clause per op (`OP` table), in Yu-Gi-Oh order `Condition: cost / targeting; effect`. Every trigger, activated ability, passive (keywords included), rider and spell may carry `overrideText` (the human rewrite, `ovr(text, trigger, use)` in `cards.js`) and `useOverrideText` (true: show the override; default: the machine text). `o.text` is whichever is shown (`Cards.add` fills it), the text of a spell is `body`, the optional additional cost is its own part. `Translate.translateOne(o, list, def)` always gives the machine text. A new op needs a clause in `OP` (an unknown op shows its name). `textParts(def)` lists the parts in display order and `def.text` is those parts joined. The inspector shows every part separately:
+
 - **greyed out** = not usable from where the card is right now (enter trigger on the board, attack trigger anywhere but the board, a `zone:'gy'` ability anywhere but the GY, a passive off the board);
 - **crossed out** = disabled: Avatar of Rabies replaced the abilities (the new ones are listed after the old ones);
 - **highlighted** (the rest greyed) = the ability you selected on the stack.

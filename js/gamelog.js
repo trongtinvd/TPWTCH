@@ -25,7 +25,14 @@ const GameLog = (function () {
     CardExiled: e => cn(e.iid) + ' exiled',
     PermanentSummoned: e => cn(e.iid) + ' enters ' + e.slot,
     PermanentMoved: e => cn(e.iid) + ' shifts to ' + e.slot,
-    PermanentDestroyed: e => cn(e.iid) + ' sent from the field to the graveyard' + (e.by === 'rule' ? ' by the rules' + (e.why ? ' (' + e.why + ')' : '') : e.by === 'cost' ? ' as a cost' : ' by an effect'),
+    PermanentDestroyed: e =>
+      cn(e.iid) +
+      ' sent from the field to the graveyard' +
+      (e.by === 'rule'
+        ? ' by the rules' + (e.why ? ' (' + e.why + ')' : '')
+        : e.by === 'cost'
+          ? ' as a cost'
+          : ' by an effect'),
     PermanentReturned: e => cn(e.iid) + ' returned to its owner\u2019s hand',
     StackObjectCreated: e => cn(e.iid) + (e.attack ? ' (Attack)' : '') + ' put on the stack',
     StackObjectResolved: e => cn(e.iid) + ' resolves',

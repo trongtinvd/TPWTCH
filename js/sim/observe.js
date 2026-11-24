@@ -51,7 +51,8 @@ Sim.def('observe', function (K) {
           : v && typeof v === 'object'
             ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, scrub(x)]))
             : v;
-    const maskText = t => [...hidden].sort((a, b) => b.length - a.length).reduce((r, n) => r.split(n).join('a card'), t);
+    const maskText = t =>
+      [...hidden].sort((a, b) => b.length - a.length).reduce((r, n) => r.split(n).join('a card'), t);
     return { known, hiddenIid, alias, scrub, maskText };
   }
   function observe(s, p) {
@@ -133,7 +134,9 @@ Sim.def('observe', function (K) {
               kind: k.kind,
               prompt: k.prompt,
               options: k.options.map(sc.alias),
-              labels: k.labels ? Object.fromEntries(Object.entries(k.labels).map(([o, t]) => [sc.alias(o), t])) : undefined,
+              labels: k.labels
+                ? Object.fromEntries(Object.entries(k.labels).map(([o, t]) => [sc.alias(o), t]))
+                : undefined,
             }
           : { player: k.player }; // somebody else's choice: only that it is pending
     }

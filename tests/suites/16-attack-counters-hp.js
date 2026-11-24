@@ -3,7 +3,8 @@
 (function () {
   const { D, check, eq, rej, start, take, pass2, drain, dmg, shield, kinds, endTurnFlow } = Tests.ctx;
   const VG = 0; // Vanguard's ability index
-  const act = (s, c, pick) => D(s, Object.assign({ type: 'Activate', iid: c.iid, ab: VG }, pick == null ? {} : { pick }));
+  const act = (s, c, pick) =>
+    D(s, Object.assign({ type: 'Activate', iid: c.iid, ab: VG }, pick == null ? {} : { pick }));
   const left = c => Sim.hpOf(c) - Sim.totalDamage(c);
 
   Tests.add('attack-counters', () => {
@@ -14,18 +15,32 @@
     const ev = D(s, { type: 'SetAttackPhase', player: 'Player', on: true }).events;
     check(
       'combat starts: each creature the turn player controls gets ONE attack counter, the foe’s get none',
-      kinds(wf, 'attackCounter').length === 1 && kinds(kn, 'attackCounter').length === 1 && !kinds(so, 'attackCounter').length && ev.some(e => e.t === 'AttackCountersPlaced' && e.n === 2)
+      kinds(wf, 'attackCounter').length === 1 &&
+        kinds(kn, 'attackCounter').length === 1 &&
+        !kinds(so, 'attackCounter').length &&
+        ev.some(e => e.t === 'AttackCountersPlaced' && e.n === 2)
     );
     const ct = kinds(wf, 'attackCounter')[0];
     D(s, { type: 'Attack', iid: wf.iid });
     drain(s);
-    check('an attack spends the counter (removed, reason "spent")', !!ct.removed && ct.removed.why.startsWith('spent') && !kinds(wf, 'attackCounter').length);
+    check(
+      'an attack spends the counter (removed, reason "spent")',
+      !!ct.removed && ct.removed.why.startsWith('spent') && !kinds(wf, 'attackCounter').length
+    );
     rej('no counter left: it cannot attack again', s, { type: 'Attack', iid: wf.iid }, 'Already attacked');
     const late = take(s, 'Player', 'guard', 'board', 'Player|front|0');
-    rej('a creature that entered after combat started has no counter: it cannot attack', s, { type: 'Attack', iid: late.iid }, 'No attack counter');
+    rej(
+      'a creature that entered after combat started has no counter: it cannot attack',
+      s,
+      { type: 'Attack', iid: late.iid },
+      'No attack counter'
+    );
     const kc = kinds(kn, 'attackCounter')[0];
     D(s, { type: 'SetAttackPhase', player: 'Player', on: false });
-    check('unspent counters end with the combat phase (reason "combat ended")', !!kc.removed && kc.removed.why === 'combat ended');
+    check(
+      'unspent counters end with the combat phase (reason "combat ended")',
+      !!kc.removed && kc.removed.why === 'combat ended'
+    );
     check('counter status text', Sim.describe(kc).startsWith('Attack counter'));
   });
 
@@ -34,24 +49,44 @@
     let s = start(1610);
     const vg = take(s, 'Player', 'vanguard', 'board', 'Player|front|0'),
       ar = take(s, 'Opponent', 'archer', 'board', 'Opponent|front|2'); // 3/2
-    check('outside combat Vanguard has no counter: the ability is not usable', (Sim.canActivate(s, vg, VG) || '').includes('attack counter'));
+    check(
+      'outside combat Vanguard has no counter: the ability is not usable',
+      (Sim.canActivate(s, vg, VG) || '').includes('attack counter')
+    );
     Sim.giveZoneHp(s, 'Opponent|back|4', 2, 'test');
     D(s, { type: 'SetAttackPhase', player: 'Player', on: true });
     act(s, vg);
     const k = s.choice;
     check(
       'targets: every board card with HP (its own too), a zone with HP; never a player',
-      !!k && k.kind === 'abtarget' && k.options.includes(ar.iid) && k.options.includes(vg.iid) && k.options.includes('Z:Opponent|back|4') && !k.options.some(o => o.startsWith('P:'))
+      !!k &&
+        k.kind === 'abtarget' &&
+        k.options.includes(ar.iid) &&
+        k.options.includes(vg.iid) &&
+        k.options.includes('Z:Opponent|back|4') &&
+        !k.options.some(o => o.startsWith('P:'))
     );
     check('nothing is paid before the target is picked', kinds(vg, 'attackCounter').length === 1 && !s.stack.length);
     D(s, { type: 'Choose', player: 'Player', option: ar.iid });
-    check('picked: the counter is spent, the ability is on the stack with the pick, the opponent has priority', !kinds(vg, 'attackCounter').length && s.stack.length === 1 && s.stack[0].pick === ar.iid && s.priority === 'Opponent');
+    check(
+      'picked: the counter is spent, the ability is on the stack with the pick, the opponent has priority',
+      !kinds(vg, 'attackCounter').length &&
+        s.stack.length === 1 &&
+        s.stack[0].pick === ar.iid &&
+        s.priority === 'Opponent'
+    );
     rej('the counter is spent: Vanguard cannot attack now', s, { type: 'Attack', iid: vg.iid }, 'No attack counter');
     pass2(s);
     const d = kinds(ar, 'damage')[0];
     check(
       'non-lethal: 3 damage takes the 2-HP Archer to -1 and it lives',
-      ar.loc === 'board' && left(ar) === -1 && d.nonLethal && d.temporary && d.expires === 'turnEnd' && Sim.describe(d).includes('non-lethal') && Sim.describe(d).includes('temporary')
+      ar.loc === 'board' &&
+        left(ar) === -1 &&
+        d.nonLethal &&
+        d.temporary &&
+        d.expires === 'turnEnd' &&
+        Sim.describe(d).includes('non-lethal') &&
+        Sim.describe(d).includes('temporary')
     );
     // a newer non-lethal damage keeps holding; any other HP status entered later takes over
     Sim.damageHp(s, vg, ar.iid, 1, [], { nonLethal: true });
@@ -80,7 +115,10 @@
     pass2(s);
     const was = left(wf);
     endTurnFlow(s);
-    check('temporary damage expires at the end of the turn (wolf back to 3 HP)', was === 0 && left(wf) === 3 && kinds(wf, 'damage').length === 0);
+    check(
+      'temporary damage expires at the end of the turn (wolf back to 3 HP)',
+      was === 0 && left(wf) === 3 && kinds(wf, 'damage').length === 0
+    );
 
     // ---------------- stack objects: non-lethal damage still counters ----------------
     s = start(1613);
@@ -92,7 +130,11 @@
     D(s, { type: 'PlayCard', iid: zp.iid });
     const sid = s.stack[s.stack.length - 1].sid,
       lifeBefore = s.life.Player;
-    check('a spell on the stack is a target; the Attack is not', Sim.hpRefs(s).includes('S:' + sid) && !s.stack.filter(o => o.kind === 'attack').some(o => Sim.hpRefs(s).includes('S:' + o.sid)));
+    check(
+      'a spell on the stack is a target; the Attack is not',
+      Sim.hpRefs(s).includes('S:' + sid) &&
+        !s.stack.filter(o => o.kind === 'attack').some(o => Sim.hpRefs(s).includes('S:' + o.sid))
+    );
     act(s, v3, 'S:' + sid);
     pass2(s); // the ability resolves: Zap (stack HP 0) goes to -3
     pass2(s); // Zap would resolve: countered
@@ -108,7 +150,10 @@
     pass2(s);
     const bar = Sim.zoneBar(s, zk);
     Sim.damageZone(s, zk, 1, 'test', []);
-    check('a zone bar taken to -1 by non-lethal damage holds; normal damage afterwards uses it up', !!bar && bar.left === -1 && Sim.isUnusable(s, zk));
+    check(
+      'a zone bar taken to -1 by non-lethal damage holds; normal damage afterwards uses it up',
+      !!bar && bar.left === -1 && Sim.isUnusable(s, zk)
+    );
 
     // ---------------- clouds, red shields, fizzling ----------------
     s = start(1615);
@@ -125,7 +170,10 @@
     );
     act(s, v5, 'Z:Opponent|front|2');
     pass2(s);
-    check('the cloud passes the damage down to the card beneath', kinds(hid, 'damage').length === 1 && hid.loc === 'board');
+    check(
+      'the cloud passes the damage down to the card beneath',
+      kinds(hid, 'damage').length === 1 && hid.loc === 'board'
+    );
     s = start(1616);
     const v6 = take(s, 'Player', 'vanguard', 'board', 'Player|front|0'),
       tg = take(s, 'Opponent', 'wolf', 'board', 'Opponent|front|1');
@@ -133,7 +181,10 @@
     act(s, v6, tg.iid);
     shield(s, tg, 'red');
     const ev6 = pass2(s).events;
-    check('a target that became illegal fizzles the ability', ev6.some(e => e.t === 'StackObjectFizzled') && !kinds(tg, 'damage').length);
+    check(
+      'a target that became illegal fizzles the ability',
+      ev6.some(e => e.t === 'StackObjectFizzled') && !kinds(tg, 'damage').length
+    );
     rej('an illegal pick is rejected', s, { type: 'Activate', iid: v6.iid, ab: VG, pick: 'P:Opponent' }, '');
 
     // ---------------- a NEW kind of HP thing is picked up with no card change ----------------

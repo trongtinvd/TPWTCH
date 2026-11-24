@@ -637,7 +637,7 @@ const FN = [
   {
     id: 'battle',
     cls: 'c-atk',
-    label: () => (game.attackPhase ? 'End combat' : 'Attack: off'), // ending combat ends the turn
+    label: () => (game.attackPhase ? 'End combat' : 'Attack: off'), // ending combat goes back to the main phase (Patch5)
     run: toggleAttack,
     on: () =>
       myPriority() &&
@@ -678,11 +678,21 @@ const FN = [
     cls: 'c-atk',
     label: () => 'Surrender',
     run: () => {
-      confirmBox('Surrender? ' + NAME[ui.view] + ' loses the game.', 'Surrender', 'Cancel').then(ok => {
-        if (ok && !game.result) send({ type: 'Surrender', player: ui.view });
+      // Patch5 bug fix: the seat is fixed when the button is pressed (auto view may switch seats while the dialog is open), and a
+      // confirmed surrender is never dropped: while an animation runs (the bot kept playing) it waits for it instead of being refused
+      const who = ui.mode === 'bot' ? other(ui.botSeat) : ui.view; // Vs bot: always the human seat (auto view may be on the bot's)
+      confirmBox('Surrender? ' + NAME[who] + ' loses the game.', 'Surrender', 'Cancel').then(ok => {
+        if (!ok) return;
+        const go = () => {
+          if (sim.result || game.phase !== 'play' || rp.on) return;
+          if (ui.fxBusy) return void setTimeout(go, 100);
+          ui.placing = null;
+          send({ type: 'Surrender', player: who }); // send -> autoStep -> the result dialog takes over
+        };
+        go();
       });
     },
-    on: () => inPlay() && !game.result && !rp.on && !Result.blocks() && !ui.fxBusy && !ui.placing,
+    on: () => inPlay() && !game.result && !rp.on && !Result.blocks(),
     show: () => inPlay() && !rp.on,
   },
 ];

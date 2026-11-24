@@ -4,7 +4,7 @@ Sim.def('combat', function (K) {
   let ctl; // added by Patch3
   let expireStatuses, live, nonLethalHold, removeStatus; // added by Patch4
   let other; // util
-  let abDef, addStatus, allowed, atkOf, bonusOf, has, hasSt, hpOf, hurt, totalDamage; // statuses
+  let abDef, addStatus, allowed, atkOf, bonusOf, has, hasKw, hasSt, hpOf, hurt, totalDamage; // statuses
   let destroy, recalc; // state
   let fire; // stack
   const RIDERS = {
@@ -52,7 +52,7 @@ Sim.def('combat', function (K) {
     if (rd && RIDERS[rd.op]) RIDERS[rd.op](s, src, tgt, ev, d);
     const pw = atkOf(tgt);
     if (totalDamage(tgt) > hpOf(tgt) && !nonLethalHold(tgt)) destroy(s, tgt, ev, 'rule'); // lethal damage is a rule (Q45); non-lethal damage never kills
-    if (tgt.def.retaliate && type !== 'retaliate') retaliate(s, tgt, pw, src, ev);
+    if (hasKw(tgt, 'retaliate') && type !== 'retaliate') retaliate(s, tgt, pw, src, ev);
   }
   function canAttack(s, c) {
     // reason string, or null if legal
@@ -169,8 +169,12 @@ Sim.def('combat', function (K) {
       spendAttackCounter,
       strike,
     },
-    needs: [ 'expireStatuses', 'live', 'nonLethalHold', 'removeStatus', // Patch4
-     'ctl', 
+    needs: [
+      'expireStatuses',
+      'live',
+      'nonLethalHold',
+      'removeStatus', // Patch4
+      'ctl',
       'allowed',
       'bonusOf',
       'abDef',
@@ -179,6 +183,7 @@ Sim.def('combat', function (K) {
       'destroy',
       'fire',
       'has',
+      'hasKw',
       'hasSt',
       'hpOf',
       'hurt',
@@ -189,7 +194,7 @@ Sim.def('combat', function (K) {
     link: () => {
       ({ expireStatuses, live, nonLethalHold, removeStatus } = K); // Patch4
       ({ ctl } = K);
-      ({ allowed, bonusOf } = K);
+      ({ allowed, bonusOf, hasKw } = K);
       ({ abDef, addStatus, atkOf, destroy, fire, has, hasSt, hpOf, hurt, other, recalc, totalDamage } = K);
     },
   };

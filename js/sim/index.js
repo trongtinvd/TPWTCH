@@ -121,6 +121,7 @@ Sim.boot(K => {
     observe,
     observeEvents,
     historyBytes,
+    hasKw: K.hasKw, // Patch5: keyworded abilities
     HPKINDS: K.HPKINDS, // Patch4
     hpRefs: K.hpRefs,
     hpResolve: K.hpResolve,

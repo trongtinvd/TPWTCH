@@ -14,7 +14,11 @@
     Sim.addStatus(s, P, { kind: 'can', what: 'gainLife', srcName: 't' });
     eq('a later can overrides it', Sim.allowed(P, 'gainLife'), true);
     const c3 = Sim.addStatus(s, P, { kind: 'cannot', what: 'gainLife', srcName: 't' });
-    eq('a still later cannot wins again; another rule is untouched', [Sim.allowed(P, 'gainLife'), Sim.allowed(P, 'attack')], [false, true]);
+    eq(
+      'a still later cannot wins again; another rule is untouched',
+      [Sim.allowed(P, 'gainLife'), Sim.allowed(P, 'attack')],
+      [false, true]
+    );
     Sim.removeStatus(s, c3, 'test');
     eq('a removed status is ignored: the can before it applies again', Sim.allowed(P, 'gainLife'), true);
     eq(
@@ -53,7 +57,10 @@
     Sim.addStatus(s, wf, { kind: 'cannot', what: 'attack', srcName: 't' });
     rej('cannot attack: the Attack command is refused', s, { type: 'Attack', iid: wf.iid }, 'cannot attack');
     Sim.addStatus(s, wf, { kind: 'can', what: 'attack', srcName: 't' });
-    check('a later can lets it attack again', Sim.canAttack(s, wf) === null && D(s, { type: 'Attack', iid: wf.iid }).ok);
+    check(
+      'a later can lets it attack again',
+      Sim.canAttack(s, wf) === null && D(s, { type: 'Attack', iid: wf.iid }).ok
+    );
   });
 
   Tests.add('stack-statuses', () => {
@@ -106,7 +113,11 @@
       ks.length === 20 && ks.every(k => s.zones[k] && s.zones[k].key === k && Array.isArray(s.zones[k].statuses))
     );
     check('there is no separate unusable table any more', s.unusable === undefined);
-    eq('nothing is unusable or covered at the start', [ks.filter(k => Sim.isUnusable(s, k)).length, Object.keys(Sim.cloudMap(s)).length], [0, 0]);
+    eq(
+      'nothing is unusable or covered at the start',
+      [ks.filter(k => Sim.isUnusable(s, k)).length, Object.keys(Sim.cloudMap(s)).length],
+      [0, 0]
+    );
     s = start(1221);
     take(s, 'Opponent', 'barrier', 'board', 'Opponent|back|2');
     take(s, 'Opponent', 'guard', 'board', 'Opponent|front|2');
@@ -118,16 +129,26 @@
     const col = ['Opponent|back|2', 'Opponent|front|2', 'Player|front|2', 'Player|back|2'];
     check(
       'Infinity Wall puts an unusable status (with its name) on each of the four zones, and no other zone has one',
-      col.every(k => Sim.live(s.zones[k]).some(x => x.kind === 'unusable' && x.srcName === 'Infinity Wall') && Sim.isUnusable(s, k)) &&
-        !Sim.isUnusable(s, 'Player|front|1')
+      col.every(
+        k =>
+          Sim.live(s.zones[k]).some(x => x.kind === 'unusable' && x.srcName === 'Infinity Wall') && Sim.isUnusable(s, k)
+      ) && !Sim.isUnusable(s, 'Player|front|1')
     );
-    check('...the status is kept for good and reads as text', Sim.statusLines(s.zones[col[0]])[0].text.startsWith('Zone is unusable from Infinity Wall'));
+    check(
+      '...the status is kept for good and reads as text',
+      Sim.statusLines(s.zones[col[0]])[0].text.startsWith('Zone is unusable from Infinity Wall')
+    );
     s = start(1222);
     const ke = take(s, 'Opponent', 'kingeye', 'board', 'Opponent|front|1'),
       covered = k => Sim.live(s.zones[k]).filter(x => x.kind === 'cloud').length;
     eq(
       'King Eye: a cloud status on each of its controller\u2019s other nine zones (read from a state built by hand), none on its own zone or the foe\u2019s',
-      [Object.keys(Sim.cloudMap(s)).length, covered('Opponent|front|0'), covered('Opponent|front|1'), covered('Player|front|0')],
+      [
+        Object.keys(Sim.cloudMap(s)).length,
+        covered('Opponent|front|0'),
+        covered('Opponent|front|1'),
+        covered('Player|front|0'),
+      ],
       [9, 1, 0, 0]
     );
     check('the status names its source', Sim.live(s.zones['Opponent|back|4'])[0].src === ke.iid);
@@ -137,7 +158,11 @@
     Sim.recalc(s, []);
     eq(
       'the clouds follow King Eye when it moves; the old one stays in the list, greyed',
-      [covered('Opponent|front|1'), covered('Opponent|front|2'), s.zones['Opponent|front|2'].statuses.some(x => x.kind === 'cloud' && x.removed)],
+      [
+        covered('Opponent|front|1'),
+        covered('Opponent|front|2'),
+        s.zones['Opponent|front|2'].statuses.some(x => x.kind === 'cloud' && x.removed),
+      ],
       [1, 0, true]
     );
     ke.loc = 'gy';
@@ -179,9 +204,18 @@
       [true, 'expired', true, true, 1]
     );
     endTurnFlow(s);
-    eq('after Player 1\u2019s second turn the self one is gone', [!!a.removed, a.removed && a.removed.why], [true, 'expired']);
+    eq(
+      'after Player 1\u2019s second turn the self one is gone',
+      [!!a.removed, a.removed && a.removed.why],
+      [true, 'expired']
+    );
     s = start(1231);
-    Sim.addStatus(s, s.players.Opponent, { kind: 'cannot', what: 'gainLife', expires: { turns: 1, whose: 'self' }, srcName: 't' });
+    Sim.addStatus(s, s.players.Opponent, {
+      kind: 'cannot',
+      what: 'gainLife',
+      expires: { turns: 1, whose: 'self' },
+      srcName: 't',
+    });
     endTurnFlow(s);
     const mid = Sim.allowed(s.players.Opponent, 'gainLife');
     endTurnFlow(s);
@@ -191,11 +225,20 @@
       [false, true]
     );
     s = start(1232);
-    const zs = Sim.addStatus(s, s.zones['Player|front|0'], { kind: 'unusable', by: 'Player', expires: { turns: 1, whose: 'foe' }, srcName: 't' });
+    const zs = Sim.addStatus(s, s.zones['Player|front|0'], {
+      kind: 'unusable',
+      by: 'Player',
+      expires: { turns: 1, whose: 'foe' },
+      srcName: 't',
+    });
     endTurnFlow(s);
     const z1 = !zs.removed;
     endTurnFlow(s);
-    eq('zones and stack objects count turns too (a zone status for the opponent\u2019s next turn)', [z1, !!zs.removed], [true, true]);
+    eq(
+      'zones and stack objects count turns too (a zone status for the opponent\u2019s next turn)',
+      [z1, !!zs.removed],
+      [true, true]
+    );
   });
 
   Tests.add('zone-hp', () => {
@@ -210,13 +253,20 @@
         zoneTarget: Fx.zoneTarget.anyPermanent,
         effects: [Fx.damageZone(3)],
       });
-    check('Sim.API lists the zone HP effects', Sim.API.effects.includes('GiveZoneHp') && Sim.API.effects.includes('DamageZone'));
+    check(
+      'Sim.API lists the zone HP effects',
+      Sim.API.effects.includes('GiveZoneHp') && Sim.API.effects.includes('DamageZone')
+    );
     const s = start(1240, [hp5, hit3]),
       K = 'Opponent|front|1',
       so = take(s, 'Opponent', 'soldier', 'board', K),
       a = take(s, 'Player', 't-zhp', 'hand'),
       h = take(s, 'Player', 't-zhit', 'hand');
-    eq('zone HP is off by default; damaging such a zone does nothing', [Sim.zoneBar(s, K), Sim.damageZone(s, K, 3, 't', []), s.zones[K].statuses.length], [null, false, 0]);
+    eq(
+      'zone HP is off by default; damaging such a zone does nothing',
+      [Sim.zoneBar(s, K), Sim.damageZone(s, K, 3, 't', []), s.zones[K].statuses.length],
+      [null, false, 0]
+    );
     D(s, { type: 'PlayCard', iid: a.iid, zone: K });
     pass2(s);
     eq('an effect gives the zone HP', Sim.zoneBar(s, K), { hp: 5, damage: 0, left: 5 });
@@ -224,7 +274,11 @@
     eq('another effect adds to the SAME bar', Sim.zoneBar(s, K), { hp: 7, damage: 0, left: 7 });
     D(s, { type: 'PlayCard', iid: h.iid, zone: K });
     pass2(s);
-    eq('zone damage lowers the bar and does not touch the card standing there', [Sim.zoneBar(s, K).left, so.loc, Sim.totalDamage(so)], [4, 'board', 0]);
+    eq(
+      'zone damage lowers the bar and does not touch the card standing there',
+      [Sim.zoneBar(s, K).left, so.loc, Sim.totalDamage(so)],
+      [4, 'board', 0]
+    );
     shield(s, so, 'blue');
     const ev = [];
     Sim.damageZone(s, K, 4, 'test', ev);
@@ -237,7 +291,9 @@
       'the events say so, the HP statuses are greyed (zone HP used up) and the unusable status stays',
       ev.some(e => e.t === 'CardExiled' && e.iid === so.iid) &&
         ev.some(e => e.t === 'ZoneUnusable' && e.slot === K) &&
-        s.zones[K].statuses.filter(x => x.kind === 'zonehp' || x.kind === 'zonedmg').every(x => x.removed && x.removed.why === 'zone HP used up') &&
+        s.zones[K].statuses
+          .filter(x => x.kind === 'zonehp' || x.kind === 'zonedmg')
+          .every(x => x.removed && x.removed.why === 'zone HP used up') &&
         Sim.live(s.zones[K]).some(x => x.kind === 'unusable')
     );
     const E2 = 'Player|back|4';

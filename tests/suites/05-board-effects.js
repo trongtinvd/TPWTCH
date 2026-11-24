@@ -73,7 +73,10 @@
       const k2 = Sim.dispatch(q, { type: 'Pass', player: 'Player' });
       check(
         'Wall fizzles when nothing legal is underneath the clouds, and nothing is revealed',
-        k1.ok && kw.loc === 'gy' && !Sim.isUnusable(q, 'Player|front|0') && k2.events.some(e => e.t === 'StackObjectFizzled')
+        k1.ok &&
+          kw.loc === 'gy' &&
+          !Sim.isUnusable(q, 'Player|front|0') &&
+          k2.events.some(e => e.t === 'StackObjectFizzled')
       );
       const q2 = start(41);
       take(q2, 'Player', 'wolf', 'board', 'Player|front|2');
@@ -265,7 +268,8 @@
       );
       s = start(142);
       const v3 = take(s, 'Player', 'vine', 'hand');
-      for (const k of Object.keys(s.slots)) if (k !== 'Player|front|0' && k !== 'Opponent|back|4') Sim.markUnusable(s, k, 'test');
+      for (const k of Object.keys(s.slots))
+        if (k !== 'Player|front|0' && k !== 'Opponent|back|4') Sim.markUnusable(s, k, 'test');
       D(s, { type: 'PlayCard', iid: v3.iid, slot: 'Player|front|0' });
       drain(s);
       eq(

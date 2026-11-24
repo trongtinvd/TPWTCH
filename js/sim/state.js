@@ -27,8 +27,11 @@ Sim.def('state', function (K) {
   // stops (Q49 / Q50): null, or per player {opp, own}. A flat {kind:true} (older replays, the rules tests) means: both players, as the non-turn player only.
   const normStops = x => {
     if (!x) return null;
-    const one = e => (e && ('opp' in e || 'own' in e) ? { opp: e.opp || {}, own: e.own || {} } : { opp: e || {}, own: {} });
-    return x.Player || x.Opponent ? { Player: one(x.Player), Opponent: one(x.Opponent) } : { Player: one(x), Opponent: one(x) };
+    const one = e =>
+      e && ('opp' in e || 'own' in e) ? { opp: e.opp || {}, own: e.own || {} } : { opp: e || {}, own: {} };
+    return x.Player || x.Opponent
+      ? { Player: one(x.Player), Opponent: one(x.Opponent) }
+      : { Player: one(x), Opponent: one(x) };
   };
   function create(n, defs, opts = {}) {
     // opts: {decks:{Player:[ids], Opponent:[ids]}, shuffle:true, autoStart:false} (see createGame)                         // content is injected: the Sim never reads globals
@@ -294,7 +297,14 @@ Sim.def('state', function (K) {
       c.loc = 'gy';
       s.piles[c.owner].gy.unshift(c);
     }
-    ev.push({ t: 'PermanentDestroyed', iid: c.iid, from: 'board', to: c.token ? 'gone' : 'gy', by: by || 'effect', why });
+    ev.push({
+      t: 'PermanentDestroyed',
+      iid: c.iid,
+      from: 'board',
+      to: c.token ? 'gone' : 'gy',
+      by: by || 'effect',
+      why,
+    });
     recalc(s, ev);
   }
   function bounce(s, t, ev) {
@@ -357,8 +367,9 @@ Sim.def('state', function (K) {
       sweepUnusable,
       zoneBar,
     },
-    needs: [ 'nonLethalHold', // Patch4
-     'ctl', 
+    needs: [
+      'nonLethalHold', // Patch4
+      'ctl',
       'abDef',
       'addStatus',
       'byId',

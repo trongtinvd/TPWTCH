@@ -5,7 +5,17 @@ Sim.def('ops', function (K) {
   let ctl; // added by Patch3
   let cname, colKeys, zoneDist; // util
   let PL, addStatus, allowed, clearAttacked, clearStatuses, has, hasSt, hurt, isRevealed, live, removeStatus, syncLife; // statuses
-  let cloudMap, damageZone, declareWinner, destroy, freeSlots, giveZoneHp, isUnusable, makeToken, markUnusable, recalc, release; // state
+  let cloudMap,
+    damageZone,
+    declareWinner,
+    destroy,
+    freeSlots,
+    giveZoneHp,
+    isUnusable,
+    makeToken,
+    markUnusable,
+    recalc,
+    release; // state
   let fusionStart; // fusion
   let declareAsk, pairStart, reorderStart; // choices
   let pendingAtk; // targeting
@@ -109,13 +119,15 @@ Sim.def('ops', function (K) {
           d.loc = 'hand';
           x.s.piles[w].hand.push(d);
           x.ev.push({ t: 'CardDrawn', iid: d.iid, player: w });
+          x.s.drawn[w]++; // Patch5: every draw counts (L4's condition), not only the Draw action
         }
       }
     },
     DamageHp: (x, e) => {
       // Patch4: damage the picked non-player HP target (x.o.pick: a card, a zone / cloud, a stack object; see hp.js)
       const ref = x.o && x.o.pick;
-      if (ref != null) damageHp(x.s, x.src, ref, e.amount, x.ev, { nonLethal: !!e.nonLethal, temporary: !!e.temporary });
+      if (ref != null)
+        damageHp(x.s, x.src, ref, e.amount, x.ev, { nonLethal: !!e.nonLethal, temporary: !!e.temporary });
     },
     DamageStack: (x, e) => {
       const u = x.s.stack[x.s.stack.length - 1];
@@ -432,7 +444,9 @@ Sim.def('ops', function (K) {
     },
     AddAttackDamage: (x, e) => {
       const w = e.whose || 'any',
-        hit = x.s.stack.filter(o => o.kind === 'attack' && (w === 'any' || (w === 'mine') === (o.controller === x.who)));
+        hit = x.s.stack.filter(
+          o => o.kind === 'attack' && (w === 'any' || (w === 'mine') === (o.controller === x.who))
+        );
       if (hit.length > 1) return pickAttack(x, hit, { act: 'boost', amount: e.amount }); // Q41: several matching Attacks: the player chooses
       if (hit.length) addAttackBonus(x.s, hit[0], e.amount, x.src.def.name, x.ev);
     }, // generic: adds damage to the matching Attack object (the one, or the chosen one)
@@ -458,8 +472,12 @@ Sim.def('ops', function (K) {
   };
   return {
     exports: { OPS },
-    needs: [ 'damageHp', 'placeAttackCounters', // Patch4
-     'addAttackBonus', 'cancelAttackObj', 'ctl', 
+    needs: [
+      'damageHp',
+      'placeAttackCounters', // Patch4
+      'addAttackBonus',
+      'cancelAttackObj',
+      'ctl',
       'CH',
       'PL',
       'addStatus',

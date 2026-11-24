@@ -69,8 +69,19 @@ Sim.def('targeting', function (K) {
   const findTarget = (s, c, a) => (a.target && TARGETS[a.target] ? TARGETS[a.target](s, c) : null);
   return {
     exports: { COLTARGETS, TARGETINGS, TARGETS, ZONETARGETS, findTarget, pendingAtk, targetColumns, targetZones },
-    needs: [ 'hpLabel', 'hpRefs', 'hpResolve', // Patch4
-     'ctl', 'cloudMap', 'colKeys', 'has', 'isUnusable', 'other', 'pairLabel', 'pairOptions'],
+    needs: [
+      'hpLabel',
+      'hpRefs',
+      'hpResolve', // Patch4
+      'ctl',
+      'cloudMap',
+      'colKeys',
+      'has',
+      'isUnusable',
+      'other',
+      'pairLabel',
+      'pairOptions',
+    ],
     link: () => {
       ({ hpLabel, hpRefs, hpResolve } = K); // Patch4
       ({ ctl } = K);

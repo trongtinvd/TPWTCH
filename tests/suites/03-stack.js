@@ -362,7 +362,9 @@
     D(s, { type: 'SetAttackPhase', player: 'Player', on: false });
     eq('stop "combat ended"', [s.respond && s.respond.kind, s.priority], ['combatEnd', 'Opponent']);
     D(s, { type: 'Pass', player: 'Opponent' });
-    eq('combat ended: the turn ends, so the end step window follows (Q21)', s.respond && s.respond.kind, 'end');
+    eq('combat ended: back in the main phase, no end step window (Patch5)', [s.respond, s.priority], [null, 'Player']);
+    D(s, { type: 'EndTurn', player: 'Player' });
+    eq('End turn opens the end step window', s.respond && s.respond.kind, 'end');
     D(s, { type: 'Pass', player: 'Opponent' });
     eq(
       'stop "turn started": the new turn\u2019s non-turn player gets a window',

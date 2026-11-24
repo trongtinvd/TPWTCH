@@ -42,7 +42,13 @@ Sim.def('statuses', function (K) {
   };
   // Patch4: 'combatEnd' statuses (attack counters) end when a combat phase ends; every object with statuses is swept
   const expireStatuses = (s, when, why) => {
-    for (const o of [...Object.values(s.cards), PL(s, 'Player'), PL(s, 'Opponent'), ...Object.values(s.zones), ...s.stack])
+    for (const o of [
+      ...Object.values(s.cards),
+      PL(s, 'Player'),
+      PL(s, 'Opponent'),
+      ...Object.values(s.zones),
+      ...s.stack,
+    ])
       live(o)
         .filter(x => x.expires === when)
         .forEach(x => removeStatus(s, x, why));
@@ -50,7 +56,11 @@ Sim.def('statuses', function (K) {
   // Patch4: non-lethal damage. The NEWEST live status that changes HP decides: while it is non-lethal damage, HP at or below the death line
   // does not kill (a card, a zone bar). Any HP status entered later (damage, life, an HP modifier, zone HP) takes over and can kill.
   const changesHp = x =>
-    x.kind === 'damage' || x.kind === 'life' || (x.kind === 'mod' && !!x.hp) || x.kind === 'zonehp' || x.kind === 'zonedmg';
+    x.kind === 'damage' ||
+    x.kind === 'life' ||
+    (x.kind === 'mod' && !!x.hp) ||
+    x.kind === 'zonehp' ||
+    x.kind === 'zonedmg';
   const nonLethalHold = o => {
     const L = live(o).filter(changesHp);
     return !!L.length && !!L[L.length - 1].nonLethal;
@@ -71,6 +81,8 @@ Sim.def('statuses', function (K) {
       .pop();
     return d ? byId[d.to] : c.def;
   }; // ability layer: the newest active 'ability' status decides; c.def is never edited
+  // keyworded abilities (Flash, Retaliate) are passives of the EFFECTIVE ability set, so losing abilities (Avatar of Rabies) loses them too
+  const hasKw = (c, kw) => !!c && (abDef(c).passives || []).some(p => p.op === 'Keyword' && p.kw === kw);
   const isRevealed = (c, p) => hasSt(c, 'revealed', x => x.to === p);
   const PL = (s, p) => s.players[p];
   const lifeOf = (s, p) =>
@@ -187,6 +199,7 @@ Sim.def('statuses', function (K) {
       expiresAtTurnEnd,
       nonLethalHold,
       has,
+      hasKw,
       hasSt,
       hpOf,
       hurt,

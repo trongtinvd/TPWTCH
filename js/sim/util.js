@@ -3,11 +3,12 @@ Sim.def('util', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
   let create; // state
   let hasAP; // ap
+  let hasKw; // statuses
   const other = p => (p === 'Player' ? 'Opponent' : 'Player');
   const ctl = c => c.controller || c.owner; // Q56: the controller (a card played under temporary control, L4); the owner never changes. Spells, abilities and attacks care about the controller
   const byId = {}; // def id -> definition (filled by create)
   const isPerm = c => c.def.type !== 'spell' && c.def.type !== 'ability';
-  const slowish = c => (isPerm(c) && !c.def.flash) || c.def.timing === 'Slow'; // Flash permanents are played like Quick spells
+  const slowish = c => (isPerm(c) && !hasKw(c, 'flash')) || c.def.timing === 'Slow'; // Flash permanents are played like Quick spells
   const slotRow = c => (c.def.type === 'creature' ? 'front' : 'back');
   function mulberry32(a) {
     return function () {
@@ -48,9 +49,9 @@ Sim.def('util', function (K) {
       zoneDist,
       zoneGrid,
     },
-    needs: ['create', 'hasAP'],
+    needs: ['create', 'hasAP', 'hasKw'],
     link: () => {
-      ({ create, hasAP } = K);
+      ({ create, hasAP, hasKw } = K);
     },
   };
 });

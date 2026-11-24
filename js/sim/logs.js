@@ -38,7 +38,14 @@ Sim.def('logs', function (K) {
       const e = ev[i],
         h = HOW[e.t];
       if (h && e.iid === c.iid && h.slice(1).includes(c.loc))
-        return e.t === 'PermanentDestroyed' ? h[0] + (e.by === 'rule' ? ' by the rules' + (e.why ? ': ' + e.why : '') : e.by === 'cost' ? ' as a cost' : ' by an effect') : h[0];
+        return e.t === 'PermanentDestroyed'
+          ? h[0] +
+              (e.by === 'rule'
+                ? ' by the rules' + (e.why ? ': ' + e.why : '')
+                : e.by === 'cost'
+                  ? ' as a cost'
+                  : ' by an effect')
+          : h[0];
     }
     return 'moved';
   } // the label comes from the rule events of this command

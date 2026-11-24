@@ -144,8 +144,10 @@ Sim.def('ch', function (K) {
   };
   return {
     exports: { CH },
-    needs: [ 'activate', // Patch4
-     'addAttackBonus', 'cancelAttackObj', 
+    needs: [
+      'activate', // Patch4
+      'addAttackBonus',
+      'cancelAttackObj',
       'THEN',
       'advanceTrg',
       'addStatus',

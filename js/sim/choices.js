@@ -18,7 +18,8 @@ Sim.def('choices', function (K) {
       // a zone under the foe's own cloud is offered whatever is (or is not) under it; elsewhere only visible, targetable cards
       seen = Object.keys(s.slots).filter(
         k =>
-          !isUnusable(s, k) && ((m[k] && k.split('|')[0] === foe) || (at(k) && ctl(at(k)) === foe && !has(at(k), 'red')))
+          !isUnusable(s, k) &&
+          ((m[k] && k.split('|')[0] === foe) || (at(k) && ctl(at(k)) === foe && !has(at(k), 'red')))
       ),
       opts = [];
     for (let i = 0; i < seen.length; i++)
@@ -193,7 +194,8 @@ Sim.def('choices', function (K) {
   }
   return {
     exports: { declareAsk, libLook, libPlay, pairLabel, pairOptions, pairPicked, pairStart, reorderAsk, reorderStart },
-    needs: ['ctl', 
+    needs: [
+      'ctl',
       'REQS',
       'ask',
       'byId',
@@ -210,7 +212,8 @@ Sim.def('choices', function (K) {
     ],
     link: () => {
       ({ ctl } = K);
-      ({ REQS, ask, byId, cloudMap, cname, destroy, enterBoard, freeSlots, has, isPerm, isUnusable, other, zoneDist } = K);
+      ({ REQS, ask, byId, cloudMap, cname, destroy, enterBoard, freeSlots, has, isPerm, isUnusable, other, zoneDist } =
+        K);
     },
   };
 });

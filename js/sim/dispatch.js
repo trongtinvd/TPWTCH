@@ -13,7 +13,18 @@ Sim.def('dispatch', function (K) {
   let askCounters, resume; // fx
   let CH; // ch
   let canAttack, dealDamage, declareAttack; // combat
-  let canActivate, canPlay, checkTurnEnd, endTurn, fire, openRespond, pushObj, resolveObj, respPri, stopAt, stopWants; // stack
+  let advanceTrg,
+    canActivate,
+    canPlay,
+    checkTurnEnd,
+    endTurn,
+    fire,
+    openRespond,
+    pushObj,
+    resolveObj,
+    respPri,
+    stopAt,
+    stopWants; // stack
   function settle(s, ev) {
     // the end of a resolution: a spell goes to the graveyard (or the hand), an ability token ceases to exist, then the stack-emptied stop.
     // A spell whose effect asks for choices (Fusion: materials, summon) stays "resolving" until the last answer, so its effects happen BEFORE it leaves the stack.
@@ -222,7 +233,8 @@ Sim.def('dispatch', function (K) {
         }
         if (!cmd.on && was) {
           endCombatStatuses(s); // Patch4: unspent attack counters end with the combat phase
-          s.turnEnding = true; // Q21: when combat ends, the turn ends (checkTurnEnd, once nothing is pending)
+          // Patch5 (rule update 2026-11-24): ending combat does NOT end the turn: the turn player is back in the main phase and may spend
+          // another action point on another combat. Only End turn pressed during combat ends combat and then the turn (s.turnEnding below).
           fire(s, ev, 'combatEnd', null);
           stopAt(s, ev, 'combatEnd'); // stop: combat ended
         }
@@ -267,6 +279,7 @@ Sim.def('dispatch', function (K) {
         recalc(s, ev);
         ev.push({ t: 'ChoiceMade', player: k.player });
         if (!s.choice && s.resolving) settle(s, ev);
+        if (!s.choice && s.trg) advanceTrg(s, ev); // Patch5: triggers that waited for a pending choice pick their targets now
         break;
       }
       case 'Activate': {
@@ -372,8 +385,16 @@ Sim.def('dispatch', function (K) {
   const hasAction = (s, p) => actionsOf(s, p).length > 0; // is there anything legal for p right now?
   return {
     exports: { actionsOf, dispatch, hasAction },
-    needs: [ 'TARGETINGS', 'activate', 'ask', 'endCombatStatuses', 'placeAttackCounters', 'spendAttackCounter', // Patch4
-     'RULES', 'historyBytes', 'ctl', 
+    needs: [
+      'TARGETINGS',
+      'activate',
+      'ask',
+      'endCombatStatuses',
+      'placeAttackCounters',
+      'spendAttackCounter', // Patch4
+      'RULES',
+      'historyBytes',
+      'ctl',
       'CH',
       'PL',
       'abDef',
@@ -383,6 +404,7 @@ Sim.def('dispatch', function (K) {
       'canAttack',
       'canPayExtra',
       'canPlay',
+      'advanceTrg',
       'checkTurnEnd',
       'dealDamage',
       'declareAttack',
@@ -430,6 +452,7 @@ Sim.def('dispatch', function (K) {
         canAttack,
         canPayExtra,
         canPlay,
+        advanceTrg,
         checkTurnEnd,
         dealDamage,
         declareAttack,

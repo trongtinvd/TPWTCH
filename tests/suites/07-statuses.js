@@ -107,11 +107,7 @@
       const rv = Sim.live(ho).find(x => x.kind === 'revealed');
       check(
         '0-mode reveal is a status on the card in hand, visible to the revealer only',
-        !!rv &&
-          Sim.isRevealed(ho, 'Player') &&
-          !Sim.isRevealed(ho, 'Opponent') &&
-          s.choice &&
-          s.choice.kind === 'pick'
+        !!rv && Sim.isRevealed(ho, 'Player') && !Sim.isRevealed(ho, 'Opponent') && s.choice && s.choice.kind === 'pick'
       );
       D(s, { type: 'Choose', player: 'Player', option: ho.iid });
       check(
@@ -368,7 +364,10 @@
           m.from,
           m.to,
           m.how,
-          gf.logs.filter(e => e.kind === 'zone').map(e => e.to).slice(-2), // the last two moves (it may have been drawn first, depending on the shuffle)
+          gf.logs
+            .filter(e => e.kind === 'zone')
+            .map(e => e.to)
+            .slice(-2), // the last two moves (it may have been drawn first, depending on the shuffle)
           gf.logs.filter(e => e.kind === 'zone').pop().how,
         ],
         ['deck', 'gy', 'milled', ['stack', 'gy'], 'resolved']
@@ -392,9 +391,7 @@
       check(
         'logs: when the card dies every status it ever had has a matching removal entry',
         so.loc === 'gy' &&
-          so.logs
-            .filter(e => e.kind === 'status+')
-            .every(a => so.logs.some(r => r.kind === 'status-' && r.id === a.id))
+          so.logs.filter(e => e.kind === 'status+').every(a => so.logs.some(r => r.kind === 'status-' && r.id === a.id))
       );
       check(
         'logs: chronological (n strictly increasing) and the last entry is the move to the GY',

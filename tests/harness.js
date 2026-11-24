@@ -158,7 +158,8 @@ const Tests = (function () {
           out.push('FAIL suite "' + s.name + '" threw  | ' + ((e && e.stack) || e)); // one broken suite never hides the others
         }
       }
-      if (!n) out.push('FAIL no suite matches "' + want.join(',') + '"  | suites: ' + suites.map(s => s.name).join(', '));
+      if (!n)
+        out.push('FAIL no suite matches "' + want.join(',') + '"  | suites: ' + suites.map(s => s.name).join(', '));
       out.push(
         '---- ' +
           out.filter(l => l.startsWith('PASS')).length +

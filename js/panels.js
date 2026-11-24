@@ -198,6 +198,10 @@ function buildList() {
 //      'hl'  the ability selected on the stack
 const partOn = (c, p, def) => {
   // usable from the card's current location? (location only: priority, timing and costs are not considered)
+  if (p.list === 'passives' && def.passives[p.i].op === 'Keyword') {
+    const k = KEYWORDS[def.passives[p.i].kw];
+    return !k || c.loc === k.zone; // Flash works from the hand, Retaliate on the board
+  }
   if (p.list === 'passives' || p.list === 'rider') return c.loc === 'board';
   if (p.list === 'triggers') {
     const t = def.triggers[p.i];
@@ -213,7 +217,7 @@ function cardParts(c, H) {
     swapped = eff.id !== base.id;
   const add = (out, def, off, onlyAb) => {
     for (const p of textParts(def)) {
-      const ab = !['kw', 'body', 'conditions', 'materials'].includes(p.list);
+      const ab = !['body', 'extra', 'conditions', 'materials'].includes(p.list);
       if (onlyAb && !ab) continue;
       const hit = !!H && def.id === H.from && p.list === H.list && p.i === H.i,
         cls = hit ? 'hl' : H ? 'dim' : off && ab ? 'off' : partOn(sc, p, def) ? '' : 'dim';
@@ -305,13 +309,27 @@ function showCard(c, pin = true, hl = null) {
   deckPanel
     .querySelectorAll('.row')
     .forEach((r, i) => r.classList.toggle('sel', !!ui.openList && listCards(ui.openList)[i] === ui.selected));
-  const stats = (
-    d.type === 'creature'
-      ? ['ATK ' + Sim.atkOf(c), 'HP ' + Sim.hpOf(c)]
-      : d.type === 'spell'
-        ? [d.timing, 'HP ' + d.hp]
-        : ['HP ' + Sim.hpOf(c)]
-  ).concat(c.loc === 'board' && Sim.totalDamage(c) ? ['Damage ' + Sim.totalDamage(c)] : []);
+  // Patch5: one HP field = HP left after damage (the board badge's number), coloured like that badge: red below printed, blue equal, green above
+  const hpStat = () => {
+      const v = effHp(c),
+        [fill, line] = HP_PAL[v < d.hp ? 0 : v === d.hp ? 1 : 2];
+      return (
+        '<span class="stat" style="background:' +
+        fill +
+        ';box-shadow:inset 0 0 0 2px ' +
+        line +
+        ';color:#fff">HP ' +
+        v +
+        '</span>'
+      );
+    },
+    stats = (
+      d.type === 'creature'
+        ? ['ATK ' + Sim.atkOf(c), hpStat()]
+        : d.type === 'spell'
+          ? [d.timing, 'HP ' + d.hp]
+          : [hpStat()]
+    ).map(x => (x.startsWith('<span') ? x : '<span class="stat">' + x + '</span>'));
   const where = {
     deck: 'Position in deck: ' + (idx + 1) + ' of ' + (pile || []).length + (idx === 0 ? ' (top)' : ''),
     gy: 'Graveyard: ' + (idx + 1) + ' of ' + (pile || []).length + (idx === 0 ? ' (most recent)' : ''),
@@ -346,6 +364,7 @@ function showCard(c, pin = true, hl = null) {
     '|' +
     (cloudMap_(c) ? 'cloud' : '') +
     '|' +
+    stats.join('') +
     JSON.stringify(H) +
     JSON.stringify(parts);
   if (inspect.hidden || inspect.dataset.key !== key) {
@@ -360,7 +379,7 @@ function showCard(c, pin = true, hl = null) {
     inspect.querySelector('.art').appendChild(im);
     inspect.querySelector('h3').textContent = d.name;
     inspect.querySelector('.meta').textContent = T.label + (d.type === 'spell' ? ' \u00b7 ' + d.timing : '');
-    inspect.querySelector('.stats').innerHTML = stats.map(x => '<span class="stat">' + x + '</span>').join('');
+    inspect.querySelector('.stats').innerHTML = stats.join('');
     partsInto(inspect.querySelector('p'), parts, c);
     inspect.querySelector('.where').textContent = where;
     if (gyActs.length) {
@@ -492,10 +511,29 @@ function actionsFor(c) {
 }
 function closeMenu() {
   menu.hidden = true;
+  ui.menuAt = null;
 }
 function openMenu(c, x, y) {
-  const acts = actionsFor(c);
+  ui.menuAt = { iid: c.iid, x, y };
+  ui.menuKey = null;
+  renderMenu();
+}
+// Patch5: the action menu is LIVE: every sync re-reads the actions, so a greyed button lights up as soon as it becomes usable
+// (and the other way round). It is rebuilt only when an action or its reason changed, so a press in progress is not lost.
+const refreshMenu = () => {
+  if (!menu.hidden && ui.menuAt) renderMenu();
+};
+function renderMenu() {
+  const at = ui.menuAt,
+    c = at && game.cards[at.iid];
+  if (!c || c.loc === 'gone' || rp.on) return closeMenu();
+  const x = at.x,
+    y = at.y,
+    acts = actionsFor(c);
   if (!acts.length) return closeMenu();
+  const key = c.iid + '|' + acts.map(a => a.t + '=' + (a.why || '')).join('|');
+  if (!menu.hidden && ui.menuKey === key) return;
+  ui.menuKey = key;
   menu.innerHTML = '<div class="mt"></div>';
   menu.firstChild.textContent = c.def.name;
   acts.forEach(a => {

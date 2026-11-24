@@ -48,7 +48,7 @@ Sim.def('cond', function (K) {
     combatEnd: (s, c) => ctl(c) === s.active,
   };
   // continuous effects a card may carry in `passives`; they are not run, the rules read them (value = where)
-  const PASSIVES = { Obscure: 'cloudMap', Aura: 'recalc' };
+  const PASSIVES = { Obscure: 'cloudMap', Aura: 'recalc', Keyword: 'hasKw' }; // Keyword: Flash / Retaliate, read by hasKw
   return {
     exports: { COND, EXCOND, PASSIVES, TRIGGERS },
     needs: ['ctl', 'cloudMap', 'colKeys', 'hasSt', 'recalc', 'zoneDist'],

@@ -27,15 +27,20 @@ const sandbox = {
 };
 vm.createContext(sandbox);
 // The Sim modules and the test files load in the order index.html lists them (single source of truth).
-const listed = re =>
-  [...fs.readFileSync(path.join(root, 'index.html'), 'utf8').matchAll(re)].map(m => m[1]);
+const listed = re => [...fs.readFileSync(path.join(root, 'index.html'), 'utf8').matchAll(re)].map(m => m[1]);
 const simFiles = listed(/<script src="(js\/sim\/[^"]+)">/g);
 if (!simFiles.length) throw new Error('no js/sim/*.js scripts found in index.html');
 const testFiles = testFile ? ['tests/harness.js', testFile] : listed(/<script src="(tests\/[^"]+)">/g);
 if (!testFiles.length) throw new Error('no tests/*.js scripts found in index.html');
-const scripts = ['js/cards.js', ...simFiles, 'js/narrate.js', 'js/storage.js', 'js/decks.js', 'js/bot.js', ...testFiles].map(f =>
-  path.isAbsolute(f) ? f : path.join(root, f)
-);
+const scripts = [
+  'js/cards.js',
+  ...simFiles,
+  'js/narrate.js',
+  'js/storage.js',
+  'js/decks.js',
+  'js/bot.js',
+  ...testFiles,
+].map(f => (path.isAbsolute(f) ? f : path.join(root, f)));
 for (const f of scripts) vm.runInContext(fs.readFileSync(f, 'utf8'), sandbox, { filename: f });
 
 if (flag('--list')) {
@@ -44,5 +49,5 @@ if (flag('--list')) {
 }
 sandbox.TEST_FILTER = only;
 const out = JSON.parse(vm.runInContext('JSON.stringify(selfTest(TEST_FILTER))', sandbox));
-console.log(flag('--json') ? JSON.stringify(out) : out.filter(str=>!str.startsWith('PASS')).join('\n'));
+console.log(flag('--json') ? JSON.stringify(out) : out.filter(str => !str.startsWith('PASS')).join('\n'));
 process.exit(out.some(l => l.startsWith('FAIL')) ? 1 : 0);
