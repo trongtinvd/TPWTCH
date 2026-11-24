@@ -20,7 +20,7 @@
       "drag": { "enabled": true, "min": -0.3, "max": 0.3, "padding": 0.5 }
     },
     "opponent": {
-      "offset": [0, 1.0, -3.6],
+      "offset": [0, 1.08, -3.6],
       "tiltDeg": 20,
       "scale": 0.12,
       "spacing": 0.22,

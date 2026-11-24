@@ -369,6 +369,15 @@ const AvatarLogic = (function () {
       facing: seat === 'Player' ? Math.PI : 0,
     };
   }
+  // Patch13: landscape, the status line goes up into the top row, centred in the gap between the other seat's row (right edge foeR)
+  // and the top right buttons (left edge fnL), when that gap is at least minW wide; null = no room (it stays under the buttons)
+  const STATUS_MIN_W = 260;
+  function statusSlot(foeR, fnL, minW) {
+    const pad = 12,
+      w = fnL - foeR - 2 * pad;
+    if (!(w >= (minW == null ? STATUS_MIN_W : minW))) return null;
+    return { centre: Math.round((foeR + fnL) / 2), maxW: Math.floor(Math.min(w, 520)) };
+  }
 
   return {
     CATEGORIES,
@@ -391,5 +400,7 @@ const AvatarLogic = (function () {
     lifeState,
     cues,
     placement,
+    STATUS_MIN_W, // Patch13
+    statusSlot,
   };
 })();

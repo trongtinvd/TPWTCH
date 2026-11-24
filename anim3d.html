@@ -2,9 +2,10 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>3D card preview - The Places Where They Call Home</title>
+    <title>3D preview - The Places Where They Call Home</title>
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <!-- Patch10: the standalone 3D card preview (index.html?anim3d comes here). Its own scene: the game is not loaded. -->
+    <!-- Patch10: the standalone 3D card preview (index.html?anim3d comes here). Its own scene: the game is not loaded.
+         Patch13: + side view characters (the default cube), the avatars, and an Animation list. -->
     <style>
       html,
       body {
@@ -30,7 +31,8 @@
         background: #161b2a;
         border-right: 1px solid #c9a24a55;
       }
-      #pv-side input {
+      #pv-side input,
+      #pv-side select {
         background: #0e1016;
         color: inherit;
         border: 1px solid #c9a24a88;
@@ -53,6 +55,14 @@
         border-radius: 4px;
         padding: 5px 7px;
         cursor: pointer;
+      }
+      #pv-list .pv-h {
+        margin: 8px 0 2px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #c9a24a;
       }
       #pv-list button.sel {
         border-color: #f3d27a;
@@ -95,10 +105,12 @@
   <body>
     <div id="pv">
       <div id="pv-side">
-        <b>3D card preview</b>
-        <input id="pv-search" placeholder="Search a card" aria-label="Search a card" />
+        <b>3D preview</b>
+        <input id="pv-search" placeholder="Search a card, character, avatar" aria-label="Search" />
         <div id="pv-list" aria-label="Cards"></div>
-        <button id="pv-replay" class="b">Play the selection again</button>
+        <label for="pv-anim">Animation</label>
+        <select id="pv-anim" aria-label="Animation"></select>
+        <button id="pv-replay" class="b">Play again</button>
         <a href="index.html">Back to the game</a>
       </div>
       <div id="pv-main">
@@ -113,6 +125,11 @@
     <script src="js/content/cards.js"></script>
     <script src="js/anim/anim-logic.js"></script>
     <script src="js/anim/asset-loader.js"></script>
+    <script src="js/anim/procedural.js"></script>
+    <script src="js/anim/character.js"></script>
+    <script src="js/avatar/avatar-logic.js"></script>
+    <script src="js/avatar/avatar-catalog.js"></script>
+    <script src="js/avatar/avatar-models.js"></script>
     <script src="js/anim/card-models.js"></script>
     <script src="js/anim/card-preview.js"></script>
   </body>

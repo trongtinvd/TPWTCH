@@ -1153,4 +1153,14 @@ canvas {
     width: auto;
     margin-right: 2px;
   }
+  /* Patch13: folded with the "Stops: hidden" button (stops-bar.js) */
+  #stops.pfold {
+    display: none;
+  }
+}
+/* Patch13: the stops button is for portrait only (landscape always shows the stops) */
+@media (orientation: landscape) {
+  #dbg .abtn.pOnly {
+    display: none;
+  }
 }

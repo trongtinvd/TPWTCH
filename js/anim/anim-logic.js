@@ -126,7 +126,7 @@ const Anim3DLogic = (function () {
     orbit: { enabled: true, minDistance: 3, maxDistance: 45, maxPolarDeg: 85 },
     hand: {
       own: { offset: [0, -0.98, -3.2], tiltDeg: -25, scale: 0.17, spacing: 0.3, widthFrac: 0.92, zone: true },
-      opponent: { offset: [0, 1.0, -3.6], tiltDeg: 20, scale: 0.12, spacing: 0.22, widthFrac: 0.7, zone: true },
+      opponent: { offset: [0, 1.08, -3.6], tiltDeg: 20, scale: 0.12, spacing: 0.22, widthFrac: 0.7, zone: true },
     },
     animation: { blendIn: 0.25, blendOut: 0.35, speed: 1, transitions: [] },
   };
@@ -157,6 +157,9 @@ const Anim3DLogic = (function () {
       padding: Math.max(0, num(g.padding, DRAG_DEFAULTS.padding)),
     };
   }
+  // Patch13: either hand can be dragged; each keeps its own offset (Settings key per role), clamped to its drag range
+  const HAND_SETTING = { own: 'handOffset3d', opponent: 'handOffset3dFoe' };
+  const clampDrag = (d, x) => Math.min(d.max, Math.max(d.min, typeof x === 'number' && isFinite(x) ? x : 0));
   function normalizeCamera(j) {
     j = isObj(j) ? j : {};
     const D = CAMERA_DEFAULTS,
@@ -375,6 +378,61 @@ const Anim3DLogic = (function () {
     return [];
   }
 
+  // ---- Patch13: the 3D preview page (anim3d.html) ----------------------------------------------------------------
+  // What it can show, as one id (also the ?anim3d= value): a card's 3D model "<card id>" (as before), a side view character
+  // "char:<name>" (characters.json; "char:placeholder" = the default cube) or an avatar "avatar:<character>/<outfit>".
+  function parsePreviewId(s) {
+    s = typeof s === 'string' ? s.trim() : '';
+    let m;
+    if ((m = /^char:(.+)$/.exec(s))) return { kind: 'char', id: m[1] };
+    if ((m = /^avatar:([^/]+)(?:\/(.+))?$/.exec(s))) return { kind: 'avatar', id: m[1], outfit: m[2] || null };
+    if ((m = /^card:(.+)$/.exec(s))) return { kind: 'card', id: m[1] };
+    return s ? { kind: 'card', id: s } : null;
+  }
+  const previewId = (kind, id, outfit) =>
+    kind === 'card' ? id : kind === 'avatar' ? 'avatar:' + id + (outfit ? '/' + outfit : '') : 'char:' + id;
+  // the animations a character offers, grouped by category: "<category> (random)" (what the game plays: a random entry, or the
+  // built-in one when the category has none) then each configured entry. The overlay category (avatars: idle_wounded) is marked:
+  // it plays over idle. value: "cat:<category>" | "entry:<category>:<id>"
+  function characterAnimOptions(ch, overlay) {
+    const cats = (ch && ch.categories) || CATEGORIES,
+      out = [];
+    for (const cat of cats) {
+      const list = entriesFor(ch, cat),
+        ov = cat === overlay;
+      out.push({
+        group: cat,
+        value: 'cat:' + cat,
+        label: cat + (ov ? ' (over idle)' : list.length > 1 ? ' (random)' : list.length ? '' : ' (built-in)'),
+        overlay: ov,
+      });
+      if (list.length > 1 || (list.length && list[0].category !== cat))
+        for (const a of list)
+          out.push({
+            group: cat,
+            value: 'entry:' + cat + ':' + a.id,
+            label: '  ' + a.id + (a.file ? '' : ' (built-in)'),
+            overlay: ov,
+          });
+    }
+    return out;
+  }
+  // a card model's animations: its selection animation, then every clip of the model (played once)
+  function clipAnimOptions(clipNames, selectName) {
+    const out = [
+      { group: 'select', value: 'select', label: 'selection' + (selectName ? ' (clip "' + selectName + '")' : '') },
+    ];
+    for (const n of clipNames || []) out.push({ group: 'clips', value: 'clip:' + n, label: n });
+    return out;
+  }
+  function parseAnimOption(v) {
+    let m;
+    if ((m = /^cat:(.+)$/.exec(v || ''))) return { kind: 'cat', cat: m[1] };
+    if ((m = /^entry:([^:]+):(.+)$/.exec(v || ''))) return { kind: 'entry', cat: m[1], id: m[2] };
+    if ((m = /^clip:(.+)$/.exec(v || ''))) return { kind: 'clip', name: m[1] };
+    return { kind: 'select' };
+  }
+
   // random pick that avoids repeating `lastId` when there is another choice
   function pick(list, lastId, rnd) {
     if (!list || !list.length) return null;
@@ -475,6 +533,8 @@ const Anim3DLogic = (function () {
     boardLayout,
     seatPose,
     handSpread,
+    HAND_SETTING, // Patch13
+    clampDrag,
     scrollSpread, // Patch9
     characterFor,
     entriesFor,
@@ -486,6 +546,11 @@ const Anim3DLogic = (function () {
     MODEL_DIR,
     cardModelEntry,
     selectClipName,
+    parsePreviewId, // Patch13
+    previewId,
+    characterAnimOptions,
+    clipAnimOptions,
+    parseAnimOption,
   };
 })();
 if (typeof module !== 'undefined') module.exports = Anim3DLogic;

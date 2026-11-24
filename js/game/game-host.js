@@ -792,6 +792,17 @@ const DBTN = [
     show: () => !rp.on,
   },
   {
+    id: 'stops', // Patch13: portrait only (css .pOnly): shows / folds the stops under these buttons
+    cls: 'pOnly',
+    label: () => 'Stops: ' + (typeof StopsBar !== 'undefined' && StopsBar.portraitShown() ? 'shown' : 'hidden'),
+    run: () => {
+      StopsBar.togglePortrait();
+      sync();
+    },
+    on: () => true,
+    show: () => !rp.on,
+  },
+  {
     id: 'reset',
     label: () => (rp.on ? 'Restart replay' : 'Reset game'),
     run: () => {

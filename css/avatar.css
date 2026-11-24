@@ -90,10 +90,29 @@
     top: calc(var(--foeB, 96px) + 52px);
     max-height: calc(100% - var(--foeB, 96px) - 108px - env(safe-area-inset-bottom, 0px));
   }
-  /* the status line: under the top right buttons as before, never under the top-left row */
+  /* the status line: under the top right buttons, never under the top-left row. Patch13: right-aligned under them (the right of the
+     view is free; the opponent's hand is in the middle) */
   #status {
-    top: calc(64px + env(safe-area-inset-top, 0px));
-    left: max(50%, calc(var(--foeR, 392px) + 8px + min(220px, 17vw)));
+    top: calc(54px + env(safe-area-inset-top, 0px));
+    left: auto;
+    right: 12px;
+    transform: none;
+    max-width: min(300px, 30vw);
+    font-size: 12px;
+    padding: 6px 12px;
+  }
+  /* Patch13: room between the top-left row and the top right buttons (body.statusTop, avatar-view.js): the status line goes up there,
+     so the top of the board (the opponent's hand) is clear */
+  body.statusTop #status {
+    top: calc(12px + env(safe-area-inset-top, 0px));
+    left: var(--stC, 50%);
+    right: auto;
+    transform: translateX(-50%);
+    max-width: var(--stW, 34vw);
+    width: max-content;
+    box-sizing: border-box;
+    font-size: 12px;
+    padding: 6px 12px;
   }
   /* no room above the buttons (a short screen, many buttons): under the stack panel, which gets shorter; never over the board */
   #hp .hpr.me.tight {

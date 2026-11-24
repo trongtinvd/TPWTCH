@@ -59,8 +59,17 @@ const StopsBar = (function () {
       r = sendStop({ type: 'SetStop', player: p, role, kind: k, on: !isOn(p, role, k) }); // Patch7: never refused while an animation plays
     if (r.ok && sim.stops) Settings.set('stops', JSON.parse(JSON.stringify(sim.stops))); // the default for the next game
   }
+  // Patch13: portrait (phone): the stops take room, so a button (Stops: shown / hidden, #dbg) folds them; landscape always shows them.
+  // Hidden by default; the choice is kept for the next game.
+  const PORTRAIT_KEY = 'stopsPortrait';
+  const portraitShown = () => Settings.get(PORTRAIT_KEY) === true;
+  function togglePortrait() {
+    Settings.set(PORTRAIT_KEY, !portraitShown());
+    update();
+  }
   function update() {
     if (!el) build();
+    el.classList.toggle('pfold', !portraitShown()); // css: folded in portrait only
     el.hidden = rp.on || MenuUI.away;
     if (el.hidden) return;
     const p = seat();
@@ -83,5 +92,5 @@ const StopsBar = (function () {
       b.setAttribute('aria-pressed', on ? 'true' : 'false');
     });
   }
-  return { update };
+  return { update, togglePortrait, portraitShown, PORTRAIT_KEY };
 })();

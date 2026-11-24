@@ -10,6 +10,7 @@
 // seat once the player has moved it (orbit / zoom / pan): only the projection follows the new size. An untouched camera still
 // re-fits its seat (minAspect). Seat turns and entering the side view place it as before. The own hand can be dragged left / right
 // (camera3d.json hand.own.drag): handGrab / handDrag / handRelease (input.js), the board and its zones never move.
+// Patch13: the opponent's hand drags the same way (hand.opponent.drag), its offset kept apart.
 const View3D = (function () {
   const L = Anim3DLogic,
     CFG = { board: 'config/board3d.json', camera: 'config/camera3d.json', characters: 'config/characters.json' };
@@ -376,45 +377,53 @@ const View3D = (function () {
     eT.set(Math.PI / 2 + tiltDeg * D2R, rot, 0, 'XYZ');
     return out.copy(camera.quaternion).multiply(qA.setFromEuler(eT));
   }
-  // ---- Patch12: the own hand slides left / right (only the hand: the board, its zones and the opponent's hand stay) ---------------
-  // handX = offset along the camera's x axis, as a fraction of the visible width at the hand's distance (so it suits any screen);
-  // clamped to hand.own.drag.min .. max, which keeps the centre of the hand on screen (|x| < 0.5)
-  let handX = 0,
-    grab = null;
-  try {
-    const v = Settings.get('handOffset3d');
-    if (typeof v === 'number' && isFinite(v)) handX = v;
-  } catch (e) {}
-  const dragCfg = () => cfg.camera.hand.own.drag;
-  const clampHand = x => {
-    const d = dragCfg();
-    return Math.min(d.max, Math.max(d.min, x));
-  };
+  // ---- Patch12: the own hand slides left / right (only the hand: the board, its zones and the other hands stay) ---------------------
+  // Patch13: the opponent's hand too, each on its own (hand.own.drag / hand.opponent.drag, Settings handOffset3d / handOffset3dFoe).
+  // The offset = along the camera's x axis, as a fraction of the visible width at the hand's distance (so it suits any screen);
+  // clamped to drag.min .. max, which keeps the centre of the hand on screen (|x| < 0.5)
+  const handX = { own: 0, opponent: 0 };
+  let grab = null;
+  for (const r of ['own', 'opponent'])
+    try {
+      const v = Settings.get(L.HAND_SETTING[r]);
+      if (typeof v === 'number' && isFinite(v)) handX[r] = v;
+    } catch (e) {}
+  const roleOf = p => (p === ui.view ? 'own' : 'opponent');
+  const dragCfg = r => cfg.camera.hand[r].drag;
+  const clampHand = r => L.clampDrag(dragCfg(r), handX[r]);
   const visWidthAt = h => 2 * Math.max(0.2, -h.offset[2]) * Math.tan((camera.fov * D2R) / 2) * camera.aspect;
-  // pointer down on the own hand zone (not on a card): the drag starts
+  // which hand zone (not a card on it) this object is, when that hand may be dragged: 'own' / 'opponent' / null
+  function grabRole(obj) {
+    if (!on || !applied || !obj) return null;
+    for (const p of ['Player', 'Opponent']) if (obj === handZone(p) && dragCfg(roleOf(p)).enabled) return roleOf(p);
+    return null;
+  }
+  // pointer down on a hand zone: the drag starts
   function handGrab(obj, x) {
-    if (!on || !applied || !dragCfg().enabled || !obj || obj !== handZone(ui.view)) return false;
-    grab = { x, from: clampHand(handX) };
+    const r = grabRole(obj);
+    if (!r) return false;
+    grab = { r, x, from: clampHand(r) };
     return true;
   }
   function handDrag(x) {
     if (!grab) return false;
-    const next = clampHand(grab.from + (x - grab.x) / Math.max(1, VW()));
-    if (next !== handX) {
-      handX = next;
+    const next = L.clampDrag(dragCfg(grab.r), grab.from + (x - grab.x) / Math.max(1, VW()));
+    if (next !== handX[grab.r]) {
+      handX[grab.r] = next;
       ui.dirty = true;
     }
     return true;
   }
   function handRelease() {
     if (!grab) return false;
+    const r = grab.r;
     grab = null;
     try {
-      Settings.set('handOffset3d', handX); // the next game keeps it
+      Settings.set(L.HAND_SETTING[r], handX[r]); // the next game keeps it
     } catch (e) {}
     return true;
   }
-  const handOffsetX = h => clampHand(handX) * visWidthAt(h);
+  const handOffsetX = (r, h) => clampHand(r) * visWidthAt(h);
   // before the card tween: the hands ride with the camera (camera space, so they never lag behind it)
   function preFrame() {
     if (!on || !applied || typeof game === 'undefined' || !game) return false;
@@ -423,8 +432,9 @@ const View3D = (function () {
     const inHand = new Set(),
       tanH = Math.tan((camera.fov * D2R) / 2);
     for (const p of ['Player', 'Opponent']) {
-      const h = p === ui.view ? cfg.camera.hand.own : cfg.camera.hand.opponent,
-        hx = p === ui.view ? handOffsetX(h) : 0, // Patch12: the dragged offset of the own hand
+      const role = roleOf(p),
+        h = cfg.camera.hand[role],
+        hx = handOffsetX(role, h), // Patch12 / Patch13: the dragged offset of this hand
         hand = game.piles[p].hand,
         dist = Math.max(0.2, -h.offset[2]),
         visW = 2 * dist * tanH * camera.aspect,
@@ -438,7 +448,7 @@ const View3D = (function () {
         onTop(hz.userData.plane, true);
         const zw = Math.min(
           visW * h.widthFrac,
-          (hand.length ? xs[xs.length - 1] - xs[0] : 0) + CW * h.scale + 0.2 + (p === ui.view ? h.drag.padding : 0) // Patch12: room to grab it
+          (hand.length ? xs[xs.length - 1] - xs[0] : 0) + CW * h.scale + 0.2 + (h.drag.enabled ? h.drag.padding : 0) // Patch12: room to grab it
         );
         vL.set(h.offset[0] + hx, h.offset[1] - 0.02, h.offset[2] - 0.03);
         hz.position.copy(camera.localToWorld(vL.clone()));
@@ -660,8 +670,12 @@ const View3D = (function () {
     handDrag,
     handRelease,
     get handOffset() {
-      return clampHand(handX);
+      return clampHand('own');
     },
+    get handOffsetFoe() {
+      return clampHand('opponent'); // Patch13
+    },
+    grabRole, // Patch13
     handZone, // Patch12
     ownsCamera,
     sync: syncT,

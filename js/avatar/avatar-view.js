@@ -79,16 +79,32 @@ const AvatarView = (function () {
       a = Math.ceil(fr.bottom),
       r = Math.ceil(fr.right),
       b = Math.floor(m.getBoundingClientRect().top),
-      k = [a, r, b, m.className].join('|');
+      fl = fnLeft(fn),
+      k = [a, r, b, fl, land, m.className].join('|');
     if (k === mKey) return;
     mKey = k;
     const st = document.documentElement.style;
     st.setProperty('--foeB', a + 'px');
     st.setProperty('--foeR', r + 'px');
     st.setProperty('--meT', (b > 0 ? b : innerHeight) + 'px');
+    // Patch13: the status line goes up between this row and the top right buttons when there is room (the top of the board is free)
+    const slot = land && fr.width ? AvatarLogic.statusSlot(r, fl) : null;
+    document.body.classList.toggle('statusTop', !!slot);
+    if (slot) {
+      st.setProperty('--stC', slot.centre + 'px');
+      st.setProperty('--stW', slot.maxW + 'px');
+    }
   }
-  if (typeof ResizeObserver !== 'undefined')
+  // Patch13: the left edge of the visible top right buttons (#fn)
+  function fnLeft(fn) {
+    const bs = fn ? [...fn.children].filter(x => x.offsetParent) : [];
+    return bs.length ? Math.floor(Math.min(...bs.map(x => x.getBoundingClientRect().left))) : innerWidth - 12;
+  }
+  if (typeof ResizeObserver !== 'undefined') {
     document.querySelectorAll('#hp .hpr').forEach(r => new ResizeObserver(() => ((mKey = ''), measure())).observe(r));
+    const fnEl = document.getElementById('fn'); // Patch13: buttons shown / hidden move the gap for the status line
+    if (fnEl) new ResizeObserver(() => ((mKey = ''), measure())).observe(fnEl);
+  }
   addEventListener('resize', () => {
     mKey = '';
     requestAnimationFrame(measure);

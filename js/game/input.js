@@ -51,7 +51,7 @@ addEventListener(
     ui.downAt = { x: e.clientX, y: e.clientY };
     const o = pickAt(e.clientX, e.clientY),
       c = o && o.userData.card;
-    // Patch12: the side view's own hand zone (not a card on it) drags the hand sideways; the camera stays still meanwhile
+    // Patch12: the side view's own hand zone (not a card on it) drags the hand sideways; the camera stays still meanwhile (Patch13: either hand)
     if (!c && e.button === 0 && typeof View3D !== 'undefined' && View3D.handGrab(o, e.clientX)) {
       ui.handDrag = true;
       ui.dragCand = null;
@@ -285,12 +285,8 @@ function updateHover() {
     ((ui.placing || game.choice) && u.baseEm) ||
     (ui.placing && u.card && u.card.loc === 'board' && slotZones[u.card.slot] && slotZones[u.card.slot].userData.baseEm)
       ? 'pointer'
-      : typeof View3D !== 'undefined' &&
-          View3D.isOn() &&
-          m &&
-          m === View3D.handZone(ui.view) &&
-          View3D.config.camera.hand.own.drag.enabled
-        ? 'grab' // Patch12: the own hand zone slides sideways
+      : typeof View3D !== 'undefined' && View3D.isOn() && m && View3D.grabRole(m)
+        ? 'grab' // Patch12: a hand zone slides sideways (Patch13: the opponent's too)
         : '';
 }
 
