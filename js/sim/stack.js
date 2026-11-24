@@ -1,6 +1,7 @@
 // stack.js - playing cards, activating abilities, the stack, triggers (fire), response windows, end of turn
 Sim.def('stack', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
+  let turnGo; // turn
   let ctl;
   let byId, isPerm, other, slotRow, slowish; // util
   let gainAP, hasAP; // ap
@@ -288,7 +289,7 @@ Sim.def('stack', function (K) {
   function openRespond(s, ev, kind, then) {
     // an empty-stack priority window (triggers on the stack resolve first); nothing opens when neither player wants this stop.
     // `then` = a command that waits for the window to close (main ended: the Combat / End turn press happens after it). Returns true when a window opened
-    if (kind === 'end') s.step = 'end'; // the turn order shown in the game
+    if (kind === 'end') turnGo(s, 'endStep'); // the turn order shown in the game
     const foe = other(s.active),
       stage = stopWants(s, foe, kind) ? 'foe' : stopWants(s, s.active, kind) ? 'turn' : null;
     if (!stage) return false;
@@ -317,7 +318,7 @@ Sim.def('stack', function (K) {
       s.resolving
     )
       return;
-    s.turnEnding = false;
+    turnGo(s, 'endStepDue');
     enterEndStep(s, ev);
   }
   function stopAt(s, ev, kind) {
@@ -340,16 +341,12 @@ Sim.def('stack', function (K) {
     expireStatuses(s, 'combatEnd', 'combat ended'); // the turn ending ends any combat phase still open
     clearAttacked(s, 'turn ended');
     s.active = other(s.active);
-    s.turnEnding = false;
-    s.attackPhase = false;
-    s.turn++;
-    s.combats = 0;
+    turnGo(s, 'nextTurn');
     s.priority = s.active;
     s.passes = 0;
     ev.push({ t: 'TurnChanged', active: s.active });
     gainAP(s, s.active, ev); // one action point at the start of each turn; unspent ones stay
-    s.step = 'start';
-    s.drawPending = true; // the draw phase follows once the turn start is over (dispatch: checkDrawStep)
+    turnGo(s, 'turnStarts'); // the draw phase follows once the turn start is over (dispatch: checkDrawStep)
     fire(s, ev, 'turnStart', null);
     stopAt(s, ev, 'turnStart');
   }
@@ -373,6 +370,7 @@ Sim.def('stack', function (K) {
       stopWants,
     },
     needs: [
+      'turnGo',
       'expireStatuses',
       'findTarget',
       'payCost',
@@ -407,6 +405,7 @@ Sim.def('stack', function (K) {
       'targetZones',
     ],
     link: () => {
+      ({ turnGo } = K);
       ({ expireStatuses, findTarget, payCost } = K);
       ({ ctl } = K);
       ({ expiresAtTurnEnd, hasKw, hasSt } = K);

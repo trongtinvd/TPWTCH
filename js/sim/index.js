@@ -128,6 +128,9 @@ Sim.boot(K => {
     strikesBack: K.strikesBack, // the "Defender strike back" option
     HPKINDS: K.HPKINDS,
     actor: K.actor, // who must act now
+    turnStage: K.turnStage, // the turn's stage: start, draw, main, combat, ending, end (js/sim/turn.js)
+    turnGo: K.turnGo, // a turn transition (the only writer of the turn's fields)
+    TURN: K.TURN, // the transitions and the stages each may start from
     optionsFor: K.optionsFor, // what one player may do now, as plain data (the bot reads only this)
     accepts: K.accepts, // would this command be accepted (the state is not changed)
     hpRefs: K.hpRefs,

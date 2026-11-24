@@ -1,6 +1,7 @@
 // dispatch.js - the command interpreter and hasAction
 Sim.def('dispatch', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
+  let turnGo; // turn
   let RULES, historyBytes;
   let ctl;
   let canPayExtra, isPerm, other, slowish; // util
@@ -65,22 +66,21 @@ Sim.def('dispatch', function (K) {
   function checkDrawStep(s, ev) {
     // start -> DRAW -> main. The draw phase comes once the turn start (its triggers, its stop) is over
     if (!s.drawPending || s.phase !== 'play' || s.stack.length || s.choice || s.respond || s.trg || s.resolving) return;
-    s.drawPending = false;
-    s.step = 'draw';
+    turnGo(s, 'drawBegins');
     ev.push({ t: 'DrawStepEntered', player: s.active });
     drawCards(s, s.active, s.cfg.drawPhase, ev);
-    s.step = 'main';
+    turnGo(s, 'drawEnds');
     s.priority = s.active;
     s.passes = 0;
     fire(s, ev, 'drawStep', null);
     if (s.cfg.drawPhase > 0) stopAt(s, ev, 'draw'); // stop: cards drawn
-    s.mainPending = true; // the "main phase started" stop comes once the draw phase is over
+    turnGo(s, 'mainDue'); // the "main phase started" stop comes once the draw phase is over
     recalc(s, ev); // statuses tied to the deck end, the logs record the draws
   }
   function checkMainStart(s, ev) {
     // stop "main phase started": after the draw phase and after each combat, once nothing is pending (triggers, other stops)
     if (!s.mainPending || s.phase !== 'play' || s.stack.length || s.choice || s.respond || s.trg || s.resolving) return;
-    s.mainPending = false;
+    turnGo(s, 'mainSeen');
     if (s.step === 'main' && !s.attackPhase && !s.turnEnding) stopAt(s, ev, 'mainStart');
   }
   // stop "main phase ended": Combat / End turn pressed in the main phase first opens this window; the command runs when it closes
@@ -131,8 +131,7 @@ Sim.def('dispatch', function (K) {
           }
           ev.push({ t: 'GameStarted' });
           gainAP(s, s.active, ev); // the first turn's action point
-          s.step = 'start';
-          s.drawPending = true; // the first turn has a draw phase too
+          turnGo(s, 'gameStarted'); // the first turn has a draw phase too
         }
         break;
       }
@@ -225,9 +224,9 @@ Sim.def('dispatch', function (K) {
             s.priority = s.active;
             if (r.then) {
               // the Combat / End turn press that waited for "main phase ended" happens now (it may have become illegal meanwhile)
-              s.mainEndDone = true;
+              turnGo(s, 'deferredRuns');
               const r2 = dispatch(s, r.then);
-              s.mainEndDone = false;
+              turnGo(s, 'deferredDone');
               ev.push(...r2.events);
               if (!r2.ok) ev.push({ t: 'DeferredCommandFailed', cmd: r.then.type, why: r2.why });
             }
@@ -266,12 +265,9 @@ Sim.def('dispatch', function (K) {
           } // Deep Sea Shark: pressing combat becomes End turn
           spendAP(s, cmd.player, 'Enter the attack phase', ev);
         }
-        const was = s.attackPhase;
-        s.attackPhase = !!cmd.on;
-        s.step = s.attackPhase ? 'combat' : 'main';
+        const was = turnGo(s, 'combat', cmd.on);
         ev.push({ t: 'AttackPhaseChanged', on: s.attackPhase });
         if (cmd.on && !was) {
-          s.combats = (s.combats || 0) + 1;
           placeAttackCounters(s, ev); // one attack counter per creature the turn player controls
           fire(s, ev, 'combat', null);
           stopAt(s, ev, 'combatStart'); // stop: combat started
@@ -282,7 +278,7 @@ Sim.def('dispatch', function (K) {
           // another action point on another combat. Only End turn pressed during combat ends combat and then the turn (s.turnEnding below).
           fire(s, ev, 'combatEnd', null);
           stopAt(s, ev, 'combatEnd'); // stop: combat ended
-          s.mainPending = true; // back in the main phase: "main phase started" follows
+          turnGo(s, 'mainDue'); // back in the main phase: "main phase started" follows
         }
         break;
       }
@@ -354,10 +350,9 @@ Sim.def('dispatch', function (K) {
         if (s.stack.length) return fail('Stack is not empty');
         if (s.respond) return fail('Waiting for the response window');
         if (s.attackPhase) {
-          s.attackPhase = false;
+          turnGo(s, 'combatEndsTurn');
           endCombatStatuses(s);
           ev.push({ t: 'AttackPhaseChanged', on: false });
-          s.turnEnding = true;
           fire(s, ev, 'combatEnd', null);
           stopAt(s, ev, 'combatEnd');
           break; // the end step opens by itself once nothing is pending (checkTurnEnd)
@@ -435,6 +430,7 @@ Sim.def('dispatch', function (K) {
   return {
     exports: { actionsOf, dispatch, hasAction },
     needs: [
+      'turnGo',
       'TARGETINGS',
       'activate',
       'ask',
@@ -489,6 +485,7 @@ Sim.def('dispatch', function (K) {
       'targetZones',
     ],
     link: () => {
+      ({ turnGo } = K);
       ({ TARGETINGS, activate, ask, endCombatStatuses, placeAttackCounters, spendAttackCounter } = K);
       ({ RULES, historyBytes } = K);
       ({ ctl } = K);

@@ -1,6 +1,7 @@
 // combat.js - damage, defender strike back, riders, Attack objects and strikes (Retaliate is a trigger: ops.js Retaliate)
 Sim.def('combat', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
+  let turnGo; // turn
   let ctl;
   let expireStatuses, live, nonLethalHold, removeStatus;
   let other; // util
@@ -170,7 +171,7 @@ Sim.def('combat', function (K) {
   }
   const endCombatStatuses = s => expireStatuses(s, 'combatEnd', 'combat ended');
   const enterCombat = (s, ev) => {
-    s.attackPhase = true;
+    turnGo(s, 'forceCombat');
     placeAttackCounters(s, ev);
   }; // a combat phase starts (also the tests' shortcut for a hand-built state)
   return {
@@ -191,6 +192,7 @@ Sim.def('combat', function (K) {
       strike,
     },
     needs: [
+      'turnGo',
       'expireStatuses',
       'live',
       'nonLethalHold',
@@ -212,6 +214,7 @@ Sim.def('combat', function (K) {
       'totalDamage',
     ],
     link: () => {
+      ({ turnGo } = K);
       ({ expireStatuses, live, nonLethalHold, removeStatus } = K);
       ({ ctl } = K);
       ({ allowed, bonusOf } = K);

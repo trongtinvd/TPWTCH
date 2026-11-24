@@ -1,6 +1,7 @@
 // ops.js - REGISTRY OPS: effect handlers. Add an entry here (and an Fx builder in cards.js) to give every card a new building block
 Sim.def('ops', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
+  let turnGo; // turn
   let addAttackBonus, cancelAttackObj;
   let ctl;
   let cname, colKeys, zoneDist; // util
@@ -450,17 +451,13 @@ Sim.def('ops', function (K) {
       }
       if (s.piles[x.foe].deck.length < 5) return; // the draw is a cost: no 5 cards, no second combat
       OPS.Draw({ ...x, who: x.foe }, { n: 5 });
-      s.attackPhase = true;
-      s.turnEnding = false; // a second combat phase: the turn is not ending yet
-      s.step = 'combat'; // the turn order shows the second combat (it said Main phase)
-      s.mainPending = false; // no "main phase started" stop inside the second combat
+      turnGo(s, 'extraCombat'); // a second combat phase: the turn is not ending; no "main phase started" stop inside it
       if (s.respond && s.respond.kind === 'combatEnd') {
         s.respond = null; // the first combat's "combat ended" window is over: the second combat replaces it
         x.ev.push({ t: 'ResponseWindowClosed', kind: 'combatEnd' });
       }
       clearAttacked(s, 'new combat phase');
       placeAttackCounters(s, x.ev); // a new combat phase gives new attack counters
-      s.combats = (s.combats || 0) + 1;
       x.ev.push({ t: 'AttackPhaseChanged', on: true });
       fire(s, x.ev, 'combat', null);
     },
@@ -495,6 +492,7 @@ Sim.def('ops', function (K) {
   return {
     exports: { OPS },
     needs: [
+      'turnGo',
       'damageHp',
       'placeAttackCounters',
       'addAttackBonus',
@@ -545,6 +543,7 @@ Sim.def('ops', function (K) {
       'markUnusable',
     ],
     link: () => {
+      ({ turnGo } = K);
       ({ damageHp, placeAttackCounters } = K);
       ({ addAttackBonus, cancelAttackObj } = K);
       ({ ctl } = K);

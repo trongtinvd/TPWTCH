@@ -60,6 +60,10 @@ GameState is truth; queries apply statuses: `CanEnterZone, GetEffectiveStat, Get
 
 Layered: original, granted, disabled/removed, effective. Never delete; compute the effective set. **[proto]** `abDef(card)`: the newest active `ability` status decides; it is linked to the damage status that caused it, so removing that damage ends it.
 
+## Turn state machine [proto]
+
+`js/sim/turn.js` is the only writer of the turn's fields (`step`, `attackPhase`, `combats`, `turn`, and the pending flags `drawPending`, `mainPending`, `turnEnding`, `mainEndDone`); every other file reads them. The stage is `step`, or `ending` while `turnEnding` holds. Transitions (`Sim.TURN`, each with the stages it may start from): `gameStarted`, `drawBegins` / `drawEnds` (start -> draw -> main), `mainDue` / `mainSeen` (the main phase started stop), `combat` (on / off), `combatEndsTurn` (End turn during combat), `extraCombat` (Shark), `endStepDue`, `endStep`, `nextTurn` / `turnStarts`, `deferredRuns` / `deferredDone`, `forceCombat` (tests only). The rules tests turn `RULES.strictTurn` on: a transition from another stage throws. The fields stay on the state, so replays and the golden games keep their shape.
+
 ## Stack, priority, attacks
 
 **[proto]** The stack holds spells, abilities and **Attacks** (`kind:'attack'`, no HP, no snapshot; they read the attacker when they resolve). Triggers of an attack sit above it as their own objects; the defender has priority first. Response windows remain only for _enter_ and _end_. `s.pending` and the attack window no longer exist.

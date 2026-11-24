@@ -48,6 +48,7 @@ const scripts = [
   ...testFiles,
 ].map(f => (path.isAbsolute(f) ? f : path.join(root, f)));
 for (const f of scripts) vm.runInContext(fs.readFileSync(f, 'utf8'), sandbox, { filename: f });
+vm.runInContext('Sim.RULES.strictTurn = true', sandbox); // an impossible turn transition throws in the tests (js/sim/turn.js)
 
 if (flag('--list')) {
   console.log(JSON.parse(vm.runInContext('JSON.stringify(Tests.names())', sandbox)).join('\n'));

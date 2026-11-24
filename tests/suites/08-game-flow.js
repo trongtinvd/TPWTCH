@@ -127,4 +127,29 @@
     }
     check('the bot never surrenders or leaves', !bad && seen > 50, 'bad=' + bad + ' seen=' + seen);
   });
+  Tests.add('turn-machine', () => {
+    // ================= js/sim/turn.js: the only writer of the turn's fields, with the stages each transition starts from =================
+    const g = Sim.create(808, DEFS, {
+      decks: { Player: BUILTIN_DECKS[0].cards, Opponent: BUILTIN_DECKS[1].cards },
+      shuffle: true,
+      autoStart: true,
+    });
+    eq('after the first draw: the main phase', Sim.turnStage(g), 'main');
+    let threw = '';
+    try {
+      Sim.turnGo(g, 'nextTurn'); // only from the end step
+    } catch (e) {
+      threw = e.message;
+    }
+    check('a transition from the wrong stage throws in the tests', /nextTurn from stage main/.test(threw), threw);
+    eq('...and changes nothing', [Sim.turnStage(g), g.turn], ['main', 1]);
+    if (typeof readRepoFile !== 'function') return; // the sources are read in Node
+    const src = ['dispatch', 'stack', 'ops', 'combat', 'state']
+      .map(f => readRepoFile('js/sim/' + f + '.js'))
+      .join('\n');
+    check(
+      'no other sim file assigns step, attackPhase, combats, turn or a pending flag',
+      !/\.(step|attackPhase|turnEnding|mainPending|mainEndDone|drawPending|combats|turn)\s*(=[^=]|\+\+|\+=)/.test(src)
+    );
+  });
 })();
