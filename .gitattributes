@@ -1,0 +1,11 @@
+# Every text file is stored and checked out with LF, on every OS (Windows PC, Android, CI)
+* text=auto eol=lf
+*.glb binary
+*.gltf -diff
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.bin binary
+*.fbx binary
+*.blend binary
