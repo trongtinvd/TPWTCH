@@ -798,6 +798,7 @@ function sync() {
       setGlow(m, false);
     }
   syncPiles();
+  if (typeof View3D !== 'undefined') View3D.sync(T); // Patch8: characters follow the board cards
   for (const p of ['Player', 'Opponent']) {
     sideZones[p + 'deck'].userData.relabel(game.piles[p].deck.length + ' cards');
     sideZones[p + 'gy'].userData.relabel(game.piles[p].gy.length + ' cards');
@@ -1035,8 +1036,10 @@ function animate() {
     if (Math.abs(ui.camGoal - ui.camAngle) < 0.002) ui.camAngle = ui.camGoal;
     const c = Math.cos(ui.camAngle),
       s = Math.sin(ui.camAngle);
-    camera.position.set(3 * c + 22 * s, 29, -3 * s + 22 * c);
-    controls.target.set(0, 0, 0);
+    if (typeof View3D === 'undefined' || !View3D.placeSeatCamera(ui.camAngle)) {
+      camera.position.set(3 * c + 22 * s, 29, -3 * s + 22 * c);
+      controls.target.set(0, 0, 0);
+    } // Patch8: the 3D side view places its camera from config/camera3d.json
     busy = true;
     if (tv.on) placeTop();
   }
@@ -1057,11 +1060,13 @@ function animate() {
   });
   for (const k in clouds) clouds[k].position.y = 0.2 + lift[k.split('|')[0]];
   for (const k in piles3d) if (piles3d[k].h) placePile(piles3d[k]); // Patch6: the piles ride with their zones
+  if (typeof View3D !== 'undefined' && View3D.preFrame()) busy = true; // Patch8: the hands ride with the 3D camera
   for (const [id, m] of meshes) {
     if (ui.drag && ui.drag.card.iid === id) {
       busy = true;
       continue;
     } // follows the pointer
+    if (m.userData.cam3d) continue; // Patch8: placed in camera space by View3D.preFrame
     const u = m.userData,
       dx = u.tx - m.position.x,
       dz = u.tz - m.position.z,
@@ -1083,5 +1088,6 @@ function animate() {
     }
     m.position.y = u.by + (u.owner ? lift[u.owner] : 0);
   }
+  if (typeof View3D !== 'undefined' && View3D.postFrame()) busy = true; // Patch8: characters, card turn / scale, camera animation
   return busy;
 }

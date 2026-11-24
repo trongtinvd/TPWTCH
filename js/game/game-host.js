@@ -224,7 +224,9 @@ async function attackJob(pre, ev) {
     z0 = ao && ao.slotAt && slotZones[ao.slotAt], // the attacker may be gone already (killed in response): the sword starts where it stood
     from0 = a ? { x: a.position.x, z: a.position.z } : z0 ? { x: z0.position.x, z: z0.position.z } : null;
   if (!from0) return;
-  if (a) setSword(a, false, false); // the strike takes over from the sword that stood on the attacker
+  if (a) setSword(a, false, false);
+  const cue3d =
+    typeof View3D !== 'undefined' ? View3D.onAttack(ev, sim, ao && ao.kind === 'attack' ? ao.iid : comb[0].source) : null; // Patch8: the attacker's animation // the strike takes over from the sword that stood on the attacker
   const sword = makeSword(),
     undo = [];
   let cur = from0;
@@ -238,6 +240,7 @@ async function attackJob(pre, ev) {
     sword.rotation.y = to.z >= from.z ? 0 : Math.PI;
     await tween(280, t => sword.position.set(from.x + (to.x - from.x) * t, 0.9, from.z + (to.z - from.z) * t));
     cur = to;
+    if (cue3d && m) View3D.onHit(e.target); // Patch8: the creature hit plays get_hit as the sword arrives
     undo.push(e.t === 'DamageDenied' ? () => {} : m ? splat3D(m) : splatBar(e.player));
     ui.dirty = true;
   }
@@ -501,6 +504,7 @@ function setTopView(on) {
   tv.on = on;
   cam = on ? ortho : camera;
   controls.enabled = !on;
+  if (typeof View3D !== 'undefined') View3D.setEnabled(!on); // Patch8: the side view is the 3D view (layout, characters, camera)
   if (on) {
     tv.zoom = 1;
     tv.cx = tv.cz = 0;

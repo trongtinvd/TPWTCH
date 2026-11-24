@@ -24,6 +24,7 @@ const testFile = args.find(a => !a.startsWith('--') && !skip.has(a));
 const sandbox = {
   console: { log() {}, error: (...a) => console.error(...a), warn: (...a) => console.error(...a) },
   structuredClone,
+  readRepoFile: f => fs.readFileSync(path.join(root, f), 'utf8'), // Patch8: the shipped config files are tested too
 };
 vm.createContext(sandbox);
 // The Sim modules and the test files load in the order index.html lists them (single source of truth).
@@ -35,6 +36,7 @@ if (!testFiles.length) throw new Error('no tests/*.js scripts found in index.htm
 const scripts = [
   'js/content/cards.js',
   ...simFiles,
+  ...listed(/<script src="(js\/anim\/anim-logic\.js)">/g), // Patch8: the pure 3D side view logic
   'js/log/narrate.js',
   'js/core/storage.js',
   'js/content/decks.js',

@@ -20,7 +20,7 @@ function frame() {
     busy = false;
     for (let i = 0; i < 70 && animate(); i++);
   } else busy = animate();
-  controls.update();
+  if (typeof View3D === 'undefined' || !View3D.ownsCamera()) controls.update(); // Patch8: a camera animation drives the camera
   if (ui.hoverDirty && !ui.drag) {
     ui.hoverDirty = false;
     updateHover();

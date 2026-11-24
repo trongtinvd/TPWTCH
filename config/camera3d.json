@@ -1,0 +1,24 @@
+{
+  "_doc": "3D side view camera, written for the Player seat (the Opponent seat is the same turned half way round). Use either target or rotationDeg [x, y, z] (degrees, order YXZ). See Docs/ANIMATION_3D.md",
+  "position": [0, 12, 16],
+  "target": [0, 0, 1.2],
+  "rotationDeg": null,
+  "targetDistance": 12,
+  "fov": 45,
+  "near": 0.1,
+  "far": 200,
+  "minAspect": 1.2,
+  "orbit": { "enabled": true, "minDistance": 3, "maxDistance": 45, "maxPolarDeg": 85 },
+  "hand": {
+    "own": { "offset": [0, -0.98, -3.2], "tiltDeg": -25, "scale": 0.17, "spacing": 0.3, "widthFrac": 0.92, "zone": true },
+    "opponent": { "offset": [0, 1.0, -3.6], "tiltDeg": 20, "scale": 0.12, "spacing": 0.22, "widthFrac": 0.7, "zone": true }
+  },
+  "animation": {
+    "blendIn": 0.25,
+    "blendOut": 0.35,
+    "speed": 1,
+    "transitions": [
+      { "from": "cam_strike_push", "to": "cam_finisher_orbit", "interpolation": { "method": "crossfade", "duration": 0.15 } }
+    ]
+  }
+}

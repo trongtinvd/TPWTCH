@@ -1,0 +1,88 @@
+{
+  "_doc": "Characters of the 3D side view. cards: card id -> character; default: every other creature. Animation categories: enter, idle, attack, get_hit, channeling_idle, stun, die, finishing_attack. See Docs/ANIMATION_3D.md",
+  "default": "placeholder",
+  "cards": {
+    "archer": "test-rig",
+    "shark": "cube-camera-demo",
+    "hummingbird": "missing-assets-demo"
+  },
+  "characters": {
+    "placeholder": {
+      "_doc": "no model: the cube, every category procedural"
+    },
+    "test-rig": {
+      "model": {
+        "path": "assets/samples/test-rig/model.glb",
+        "scale": 0.8,
+        "offset": [0, 0, 0],
+        "rotationDeg": [0, 0, 0],
+        "heightOffset": 0
+      },
+      "defaults": { "speed": 1, "interpolation": { "method": "crossfade", "duration": 0.25 } },
+      "animations": {
+        "enter": [{ "id": "rig_enter", "file": "assets/samples/test-rig/ready.glb" }],
+        "idle": [
+          { "id": "rig_idle", "file": "assets/samples/test-rig/idle.glb" },
+          { "id": "rig_idle_look", "file": "assets/samples/test-rig/idle_look.glb", "loop": "pingpong" }
+        ],
+        "attack": [
+          {
+            "id": "rig_attack",
+            "file": "assets/samples/test-rig/attack.glb",
+            "speed": 1.1,
+            "camera": [
+              { "id": "cam_rig_sweep", "file": "assets/camera/camera_sweep.glb" },
+              { "id": "cam_rig_push", "file": "assets/camera/strike_push.json", "speed": 1.2 }
+            ]
+          },
+          { "id": "rig_attack_missing", "file": "assets/samples/test-rig/attack_heavy.glb" }
+        ],
+        "get_hit": [{ "id": "rig_hit", "file": "assets/samples/test-rig/hit.glb" }],
+        "die": [{ "id": "rig_die", "file": "assets/samples/test-rig/die.glb" }],
+        "finishing_attack": [
+          {
+            "id": "rig_finisher",
+            "file": "assets/samples/test-rig/attack.glb",
+            "speed": 0.7,
+            "camera": [{ "id": "cam_rig_missing", "file": "assets/camera/does_not_exist.json" }]
+          }
+        ]
+      },
+      "transitions": [
+        {
+          "from": "rig_idle",
+          "to": "rig_attack",
+          "animations": [{ "id": "rig_ready", "file": "assets/samples/test-rig/ready.glb", "speed": 1.5 }],
+          "interpolation": { "method": "crossfade", "duration": 0.12 }
+        },
+        { "from": "rig_attack", "to": "rig_idle", "interpolation": { "method": "ease", "duration": 0.5 } },
+        { "from": "rig_hit", "to": "rig_idle", "interpolation": { "method": "warp", "duration": 0.3 } }
+      ]
+    },
+    "cube-camera-demo": {
+      "_doc": "the cube (no model) with procedural animations (no file) and real camera animations",
+      "animations": {
+        "attack": [
+          {
+            "id": "cube_attack",
+            "camera": [{ "id": "cam_strike_push", "file": "assets/camera/strike_push.json" }]
+          }
+        ],
+        "finishing_attack": [
+          {
+            "id": "cube_finisher",
+            "camera": [{ "id": "cam_finisher_orbit", "file": "assets/camera/finisher_orbit.json" }]
+          }
+        ]
+      }
+    },
+    "missing-assets-demo": {
+      "_doc": "files that do not exist: the cube stands in for the model, the procedural clips for the animations",
+      "model": { "path": "assets/models/hummingbird.glb" },
+      "animations": {
+        "idle": [{ "id": "hb_idle", "file": "assets/models/hummingbird_idle.glb" }],
+        "attack": [{ "id": "hb_attack", "file": "assets/models/hummingbird_attack.glb" }]
+      }
+    }
+  }
+}

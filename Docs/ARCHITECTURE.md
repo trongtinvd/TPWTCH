@@ -125,3 +125,8 @@ Status in `tests/selftest.js` (`node tests/run.js`, or `cardGame.selfTest()` in 
 - [ ] Base stats persist; equipment changes only current stats _(not built)_.
 - [x] Observations and logs leak nothing hidden (bot games with disjoint decks); [ ] the AI and the view read Observations only _(not built)_.
 - [ ] Simulated games reproduce real-game outcomes _(needs command recording)_.
+
+
+## 3D side view (Patch8)
+
+`js/anim/` holds the 3D side view: config in `config/`, assets in `assets/`. The Sim is untouched; the view reads its events (attack, damage, cards leaving the board) and plays the animations. Details: `Docs/ANIMATION_3D.md`.
