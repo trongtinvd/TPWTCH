@@ -184,7 +184,7 @@ Sim.def('ops', function (K) {
           c.loc = 'exile';
           x.s.piles[c.owner].exile.push(c);
         }
-        x.ev.push({ t: 'CardExiled', iid: c.iid });
+        x.ev.push({ t: 'CardExiled', iid: c.iid, from: 'board', by: 'effect' });
       }
     },
     MakeColumnUnusable: x => {

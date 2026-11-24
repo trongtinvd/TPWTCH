@@ -27,7 +27,7 @@ Sim.def('logs', function (K) {
     CardReturnedExtra: ['returned to the extra deck', 'extra'],
     PermanentSummoned: ['entered the board', 'board'],
     PermanentMoved: ['shifted', 'board'],
-    PermanentDestroyed: ['destroyed', 'gy', 'gone'],
+    PermanentDestroyed: ['sent to the graveyard', 'gy', 'gone'], // Q45: not a keyword, only a card sent from the field to the graveyard
     PermanentReturned: ['returned to hand', 'hand', 'gone'],
     StackObjectCreated: ['put on the stack', 'stack'],
     StackObjectResolved: ['resolved', 'gy', 'hand'],
@@ -38,7 +38,7 @@ Sim.def('logs', function (K) {
       const e = ev[i],
         h = HOW[e.t];
       if (h && e.iid === c.iid && h.slice(1).includes(c.loc))
-        return e.t === 'PermanentDestroyed' && e.by === 'rule' ? 'destroyed by the rules: its zone is gone' : h[0];
+        return e.t === 'PermanentDestroyed' ? h[0] + (e.by === 'rule' ? ' by the rules' + (e.why ? ': ' + e.why : '') : e.by === 'cost' ? ' as a cost' : ' by an effect') : h[0];
     }
     return 'moved';
   } // the label comes from the rule events of this command

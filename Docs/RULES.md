@@ -154,6 +154,7 @@ Answers to the numbered questions in `OPEN_QUESTIONS.md`. Where this section and
 
 ### Leaving play and zones
 - Words like destroy, bounce, spin (to the deck) and exile are only shorthand for what a card does; they are **not keywords**. The game only cares about **from which zone to which zone, how and why**. A card leaving the board goes to its **owner's** zone X.
+- A card sent from the field to the graveyard is a single kind of move (the event `PermanentDestroyed` is only its name): it records `from`, `to` and `by` (`rule`: lethal damage, a zone that is gone; `effect`; `cost`), and a rule-sent card is sent exactly like an effect-sent one (Q45). **[proto since Patch4]**
 - Leaving the board ends **all** statuses on the card unless the card text says otherwise (also for card life statuses on bounce). **[proto]**
 - Zone HP is disabled until an effect gives a zone HP; effects share one HP bar. **[proto]**
 - An effect may create a creature in a zone that is normally illegal for it **only if the card text says so** (The Vine: any usable zone, back row included).

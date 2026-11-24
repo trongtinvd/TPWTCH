@@ -4,7 +4,7 @@ Settle **before the card pool grows**; record decisions in `RULES.md`.
 Last pass: 2026-11-22 (the owner answered every numbered question). What is left open is at the top; everything decided is below, with the ruling.
 
 ## Still open
-- [ ] 45. **Destroyed by a rule vs by an effect.** Zone-gone destruction is marked `by:'rule'`. Should "when destroyed by an effect" triggers (future) ignore it? Should it trigger "destroyed" abilities at all? (Not answered yet.)
+- (nothing numbered is open; the card-specific points below remain)
 
 ### Card-specific (numbered)
 | # | Card | Open point |
@@ -79,6 +79,7 @@ These rulings differ from the prototype (or need new code). Each needs tests fir
 - [x] 17. What ends an effect: **kept**.
 - [x] 19. Slow abilities are free unless the card says otherwise. Slow/Fast is declared per card.
 - [x] 21. Combat ends, then the turn ends. Entering combat and not attacking is legal.
+- [x] 45. "Destroy" is only a description of a card being sent from the field to the graveyard, not a keyword. The move records from / to / by (`rule`: lethal damage or a zone that is gone; `effect`; `cost`). A rule-sent card is sent exactly like an effect-sent one: anything that triggers on a card sent from the field to the graveyard triggers for all of them; "by an effect" wording ignores `by:'rule'` moves. **[proto since Patch4]**
 - [x] 46. Win and loss at the same time: whichever resolves first; if simultaneous, a draw.
 - [x] 47. Continuing a decided game does not change who won.
 - [x] 48. Leaving a running game: **kept**.

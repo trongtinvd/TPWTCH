@@ -41,7 +41,7 @@ Sim.def('combat', function (K) {
     const rd = abDef(src).rider;
     if (rd && RIDERS[rd.op]) RIDERS[rd.op](s, src, tgt, ev, d);
     const pw = atkOf(tgt);
-    if (totalDamage(tgt) > hpOf(tgt)) destroy(s, tgt, ev);
+    if (totalDamage(tgt) > hpOf(tgt)) destroy(s, tgt, ev, 'rule'); // lethal damage is a rule (Q45)
     if (tgt.def.retaliate && type !== 'retaliate') retaliate(s, tgt, pw, src, ev);
   }
   function canAttack(s, c) {

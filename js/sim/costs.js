@@ -40,7 +40,7 @@ Sim.def('costs', function (K) {
       check: (s, c) => (hasAP(s, ctl(c)) ? null : 'Cost: no action point left'),
       pay: (s, c, k, ev) => spendAP(s, ctl(c), c.def.name + ' (cost)', ev),
     },
-    SacrificeSelf: { check: () => null, pay: (s, c, k, ev) => destroy(s, c, ev) },
+    SacrificeSelf: { check: () => null, pay: (s, c, k, ev) => destroy(s, c, ev, 'cost') },
   };
   const payCost = (s, c, k, ev) => COSTS[k.op].pay(s, c, k, ev);
   return {

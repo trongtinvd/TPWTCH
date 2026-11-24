@@ -233,7 +233,7 @@ Sim.def('state', function (K) {
         }
         const dead = board.filter(c => c.loc === 'board' && totalDamage(c) > hpOf(c)); // only the final value decides: at -1 HP inside the columns a card lives, leave them and it dies
         if (!dead.length && !zoneChanged) break;
-        dead.forEach(c => destroy(s, c, ev));
+        dead.forEach(c => destroy(s, c, ev, 'rule')); // state-based: damage exceeds HP
       }
       for (const p of ['Player', 'Opponent']) syncLife(s, p);
       if (!s.result) {
@@ -257,7 +257,7 @@ Sim.def('state', function (K) {
     // a card that somehow ends up on an unusable zone goes to the graveyard
     for (const k of Object.keys(s.zones).filter(z => isUnusable(s, z))) {
       const id = s.slots[k];
-      if (id) destroy(s, s.cards[id], ev, 'left the board: its zone became unusable (a rule, not an effect)');
+      if (id) destroy(s, s.cards[id], ev, 'rule', 'its zone became unusable');
     }
   }
   function exileFromBoard(s, c, ev) {
@@ -270,24 +270,25 @@ Sim.def('state', function (K) {
       c.loc = 'exile';
       s.piles[c.owner].exile.push(c);
     }
-    ev.push({ t: 'CardExiled', iid: c.iid });
+    ev.push({ t: 'CardExiled', iid: c.iid, from: 'board', by: 'rule' });
   }
   function release(c) {
     // a card played under temporary control (L4) goes back to its real owner when it leaves: the owner's zones receive it
     delete c.controller; // Q56: control ends; the card was always its owner's
   }
-  function destroy(s, c, ev, why) {
-    // leaves the field for the graveyard; its statuses are removed (they stay in the list, greyed)
+  function destroy(s, c, ev, by, why) {
+    // Q45: "destroy" is only a description: the card is SENT from the field to the graveyard. by: 'rule' (lethal damage, a zone that is gone) | 'effect' (default) | 'cost'.
+    // Its statuses are removed (they stay in the list, greyed)
     release(c);
     s.slots[c.slot] = null;
     c.slot = null;
-    clearStatuses(s, c, why || 'left the board');
+    clearStatuses(s, c, 'left the board' + (why ? ': ' + why : ''));
     if (c.token) c.loc = 'gone';
     else {
       c.loc = 'gy';
       s.piles[c.owner].gy.unshift(c);
     }
-    ev.push(why ? { t: 'PermanentDestroyed', iid: c.iid, by: 'rule' } : { t: 'PermanentDestroyed', iid: c.iid });
+    ev.push({ t: 'PermanentDestroyed', iid: c.iid, from: 'board', to: c.token ? 'gone' : 'gy', by: by || 'effect', why });
     recalc(s, ev);
   }
   function bounce(s, t, ev) {
