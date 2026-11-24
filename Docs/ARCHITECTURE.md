@@ -80,6 +80,8 @@ Simulation -> `InputWindowRequested` -> presentation prompt -> `PlayerCommand` -
 ## Determinism and replays
 
 Initial state + RNG seed + commands = same result. Statuses use the global `s.seq` counter, so ids are deterministic too.
+**Golden replays** (`tests/golden/replays.json`, suite `26-golden-replays.js`): 12 recorded bot-vs-bot games (seed, options, decks as card ids, commands, an FNV-1a hash of each command's events and of the final state). Replaying the commands must give the same hashes and the bot must choose the same commands: the safety net for refactors and the spec a port must replay. After an intended rules or bot change, `node tests/run.js --record-golden` rewrites the file (one command per line, so the diff shows what changed).
+
 Replays (`js/screens/replay.js`) are exactly that: seed + both decks + the accepted commands. A replay only views (no gameplay UI, switchable seat, minimisable controls). **Take over** continues it as a new duel (kind `over`, from the start or from the current position; the bot seat is `ui.botSeat`).
 
 ## AI
