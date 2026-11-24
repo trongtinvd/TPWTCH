@@ -1,0 +1,132 @@
+/* skin.css - Patch7: the navy-and-gold look of the card back, laid over index.css / screens.css (loaded last).
+   Colours and fonts are variables in theme.css; this file only says where they go. */
+
+/* ---- panels: navy gradient (--panel) with a thin gold border ---- */
+#hud,
+#help,
+.panel,
+#status,
+#hp,
+#stack,
+#reveal,
+.ghost,
+#banner,
+#rpbar,
+#stops,
+.modal,
+.result,
+.de-panel,
+.de-list {
+  border: 1px solid var(--panel-line);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.45);
+}
+.phead,
+#stack .sh {
+  border-bottom: 1px solid var(--panel-line);
+}
+.modal,
+.result {
+  background: var(--panel);
+}
+
+/* ---- titles in the serif title font, gold ---- */
+.menu-center h1 {
+  font-family: var(--title-font);
+  color: #f3e6c0;
+  letter-spacing: 0.04em;
+  text-shadow:
+    0 2px 0 rgba(0, 0, 0, 0.5),
+    0 0 28px rgba(201, 165, 74, 0.35);
+}
+#mainMenu {
+  background:
+    radial-gradient(ellipse at 50% 38%, rgba(201, 165, 74, 0.16), transparent 60%),
+    radial-gradient(ellipse at 50% 100%, #1d2550, transparent 70%), var(--bg);
+}
+#banner,
+.modal h2,
+.modal h3,
+.result h2,
+#inspect h3,
+.phead {
+  font-family: var(--title-font);
+  letter-spacing: 0.02em;
+}
+#banner {
+  color: #f3e6c0;
+}
+
+/* ---- buttons: the colour of their role, a soft top light, a gold edge ---- */
+.abtn,
+.mbtn {
+  border: 1px solid var(--panel-line);
+  background-image: linear-gradient(rgba(255, 255, 255, 0.14), rgba(0, 0, 0, 0.18));
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+}
+.mbtn {
+  font-family: var(--title-font);
+  letter-spacing: 0.04em;
+}
+.abtn:not(:disabled):hover,
+.mbtn:hover {
+  border-color: var(--gold);
+  box-shadow:
+    0 0 0 1px var(--gold),
+    0 0 12px rgba(201, 165, 74, 0.35);
+}
+.abtn:disabled {
+  background-image: none;
+  border-color: rgba(201, 165, 74, 0.2);
+}
+
+/* ---- inputs ---- */
+.dctl {
+  border: 1px solid var(--panel-line);
+  color: var(--fg);
+}
+
+/* ---- the stack and the inspector: the card's type colour on a navy tile ---- */
+#stack .sc {
+  background: rgba(255, 255, 255, 0.05);
+}
+#stack .sc.top {
+  box-shadow: 0 0 0 2px var(--gold) inset;
+}
+#stack .sc.res {
+  opacity: 0.85;
+  border-style: dashed;
+} /* a spell resolving while its choices are made */
+
+/* ---- the stops (item 3): off icons readable on the navy panel, on icons gold ---- */
+#stops .stb {
+  color: var(--stop-off);
+  background: var(--stop-off-bg);
+}
+#stops .stb.on {
+  color: var(--stop-on);
+  background: rgba(255, 211, 77, 0.16);
+  box-shadow: 0 0 0 1px rgba(255, 211, 77, 0.45) inset;
+}
+#stops .stt {
+  opacity: 0.85;
+  color: #f3e6c0;
+}
+
+/* ---- the debug buttons keep their own width (the wider stops panel under them no longer stretches them) ---- */
+/* ---- the deck panel ends above the buttons and stops in the bottom right corner (--dbgT = their top, set by layout.js) ---- */
+@media (orientation: landscape) {
+  #dbg {
+    align-items: flex-end;
+  }
+  #dbg .abtn {
+    min-width: 132px;
+  }
+  #deckPanel {
+    max-height: calc(var(--dbgT, 100vh) - 76px - env(safe-area-inset-top, 0px));
+  }
+}
+@media (orientation: portrait) {
+  #dbg {
+    bottom: calc(var(--botH) + 48px); /* clear of the status line (the bordered panels are a little taller) */
+  }
+}

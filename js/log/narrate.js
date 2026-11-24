@@ -14,6 +14,8 @@ const Narrate = (function () {
       combatStart: 'combat started',
       combatEnd: 'combat ended',
       draw: 'cards drawn',
+      mainStart: 'main phase started',
+      mainEnd: 'main phase ended',
       stack: 'stack emptied',
     },
     other = p => (p === 'Player' ? 'Opponent' : 'Player');

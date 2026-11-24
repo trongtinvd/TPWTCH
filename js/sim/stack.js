@@ -269,15 +269,17 @@ Sim.def('stack', function (K) {
     return !!(st && st[foe ? 'opp' : 'own'][kind]);
   };
   const respPri = s => (s.respond && s.respond.stage === 'turn' ? s.active : other(s.active)); // who holds priority in the open window
-  function openRespond(s, ev, kind) {
-    // an empty-stack priority window (triggers on the stack resolve first); nothing opens when neither player wants this stop
+  function openRespond(s, ev, kind, then) {
+    // an empty-stack priority window (triggers on the stack resolve first); nothing opens when neither player wants this stop.
+    // Patch7: `then` = a command that waits for the window to close (main ended: the Combat / End turn press happens after it). Returns true when a window opened
     if (kind === 'end') s.step = 'end'; // Patch6: the turn order shown in the game
     const foe = other(s.active),
       stage = stopWants(s, foe, kind) ? 'foe' : stopWants(s, s.active, kind) ? 'turn' : null;
-    if (!stage) return;
-    s.respond = { kind, stage };
+    if (!stage) return false;
+    s.respond = then ? { kind, stage, then } : { kind, stage };
     s.priority = stage === 'foe' ? foe : s.active;
     ev.push({ t: 'ResponseWindowOpened', kind, player: s.priority }); // the non-turn player ALWAYS responds first, even with enter triggers already on the stack
+    return true;
   }
   function checkTurnEnd(s, ev) {
     // Q21: combat ended, so the turn ends: as soon as nothing is pending, the end step window opens
@@ -297,7 +299,7 @@ Sim.def('stack', function (K) {
     ev.push({ t: 'EndStepEntered' });
   }
   function stopAt(s, ev, kind) {
-    // an optional "stop": at this moment the non-turn player gets priority on an empty stack (turnStart, combatStart, combatEnd, draw, stack).
+    // an optional "stop": at this moment the non-turn player gets priority on an empty stack (turnStart, draw, mainStart, mainEnd, combatStart, combatEnd, stack).
     // s.stops is set by the host; null = no stops. A window that is already open is never replaced.
     if (s.respond) return;
     openRespond(s, ev, kind);

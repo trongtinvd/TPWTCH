@@ -8,7 +8,7 @@ Sim.def('costs', function (K) {
   const COSTS = {
     // check -> reason|null; pay mutates (never refunded if countered)
     PayLife: {
-      check: (s, c, k) => (s.life[ctl(c)] <= k.n ? 'Cost: not enough life' : null),
+      check: (s, c, k) => (s.life[ctl(c)] - k.n <= -1 ? 'Cost: not enough life' : null), // Patch7: paying down to 0 is fine (life -1 or less loses)
       pay: (s, c, k, ev) => {
         addStatus(s, PL(s, ctl(c)), { kind: 'paid', amount: k.n, srcName: c.def.name });
         syncLife(s, ctl(c));

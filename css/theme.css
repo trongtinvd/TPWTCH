@@ -3,25 +3,31 @@
    colours are #hex, distances are world units (a card is --card-w x --card-d), pairs are "fill line". */
 :root {
   /* ---- UI colours ---- */
-  --bg: #14161c;
-  --fg: #e8eaf0;
-  --panel: rgba(20, 22, 28, 0.8);
+  /* Patch7: one navy-and-gold look, taken from the card back (there is no light version any more) */
+  --bg: #0b0f26;
+  --fg: #ece6d4;
+  --panel: linear-gradient(160deg, rgba(29, 37, 80, 0.94), rgba(11, 15, 38, 0.94));
+  --panel-line: rgba(201, 165, 74, 0.5); /* the thin gold border of panels and buttons */
+  --gold: #c9a54a;
+  --title-font: Georgia, 'Times New Roman', serif; /* titles and headings */
   --p1-color: #3f7fd8;
   --p2-color: #d4524f;
-  --btn: #3f7fd8;
-  --btn-go: #2f7d5b;
-  --btn-pass: #a8742c;
-  --btn-atk: #7a3b3b;
-  --btn-atk-on: #c0392b;
-  --btn-exit: #d63a2f; /* Exit / Leave */
+  --btn: #2c3c80;
+  --btn-go: #2a6b50;
+  --btn-pass: #94681f;
+  --btn-atk: #6a2a30;
+  --btn-atk-on: #b0302a;
+  --btn-exit: #a8302a; /* Exit / Leave */
   --exit-glow: #ff5a4d; /* the pulsing Exit button */
   --ap-color: #ffd34d; /* action points (the four-point star under each life bar) */
   --stop-on: #ffd34d; /* Patch6: a stop icon that is on (bottom right corner) */
-  --stop-off: rgba(200, 205, 220, 0.35); /* ...and one that is off */
+  --stop-off: #8f9cc8; /* ...and one that is off (Patch7: readable on the navy panel) */
+  --stop-off-bg: rgba(255, 255, 255, 0.06); /* the faint tile behind an icon that is off */
   --stop-size: 26px; /* ...the size of one stop icon */
   --card-back-a: #1d2550; /* Patch6: the card back: gradient, frame and emblem colours */
   --card-back-b: #0b0f26;
   --card-back-line: #c9a54a;
+  --card-gold-text: #f3e6c0; /* Patch7: the name and type line on the card faces */
   --accent: #3fe07a; /* hover links, drop targets, selected highlight */
   --drop: #3fa66a;
   --splat: #b3121c;
@@ -43,22 +49,25 @@
   --type-extra: #a63fd0; /* extra deck creatures */
 
   /* ---- 3D scene ---- */
-  --scene-bg: #14161c;
-  --table-color: #353c4f;
-  --pad-dim: #353c4f; /* ground under a half while the OTHER player has priority */
-  --pad-lit: #707c9c; /* ... while this player has priority */
+  --scene-bg: #182154;
+  --table-color: #5864aa;
+  --pad-dim: #1a224b; /* ground under a half while the OTHER player has priority */
+  --pad-lit: #6c7ccd; /* ... while this player has priority */
   --light-ambient: 0.75;
   --light-sun: 0.6;
 
   /* ---- zones ---- */
-  --zone-opp: #8a4650;
-  --zone-opp-back: #6b3a42;
-  --zone-p1: #3f5f8f;
-  --zone-p1-back: #34507a;
-  --side-p1: #2f4466; /* deck / graveyard / exile zones */
-  --side-p2: #5e3239;
-  --hand-p1: #2a3b57;
-  --hand-p2: #4a2a30;
+  --zone-opp: #6e2f3e;
+  --zone-opp-back: #58283a;
+  --zone-p1: #2c4a86;
+  --zone-p1-back: #243c6e;
+  --side-p1: #22345e; /* deck / graveyard / exile zones */
+  --side-p2: #4a2433;
+  --hand-p1: #1c2a4e;
+  --hand-p2: #3a1e2a;
+  --zone-line: rgba(201, 165, 74, 0.45); /* Patch7: the gold frame and the label text on every zone */
+  --zone-text: #f3e6c0;
+  --zone-sub: rgba(243, 230, 192, 0.6);
   --zone-valid: #1f6b2f; /* legal target / placement */
   --zone-current: #7a5c14;
   --zone-hover: #44aa55;
@@ -98,16 +107,4 @@
   --hp-low: #e04848 #6e1212;
   --hp-same: #3f7fd8 #143672;
   --hp-high: #3fb26a #12522b;
-}
-@media (prefers-color-scheme: light) {
-  :root:not([data-theme='dark']) {
-    --bg: #dfe3ea;
-    --fg: #1a1d24;
-    --panel: rgba(255, 255, 255, 0.85);
-  }
-}
-:root[data-theme='dark'] {
-  --bg: #14161c;
-  --fg: #e8eaf0;
-  --panel: rgba(20, 22, 28, 0.8);
 }

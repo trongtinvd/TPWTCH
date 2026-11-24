@@ -406,6 +406,93 @@ function drawCardBack(g, w, h) {
     });
   });
 }
+// ---- Patch7: the card face in the style of the card back: the type colour fades into navy, a gold double frame, a name banner,
+// a framed art window and the type line. Colours: --card-back-* and --card-gold-text (theme.css); the type colour comes from cardColor()
+function drawCardFace(g, def, w, h) {
+  const css = (n, d) => getComputedStyle(document.documentElement).getPropertyValue(n).trim() || d,
+    B = css('--card-back-b', '#0b0f26'),
+    L = css('--card-back-line', '#c9a54a'),
+    TXT = css('--card-gold-text', '#f3e6c0'),
+    T = cardColor(def),
+    cx = w / 2,
+    serif = "Georgia, 'Times New Roman', serif";
+  const bg = g.createLinearGradient(0, 0, 0, h); // the type colour at the top, navy below
+  bg.addColorStop(0, T);
+  bg.addColorStop(0.55, B);
+  bg.addColorStop(1, B);
+  g.fillStyle = bg;
+  g.fillRect(0, 0, w, h);
+  g.save(); // the same fine lattice as the back, fainter
+  g.globalAlpha = 0.08;
+  g.strokeStyle = L;
+  g.lineWidth = 2;
+  for (let i = -h; i < w + h; i += 28) {
+    g.beginPath();
+    g.moveTo(i, 0);
+    g.lineTo(i + h, h);
+    g.moveTo(i, h);
+    g.lineTo(i + h, 0);
+    g.stroke();
+  }
+  g.restore();
+  g.strokeStyle = L; // double frame
+  g.lineWidth = 10;
+  g.strokeRect(12, 12, w - 24, h - 24);
+  g.lineWidth = 3;
+  g.strokeRect(26, 26, w - 52, h - 52);
+  g.fillStyle = 'rgba(5,8,22,0.72)'; // name banner
+  g.fillRect(26, 26, w - 52, 64);
+  g.fillStyle = L;
+  g.fillRect(26, 88, w - 52, 3);
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillStyle = TXT;
+  let sz = 40;
+  do {
+    g.font = 'bold ' + sz + 'px ' + serif;
+    sz--;
+  } while (g.measureText(def.name).width > w - 72 && sz > 16);
+  g.fillText(def.name, cx, 59);
+  const ax = 46, // art window: a glow of the type colour behind the model, framed in gold
+    ay = 108,
+    aw = w - 92,
+    ah = w - 92;
+  const glow = g.createRadialGradient(cx, ay + ah / 2, 10, cx, ay + ah / 2, aw * 0.75);
+  glow.addColorStop(0, T);
+  glow.addColorStop(1, B);
+  g.fillStyle = glow;
+  g.fillRect(ax, ay, aw, ah);
+  g.drawImage(artCanvas(def), ax + 4, ay + 4, aw - 8, ah - 8);
+  g.lineWidth = 4;
+  g.strokeStyle = L;
+  g.strokeRect(ax, ay, aw, ah);
+  const ty = ay + ah + 34, // the type line between two gold rules, a diamond in the type colour
+    T0 = TYPES[def.type] || { label: def.type },
+    label = ((def.extra ? 'Extra ' : '') + T0.label).toUpperCase();
+  g.font = 'bold 20px ' + serif;
+  const tw = Math.min(g.measureText(label).width, w - 120);
+  g.fillStyle = TXT;
+  g.fillText(label, cx, ty, w - 120);
+  g.fillStyle = L;
+  g.fillRect(40, ty - 1, cx - tw / 2 - 52, 2);
+  g.fillRect(cx + tw / 2 + 12, ty - 1, cx - tw / 2 - 52, 2);
+  [-1, 1].forEach(s => {
+    // corner diamonds, as on the back
+    [-1, 1].forEach(t => {
+      const x = cx + s * (w / 2 - 44),
+        y = h / 2 + t * (h / 2 - 44);
+      if (t < 0) return; // the top corners sit under the name banner
+      g.beginPath();
+      g.moveTo(x, y - 12);
+      g.lineTo(x + 8, y);
+      g.lineTo(x, y + 12);
+      g.lineTo(x - 8, y);
+      g.closePath();
+      g.fillStyle = L;
+      g.fill();
+    });
+  });
+}
 const backMat = (() => {
   const c = document.createElement('canvas');
   c.width = 160;
@@ -426,23 +513,9 @@ function cardMat(def, faceDown, rot, hp, atk) {
   if (faceDown)
     drawCardBack(g, c.width, c.height); // Patch6: a proper card back
   else {
-    g.fillStyle = cardColor(def);
-    g.fillRect(0, 0, c.width, c.height);
-    g.strokeStyle = 'rgba(255,255,255,.6)';
-    g.lineWidth = 6;
-    g.strokeRect(3, 3, c.width - 6, c.height - 6);
-    g.textAlign = 'center';
-    g.textBaseline = 'middle';
-    g.fillStyle = 'rgba(0,0,0,.22)';
-    g.fillRect(22, 42, 116, 116);
-    g.drawImage(artCanvas(def), 24, 44, 112, 112);
-    g.fillStyle = '#fff';
-    let sz = 30;
-    do {
-      g.font = 'bold ' + sz + 'px sans-serif';
-      sz--;
-    } while (g.measureText(def.name).width > c.width * 0.86 && sz > 10);
-    g.fillText(def.name, c.width / 2, 22);
+    c.width = 320; // Patch7: the card face matches the card back (navy, gold frame); drawn at 2x so the name stays sharp
+    c.height = 460;
+    drawCardFace(g, def, c.width, c.height);
   }
   const tex = new THREE.CanvasTexture(c);
   tex.center.set(0.5, 0.5);

@@ -65,6 +65,16 @@
   if (hp && typeof ResizeObserver !== 'undefined') new ResizeObserver(measure).observe(hp);
   addEventListener('resize', measure);
   measure();
+  // Patch7: --dbgT = the top of the buttons and stops in the bottom right corner: the deck panel ends above them
+  const dbgEl = document.getElementById('dbg');
+  const measureDbg = () => {
+    if (!dbgEl) return;
+    const r = dbgEl.getBoundingClientRect();
+    rootStyle.setProperty('--dbgT', Math.floor(r.height ? r.top : innerHeight) + 'px');
+  };
+  if (dbgEl && typeof ResizeObserver !== 'undefined') new ResizeObserver(measureDbg).observe(dbgEl);
+  addEventListener('resize', measureDbg);
+  measureDbg();
   handle('hTop', 'top', 'Drag to resize the inspector');
   handle('hBot', 'bot', 'Drag to resize the stack and card lists');
   load();

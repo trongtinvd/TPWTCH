@@ -17,13 +17,16 @@ function labelTexture(title, sub, w, d) {
     return size;
   }
   const tSize = fit(title, 'bold', 52);
-  g.fillStyle = 'rgba(255,255,255,0.92)';
+  g.strokeStyle = cssStr('--zone-line', 'rgba(201,165,74,0.45)'); // Patch7: a thin gold frame, like the cards
+  g.lineWidth = 3;
+  g.strokeRect(6, 6, c.width - 12, c.height - 12);
+  g.fillStyle = cssStr('--zone-text', 'rgba(255,255,255,0.92)');
   g.font = 'bold ' + tSize + 'px sans-serif';
   g.fillText(title, c.width / 2, sub ? c.height / 2 - tSize * 0.3 : c.height / 2);
   if (sub) {
     const sSize = fit(sub, 'normal', Math.round(tSize * 0.7));
     g.font = sSize + 'px sans-serif';
-    g.fillStyle = 'rgba(255,255,255,0.6)';
+    g.fillStyle = cssStr('--zone-sub', 'rgba(255,255,255,0.6)');
     g.fillText(sub, c.width / 2, c.height / 2 + tSize * 0.6);
   }
   const tex = new THREE.CanvasTexture(c);

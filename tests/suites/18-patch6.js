@@ -102,7 +102,11 @@
       life: 20,
     });
     const b = Sim.create(1813, DEFS.concat(FIXTURES), { rules: { startHand: -2, life: 0, drawAction: 'x' } });
-    eq('bad values are clamped or ignored', [b.cfg.startHand, b.cfg.life, b.cfg.drawAction], [0, 1, 2]);
+    eq(
+      'bad values are clamped or ignored (Patch7: life 0 is allowed)',
+      [b.cfg.startHand, b.cfg.life, b.cfg.drawAction],
+      [0, 0, 2]
+    );
   });
 
   Tests.add('set-stop', () => {

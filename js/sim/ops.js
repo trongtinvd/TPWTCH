@@ -418,7 +418,7 @@ Sim.def('ops', function (K) {
     SkipFoeCombat: (x, e) => {
       const s = x.s;
       if (e.pay) {
-        if (s.life[x.who] <= e.pay) return;
+        if (s.life[x.who] - e.pay <= -1) return; // Patch7: 0 life is still alive
         addStatus(s, PL(s, x.who), { kind: 'paid', amount: e.pay, srcName: x.src.def.name });
         syncLife(s, x.who);
         x.ev.push({ t: 'LifePaid', player: x.who, amount: e.pay });

@@ -205,9 +205,9 @@
       rej('Volley requires a front-row zone', s, { type: 'Activate', iid: a2.iid, ab: 0 }, 'front-row');
       s = start(93);
       const a3 = take(s, 'Player', 'archer', 'board', 'Player|front|0');
-      setLife(s, 'Player', 1);
+      setLife(s, 'Player', 0);
       rej(
-        'Volley with 1 life: cannot pay the 1-life cost',
+        'Volley with 0 life: cannot pay the 1-life cost (Patch7: it would leave life -1)',
         s,
         { type: 'Activate', iid: a3.iid, ab: 0 },
         'not enough life'

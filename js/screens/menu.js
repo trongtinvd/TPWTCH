@@ -272,7 +272,7 @@ function startDialog(mode) {
       gh = num('Cards at the start', L.startHand != null ? L.startHand : 5, 0, 40),
       gd = num('Cards per draw phase', L.drawPhase != null ? L.drawPhase : 1, 0, 10),
       ga = num('Cards per Draw action', L.drawAction != null ? L.drawAction : 2, 0, 10),
-      gl = num('Starting HP', L.life != null ? L.life : 20, 1, 999);
+      gl = num('Starting HP', L.life != null ? L.life : 20, 0, 999);
     const int = (el, d, min, max) => {
       const v = Math.floor(+el.value);
       return isFinite(v) && el.value !== '' ? Math.max(min, Math.min(max, v)) : d;
@@ -318,7 +318,7 @@ function startDialog(mode) {
             startHand: int(gh, 5, 0, 40),
             drawPhase: int(gd, 1, 0, 10),
             drawAction: int(ga, 2, 0, 10),
-            life: int(gl, 20, 1, 999),
+            life: int(gl, 20, 0, 999),
           };
           Settings.set('lastGame', MenuUI.last); // the dialog remembers the last choices
           close();

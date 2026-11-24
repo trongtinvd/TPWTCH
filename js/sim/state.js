@@ -37,8 +37,7 @@ Sim.def('state', function (K) {
   const GAME_DEFAULTS = { startHand: 5, drawPhase: 1, drawAction: 2, life: 20 };
   const gameCfg = o => {
     const c = Object.assign({}, GAME_DEFAULTS);
-    for (const k in GAME_DEFAULTS)
-      if (o && o[k] != null && isFinite(o[k])) c[k] = Math.max(k === 'life' ? 1 : 0, Math.floor(+o[k]));
+    for (const k in GAME_DEFAULTS) if (o && o[k] != null && isFinite(o[k])) c[k] = Math.max(0, Math.floor(+o[k])); // Patch7: starting life may be 0 (life -1 or less loses)
     return c;
   };
   function create(n, defs, opts = {}) {

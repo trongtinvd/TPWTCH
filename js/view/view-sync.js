@@ -645,6 +645,19 @@ function buildStack() {
         : showCard(c, true, o.kind === 'ability' && !mk ? { from: o.from, list: o.list, i: o.ab, src: o.src } : null);
     stackEl.appendChild(el);
   }
+  // Patch7: a spell that left the stack but still waits for its choices (Ambush of the Night) shows here as "resolving", instead of vanishing
+  const rs = game.resolving && game.resolving.kind === 'spell' && game.cards[game.resolving.iid];
+  if (rs && rs.loc === 'stack' && !game.stack.some(o => o.iid === rs.iid)) {
+    const el = document.createElement('div'),
+      own = Sim.ctl(rs);
+    el.className = 'sc res ' + (own === 'Player' ? 'p' : 'o');
+    el.style.setProperty('--tc', cardColor(rs.def));
+    el.innerHTML = '<b></b><div class="sm"><span>Resolving\u2026</span><span></span></div>';
+    el.firstChild.textContent = rs.def.name;
+    el.querySelector('.sm span:last-child').textContent = NAME[own];
+    el.onclick = () => showCard(rs, true, null);
+    stackEl.appendChild(el);
+  }
 }
 // ---- Patch6: the deck, extra deck, graveyard and exile show their top card: its front when the viewer may know it (a deck card only when it
 // was revealed to them, e.g. by L4), otherwise the card back. The pile is a thin stack with the number of cards on a badge; it is not pickable,

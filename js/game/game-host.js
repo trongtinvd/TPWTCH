@@ -14,10 +14,20 @@ const STOP_NAMES = {
   combatStart: 'combat started',
   combatEnd: 'combat ended',
   draw: 'cards drawn',
+  mainStart: 'main phase started',
+  mainEnd: 'main phase ended',
   stack: 'stack emptied',
 };
 const STEP_NAMES = { start: 'Start', draw: 'Draw phase', main: 'Main phase', combat: 'Combat phase', end: 'End phase' }; // Patch6
-const STOPS_ON = { turnStart: true, combatStart: true, combatEnd: true, draw: true, stack: true }; // real games run with every stop on
+const STOPS_ON = {
+  turnStart: true,
+  draw: true,
+  mainStart: true,
+  mainEnd: true,
+  combatStart: true,
+  combatEnd: true,
+  stack: true,
+}; // real games run with every stop on
 const disp = n => n.replace(/^Opp(onent)?\b/, 'Player 2').replace(/^Player(?! [12])\b/, 'Player 1');
 const deckStatus = () =>
   'Deck building \u00b7 ' +
@@ -235,6 +245,19 @@ async function attackJob(pre, ev) {
   scene.remove(sword);
   undo.forEach(f => f());
   ui.dirty = true;
+}
+// Patch7: a stop icon click. It never waits for an animation (send() refuses input while one plays, so clicks used to get lost) and
+// it is not an undo step; it is still recorded (replays stay exact) and logged. The screen state follows at once.
+function sendStop(cmd) {
+  if (rp.on) return { ok: false, why: 'Replay: watching only', events: [] };
+  const pre = structuredClone(sim),
+    r = Sim.dispatch(sim, cmd);
+  if (!r.ok) return r;
+  cmdLog.push(JSON.parse(JSON.stringify(cmd)));
+  GameLog.add(pre, cmd, r.events, 'player');
+  if (game !== sim) game.stops = structuredClone(sim.stops); // an animation shows an older state: its stops follow too
+  sync();
+  return r;
 }
 function send(cmd, src) {
   if (rp.on && !rp.feed) {

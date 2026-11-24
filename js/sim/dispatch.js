@@ -73,8 +73,17 @@ Sim.def('dispatch', function (K) {
     s.passes = 0;
     fire(s, ev, 'drawStep', null);
     if (s.cfg.drawPhase > 0) stopAt(s, ev, 'draw'); // stop: cards drawn
+    s.mainPending = true; // Patch7: the "main phase started" stop comes once the draw phase is over
     recalc(s, ev); // statuses tied to the deck end, the logs record the draws
   }
+  function checkMainStart(s, ev) {
+    // Patch7: stop "main phase started": after the draw phase and after each combat, once nothing is pending (triggers, other stops)
+    if (!s.mainPending || s.phase !== 'play' || s.stack.length || s.choice || s.respond || s.trg || s.resolving) return;
+    s.mainPending = false;
+    if (s.step === 'main' && !s.attackPhase && !s.turnEnding) stopAt(s, ev, 'mainStart');
+  }
+  // Patch7: stop "main phase ended": Combat / End turn pressed in the main phase first opens this window; the command runs when it closes
+  const mainEndFirst = (s, ev, cmd) => !s.mainEndDone && openRespond(s, ev, 'mainEnd', cmd);
   function dispatch(s, cmd) {
     // mutates s; returns {ok, why, events}
     const ev = [],
@@ -212,6 +221,14 @@ Sim.def('dispatch', function (K) {
           if (k === 'end') endTurn(s, ev);
           else {
             s.priority = s.active;
+            if (r.then) {
+              // Patch7: the Combat / End turn press that waited for "main phase ended" happens now (it may have become illegal meanwhile)
+              s.mainEndDone = true;
+              const r2 = dispatch(s, r.then);
+              s.mainEndDone = false;
+              ev.push(...r2.events);
+              if (!r2.ok) ev.push({ t: 'DeferredCommandFailed', cmd: r.then.type, why: r2.why });
+            }
           }
           break;
         }
@@ -235,6 +252,7 @@ Sim.def('dispatch', function (K) {
         if (s.respond) return fail('Waiting for the response window');
         if (cmd.on && !s.attackPhase) {
           if (!hasAP(s, cmd.player)) return fail('No action point left');
+          if (mainEndFirst(s, ev, cmd)) break;
           {
             const sk = live(PL(s, cmd.player)).find(y => y.kind === 'skipCombat');
             if (sk) {
@@ -263,6 +281,7 @@ Sim.def('dispatch', function (K) {
           // another action point on another combat. Only End turn pressed during combat ends combat and then the turn (s.turnEnding below).
           fire(s, ev, 'combatEnd', null);
           stopAt(s, ev, 'combatEnd'); // stop: combat ended
+          s.mainPending = true; // Patch7: back in the main phase: "main phase started" follows
         }
         break;
       }
@@ -342,6 +361,7 @@ Sim.def('dispatch', function (K) {
           stopAt(s, ev, 'combatEnd');
           break; // the end step opens by itself once nothing is pending (checkTurnEnd)
         } // ending the turn ends combat first, so 'after combat' triggers (Shark) still happen
+        if (mainEndFirst(s, ev, cmd)) break; // Patch7
         openRespond(s, ev, 'end');
         ev.push({ t: 'EndStepEntered' });
         break; // the turn really ends when the opponent passes
@@ -372,6 +392,7 @@ Sim.def('dispatch', function (K) {
     recalc(s, ev);
     checkTurnEnd(s, ev);
     checkDrawStep(s, ev);
+    checkMainStart(s, ev); // Patch7
     if (!s.capped && historyBytes(s) > RULES.historyCap) {
       // Q43: the game ends (a draw, unless it was decided already; the first decision stands)
       s.capped = true;
