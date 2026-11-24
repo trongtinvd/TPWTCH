@@ -18,8 +18,9 @@ There are **two places** a model shows:
 
 1. **The 3D card preview** (`index.html?anim3d`, standalone page): one model per card, plays a _selection_ animation. Config: `assets/3dModels/cards/index.json`.
 2. **The 3D side view of the game** (Side view button): a _character_ stands on every creature card and plays its animations (enter, idle, attack...). Config: `config/characters.json`. Camera animations play here, attached to an animation.
+3. **The player avatars** (Patch12): each player's chosen character stands behind their board in the side view, and in the character selection scene. Config: `config/avatars.json` (section 5; characters and outfits: `Docs/AVATARS.md`).
 
-The same GLB can serve both.
+The same GLB can serve all three.
 
 ---
 
@@ -157,3 +158,54 @@ The seat camera itself (where the camera rests) is not an animation: `config/cam
 | A change does not show on GitHub Pages                          | Pages may serve the old copy for a few minutes; reload with Ctrl+F5                                                            |
 
 Every file falls back on its own: no model = cube / placeholder, no clip = a procedural clip, no camera file = the camera does not move. A broken file never stops the game.
+
+---
+
+## 5. Player avatars (Patch12)
+
+An avatar is the character a player controls in a duel (chosen in the character selection scene, see `Docs/AVATARS.md` for characters, outfits and models). Its animations use **the same architecture as the card characters**: the same entry format (section 2 table), random pick without an immediate repeat, `loop` / `then`, directional `transitions`, the same loader (`js/anim/asset-loader.js`) and the same controller class (`Character3D`, `js/anim/character.js`). Only the categories differ, and an avatar's controller is its own (one per seat, made when the duel starts, never duplicated by switching Top / Side view).
+
+**Categories**
+
+| Category       | When it plays                                                                                                                                        | Default `loop` / `then` |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
+| `enter`        | the first time the avatar is shown in the duel (the side view opens, or the duel starts in the side view); also when it comes back from death (Undo) | `once` -> `idle`        |
+| `idle`         | the normal waiting animation; loops whenever nothing else plays                                                                                      | `repeat`                |
+| `idle_wounded` | an **overlay over idle** while the player's life is below 50% of the duel's starting life (see below)                                                | `repeat`                |
+| `dies`         | the player's life reaches -1 or less (they lose); the last pose is held                                                                              | `once` -> `hold`        |
+| `playing_card` | the player plays a card from their hand (the Sim's `CardPlayed` event)                                                                               | `once` -> `idle`        |
+
+Each category is an array; every entry needs an `id` unique within the character. A card category (`attack`, `get_hit`...) is an error in an avatar set, and the reverse.
+
+**Where the configuration lives**
+
+```json
+"animationSets": {
+  "humanoid": {
+    "defaults": { "speed": 1, "interpolation": { "method": "crossfade", "duration": 0.25 } },
+    "animations": {
+      "enter":        [ { "id": "enter_drop", "procedural": "drop" }, { "id": "enter_spin", "procedural": "spin_in" } ],
+      "idle":         [ { "id": "idle_breathe", "clip": "Idle" } ],
+      "idle_wounded": [ { "id": "wounded_slump", "file": "assets/avatars/common/wounded.glb", "weight": 0.8 } ],
+      "dies":         [ { "id": "dies_fall", "clip": "Death" } ],
+      "playing_card": [ { "id": "card_cast", "clip": "Cast" }, { "id": "card_throw", "clip": "Throw" } ]
+    },
+    "transitions": [ { "from": "idle_breathe", "to": "card_cast", "interpolation": { "method": "ease", "duration": 0.2 } } ]
+  }
+},
+"characters": [ { "id": "epsy", "animations": "humanoid", ... } ]
+```
+
+A character's `animations` is the name of a set in `animationSets` (several characters share one) or an inline set with the same shape. An outfit may have its own `animations` (a set name or inline), which replaces the character's for that outfit.
+
+**Adding an animation:** export the clip in the character's GLB (use `clip`) or as its own file (use `file`, plus `clip` to pick inside it), then add an entry with a new `id` to the right category. Two or more entries in a category = a random pick, never the same twice in a row.
+
+**Transitions** work exactly as for card characters (section 2): `from` / `to` are animation ids, one direction only, either an `interpolation` (`crossfade`, `warp`, `ease`, `cut` + `duration`) or `animations` (a clip played once in between). Without one: `defaults.interpolation`.
+
+**The wounded idle.** The threshold is **50% of the starting life of the current duel** (the "Starting HP" of the start dialog; `state.maxLife`), never a fixed number: at 20 the overlay shows from 9 down, at 30 from 14 down. At 50% or more it fades out and plain idle stays. It plays on its own node (`__overlay`, between the motion node and the model), so it adds to idle instead of replacing it; it fades out while a one-shot (`playing_card`) plays and back in when idle resumes. `weight` (0-1, default 1) sets how strongly it shows. For a GLB clip, author it to be layered (e.g. only the spine and head bend), since three.js blends it with idle by weight. Rule: `AvatarLogic.lifeState(life, startLife)` (`js/avatar/avatar-logic.js`).
+
+**Triggering `playing_card`.** The Sim emits `CardPlayed {iid, player}` for every card played from a hand (a spell or a permanent; a card put onto the board by an effect is not "played"). The host passes each accepted command's events to `AvatarView.onEvents` (`js/game/game-host.js`, `send`), which asks `AvatarLogic.cues(events, seat)` what to play. To make another event play something, add it to `cues` (and, for a new category, to `AvatarLogic.CATEGORIES`). Console: `AvatarView.play('Player', 'playing_card')`.
+
+**Placeholder animations.** An entry with no `file` and no `clip` (or whose file fails, or whose clip does not fit the model) plays a built-in clip: `procedural` names it, else the category's own. Built-in clips: enter `drop`, `spin_in`, `boot`; idle `breathe`, `sway`, `hover`; idle_wounded `slump`, `glitch`; dies `fall`, `kneel`, `shutdown`; playing_card `cast`, `throw` (`js/avatar/avatar-models.js`). On the placeholder humanoid they move the limbs (pivots `Torso`, `Head`, `ArmL`, `ArmR`, `LegL`, `LegR`); on a GLB only the whole body moves (its bones have their own rest poses, so the built-in limb turns are never applied to them). A missing file logs one `[3D]` warning and never stops the game. All six shipped characters use built-in clips only.
+
+**Debug (console):** `AvatarView.stats()` (seats, current animation, overlay, controllers made), `AvatarView.play('Opponent', 'dies')`, `Tests.ctx.setLife(sim, 'Opponent', 9); game = sim; sync()` (wounded).

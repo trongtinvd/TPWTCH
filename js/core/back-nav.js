@@ -19,6 +19,10 @@ const BackNav = (function () {
       if (b) b.click();
       return 'replay';
     }
+    if (typeof CharacterSelect !== 'undefined' && CharacterSelect.isOpen()) {
+      CharacterSelect.back(); // Patch12: the selection scene's Back (step back, or the start dialog)
+      return 'select';
+    }
     if (typeof MenuUI === 'undefined' || MenuUI.away) return 'menu';
     const s = typeof FN !== 'undefined' && FN.find(b => b.id === 'surrender');
     if (s && s.on()) {

@@ -1,0 +1,364 @@
+/* avatar.css - Patch12: the character selection scene and the avatar next to each life bar (loaded after skin.css).
+   The life bar rows: .me = the seat on screen (bottom), .foe = the other one (AvatarView sets them; Vs Self swaps with the view).
+   Avatar icon, name and life bar are ONE click area (the row's own handler, view-sync.js): no handler of their own. */
+
+/* ---- the row: avatar, name, life bar, life number, action points ---- */
+#hp .hpr {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  grid-template-areas:
+    'av nm nm'
+    'bar bar num'
+    'aps aps aps';
+  column-gap: 8px;
+  row-gap: 4px;
+  align-items: center;
+  cursor: pointer;
+}
+#hp .hpr > span {
+  grid-area: nm;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#hp .hpr .av {
+  grid-area: av;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  overflow: hidden;
+  line-height: 0;
+}
+#hp .hpr .av:empty {
+  display: none; /* no avatar data: name and bar only */
+}
+#hp .hpr .av svg,
+#hp .hpr .av img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none; /* the click belongs to the row */
+}
+#hp .hpr .bar {
+  grid-area: bar;
+}
+#hp .hpr b {
+  grid-area: num;
+  min-width: 22px;
+}
+#hp .hpr .aps {
+  grid-area: aps;
+  grid-column: auto;
+}
+#hp .hpr .aps:empty {
+  min-height: 0;
+}
+
+/* ---- landscape: the other seat top left (right of the stack panel), the own seat bottom right (above the buttons and stops) ---- */
+@media (orientation: landscape) {
+  #hp {
+    display: contents; /* the rows are placed on their own */
+  }
+  #hp .hpr {
+    position: fixed;
+    z-index: 2;
+    box-sizing: border-box;
+    padding: 7px 10px;
+    border-radius: 10px;
+    background: var(--panel);
+    border: 1px solid var(--panel-line);
+    box-shadow: 0 6px 22px rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(6px);
+    font-size: 13px;
+    pointer-events: auto;
+  }
+  #hp .hpr.foe {
+    left: 234px;
+    top: calc(12px + env(safe-area-inset-top, 0px));
+    width: clamp(150px, calc(50vw - 38vh - 246px), 280px); /* stays left of the board */
+  }
+  #hp .hpr.me {
+    left: 234px;
+    bottom: calc(100vh - var(--dbgT, 100vh) + 8px);
+    width: clamp(150px, calc(50vw - 38vh - 246px), 280px); /* stays right of the board */
+  }
+  #hud {
+    top: calc(var(--foeB, 96px) + 8px);
+  }
+  #inspect {
+    top: calc(var(--foeB, 96px) + 52px);
+    max-height: calc(100% - var(--foeB, 96px) - 108px - env(safe-area-inset-bottom, 0px));
+  }
+  /* the status line: under the top right buttons as before, never under the top-left row */
+  #status {
+    top: calc(64px + env(safe-area-inset-top, 0px));
+    left: max(50%, calc(var(--foeR, 392px) + 8px + min(220px, 17vw)));
+  }
+  /* no room above the buttons (a short screen, many buttons): under the stack panel, which gets shorter; never over the board */
+  #hp .hpr.me.tight {
+    right: auto;
+    left: 12px;
+    width: 210px;
+    bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+  }
+  body:has(#hp .hpr.me.tight) #stack {
+    bottom: calc(var(--meH, 90px) + 72px + env(safe-area-inset-bottom, 0px));
+  }
+  #deckPanel {
+    max-height: calc(var(--meT, 100vh) - 76px - env(safe-area-inset-top, 0px));
+  }
+}
+/* a short landscape screen (phone on its side): smaller rows */
+@media (orientation: landscape) and (max-height: 500px) {
+  #hp .hpr {
+    padding: 5px 8px;
+    grid-template-columns: 30px minmax(0, 1fr) auto;
+    font-size: 12px;
+  }
+  #hp .hpr .av {
+    width: 30px;
+    height: 30px;
+  }
+}
+
+/* ---- portrait: one box under the inspector; own seat on the left (avatar left of name and bar), the other on the right (avatar right) ---- */
+@media (orientation: portrait) {
+  #hp .hpr {
+    grid-template-columns: 34px minmax(0, 1fr) auto;
+    grid-template-areas:
+      'av nm num'
+      'av bar bar'
+      'aps aps aps';
+    column-gap: 6px;
+  }
+  #hp .hpr .av {
+    width: 34px;
+    height: 34px;
+  }
+  #hp .hpr.me {
+    order: 1;
+  }
+  #hp .hpr.foe {
+    order: 2;
+    grid-template-columns: auto minmax(0, 1fr) 34px;
+    grid-template-areas:
+      'num nm av'
+      'bar bar av'
+      'aps aps aps';
+  }
+  #hp .hpr.foe > span {
+    text-align: right;
+  }
+  #hp .hpr.foe b {
+    text-align: left;
+  }
+  #hp .hpr.foe .aps {
+    justify-content: flex-end;
+  }
+}
+
+/* ---- the character selection scene ---- */
+#charSelect {
+  flex-direction: column;
+  background: radial-gradient(ellipse at 32% 55%, rgba(110, 130, 200, 0.3), transparent 60%), var(--bg);
+  overflow: hidden;
+}
+#charSelect .cs-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+  z-index: 1;
+}
+#charSelect .cs-top,
+#charSelect .cs-main {
+  position: relative;
+}
+#charSelect .cs-top {
+  text-align: center;
+  padding: calc(14px + env(safe-area-inset-top, 0px)) 16px 4px;
+  z-index: 2;
+}
+#charSelect .cs-step {
+  font-size: 13px;
+  opacity: 0.8;
+  letter-spacing: 0.04em;
+}
+#charSelect .cs-name {
+  margin: 4px 0 0;
+  font-size: clamp(26px, 4.2vw, 44px);
+  color: var(--gold);
+  letter-spacing: 0.02em;
+}
+#charSelect .cs-main {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 380px);
+  gap: 18px;
+  padding: 6px 24px calc(18px + env(safe-area-inset-bottom, 0px));
+}
+#charSelect .cs-left {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+#charSelect .cs-big {
+  flex: 1;
+  min-height: 180px;
+}
+#charSelect .cs-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding-top: 6px;
+  z-index: 2;
+}
+#charSelect .cs-count {
+  min-width: 56px;
+  text-align: center;
+  font-size: 13px;
+  opacity: 0.8;
+}
+#charSelect .cs-arrow {
+  width: 46px;
+  height: 46px;
+  font-size: 22px;
+  font-weight: 700;
+  padding: 0;
+  border-radius: 50%;
+}
+#charSelect .cs-right {
+  z-index: 0; /* the outfit preview is drawn by the canvas above this panel's background */
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  overflow: auto;
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--panel);
+  border: 1px solid var(--panel-line);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.45);
+}
+#charSelect .cs-right > * {
+  position: relative;
+  z-index: 2;
+}
+#charSelect .cs-right .cs-small {
+  z-index: 0;
+}
+#charSelect .cs-h {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--gold);
+  opacity: 0.9;
+  margin-bottom: 6px;
+}
+#charSelect .cs-orow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+#charSelect .cs-orow .cs-arrow {
+  width: 38px;
+  height: 38px;
+  font-size: 18px;
+  flex: none;
+}
+#charSelect .cs-small {
+  flex: 1;
+  height: 150px;
+  border-radius: 10px;
+  background: radial-gradient(ellipse at 50% 70%, rgba(201, 165, 74, 0.16), rgba(0, 0, 0, 0.18) 70%);
+  border: 1px solid rgba(201, 165, 74, 0.25);
+}
+#charSelect .cs-oname {
+  text-align: center;
+  font-weight: 600;
+  margin-top: 6px;
+}
+#charSelect .cs-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 10px;
+}
+#charSelect .cs-stat {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.05);
+  font-size: 12.5px;
+}
+#charSelect .cs-stat svg,
+#charSelect .cs-stat img {
+  width: 18px;
+  height: 18px;
+  fill: var(--gold);
+}
+#charSelect .cs-stat .cs-sn {
+  opacity: 0.8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#charSelect .cs-stat b {
+  font-size: 15px;
+}
+#charSelect .cs-abil p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+#charSelect .cs-flavor {
+  font-style: italic;
+  opacity: 0.88;
+}
+#charSelect .cs-ab + .cs-ab {
+  margin-top: 8px;
+}
+#charSelect .cs-msg {
+  font-size: 12.5px;
+  color: #f0b0a0;
+}
+#charSelect .cs-actions {
+  margin-top: auto;
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+#charSelect .cs-actions .abtn {
+  padding: 10px 18px;
+  font-size: 15px;
+}
+#charSelect .cs-ok {
+  flex: 1;
+}
+@media (orientation: portrait) {
+  #charSelect .cs-main {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(220px, 1fr) auto;
+    padding: 4px 12px calc(12px + env(safe-area-inset-bottom, 0px));
+    gap: 10px;
+  }
+  #charSelect .cs-right {
+    max-height: 52vh;
+    padding: 10px;
+    gap: 8px;
+  }
+  #charSelect .cs-small {
+    height: 96px;
+  }
+  #charSelect .cs-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

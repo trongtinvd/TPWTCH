@@ -38,6 +38,7 @@ const scripts = [
   'js/content/cards.js',
   ...simFiles,
   ...listed(/<script src="(js\/anim\/anim-logic\.js)">/g), // Patch8: the pure 3D side view logic
+  ...listed(/<script src="(js\/avatar\/avatar-logic\.js)">/g), // Patch12: the pure avatar logic
   'js/log/narrate.js',
   'js/core/storage.js',
   'js/content/decks.js',

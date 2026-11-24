@@ -181,6 +181,7 @@ Gaining life adds a `life` status to a player (or +HP to a target card). Life to
 ## Player stats [not built]
 
 Power, Defense, HP, Initial Distance, Speed, Acceleration.
+**[Patch12]** Defined (name, icon, description) in `config/stats.json`; each avatar outfit gives them placeholder values (`config/avatars.json`, shown in the character selection scene). Gameplay does not read them yet; the duel's life is still the start dialog's Starting HP. A duel records each player's avatar (`state.avatars`: `{character, outfit}` ids, public); the Sim emits **`CardPlayed {iid, player}`** for every card played from a hand (presentation: the avatar's `playing_card`). See `Docs/AVATARS.md`.
 
 ## Stat layers [not built]
 

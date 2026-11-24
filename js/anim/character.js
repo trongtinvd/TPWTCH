@@ -4,6 +4,10 @@
 // clicks to the card underneath. Animations: random per category without an immediate repeat, directional transitions
 // (a transition clip, else the configured interpolation), loop / once / ping-pong, per-entry speed, cross-fades.
 // Every file falls back on its own: no model = cube, no clip = the procedural clip of its category, no camera file = no camera move.
+// Patch12: also the player avatars (js/avatar/): the categories, looping ones and the death category come from the normalized
+// character (ch.categories / ch.looping / ch.die, the card ones by default); hooks.prepare(model) adjusts a loaded model (outfit),
+// hooks.procClip(entry) gives the built-in clip of an entry; setOverlay(cat, on) plays a looping overlay (idle_wounded) over idle,
+// on its own node (motion > overlay > model) so the two never fight over the same transform.
 const Character3D = (function () {
   const D2R = Math.PI / 180,
     pickMat = new THREE.MeshBasicMaterial({ visible: false });
@@ -19,8 +23,11 @@ const Character3D = (function () {
       this.mount = new THREE.Object3D();
       this.motion = new THREE.Object3D();
       this.motion.name = Procedural3D.MOTION;
+      this.overlay = new THREE.Object3D(); // Patch12: the overlay clips (idle_wounded) move this one
+      this.overlay.name = '__overlay';
       this.root.add(this.mount);
       this.mount.add(this.motion);
+      this.motion.add(this.overlay);
       this.proxy = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), pickMat);
       this.proxy.visible = false;
       this.proxy.userData.char3d = this;
@@ -32,6 +39,8 @@ const Character3D = (function () {
       this.last = {}; // category / transition / camera list -> last picked id
       this.fades = [];
       this.cur = null;
+      this.ov = null; // Patch12: the overlay playing {cat, entry, action}
+      this.ovWant = null; // the overlay category asked for (shown while the character idles)
       this.ready = false;
       this.dead = false;
       this.pending = null;
@@ -72,10 +81,11 @@ const Character3D = (function () {
         this.model = Procedural3D.makeCube(this.side); // missing / broken model: the placeholder cube
         this.cube = true;
       }
-      this.motion.add(this.model);
+      if (this.hooks.prepare) this.hooks.prepare(this.model, !!(src && src.scene)); // Patch12: outfit meshes / materials
+      this.overlay.add(this.model);
       const own = (src && src.clips) || [];
       const all = [];
-      for (const cat of Anim3DLogic.CATEGORIES) all.push(...ch.animations[cat]);
+      for (const cat of ch.categories || Anim3DLogic.CATEGORIES) all.push(...(ch.animations[cat] || []));
       for (const t of ch.transitions) all.push(...t.animations);
       await Promise.all(
         all
@@ -114,31 +124,74 @@ const Character3D = (function () {
     }
     // the clip of an animation entry: the loaded one, else the procedural one of its category
     clipOf(entry) {
-      return this.clips.get(entry.id) || Procedural3D.clipFor(entry.category, this.cube, this.side);
+      return (
+        this.clips.get(entry.id) ||
+        (this.hooks.procClip && this.hooks.procClip(entry, this)) ||
+        Procedural3D.clipFor(entry.category, this.cube, this.side)
+      );
+    }
+    get dieCat() {
+      return this.ch.die || 'die'; // Patch12: avatars die with "dies"
     }
     play(cat) {
       if (cat === 'idle' && this.idleAs) cat = this.idleAs; // Patch9: while its Attack waits on the stack, "idle" means "attacking"
-      if (this.dead || (this.dying && cat !== 'die')) return null;
+      if (this.dead || (this.dying && cat !== this.dieCat)) return null;
       if (!this.ready) {
         if (cat !== 'idle' || !this.pending) this.pending = cat;
         return null;
       }
-      const list = Anim3DLogic.entriesFor(this.ch, cat);
-      const entry = list.length
+      const entry = this.entryFor(cat);
+      this.last[cat] = entry.id;
+      this.transitionTo(entry);
+      return entry.id;
+    }
+    // the entry a category plays: a random configured one (no immediate repeat), else the built-in one of the category
+    entryFor(cat) {
+      const list = Anim3DLogic.entriesFor(this.ch, cat),
+        LOOP = this.ch.looping || Anim3DLogic.LOOPING;
+      return list.length
         ? Anim3DLogic.pick(list, this.last[cat])
         : {
             id: '__proc_' + cat,
             category: cat,
-            loop: Anim3DLogic.LOOPING[cat] ? 'repeat' : 'once',
+            loop: LOOP[cat] ? 'repeat' : 'once',
             repetitions: Infinity,
             speed: this.ch.speed,
-            then: cat === 'die' ? 'hold' : Anim3DLogic.LOOPING[cat] ? null : 'idle',
+            then: cat === this.dieCat ? 'hold' : LOOP[cat] ? null : 'idle',
             camera: [],
             cameraChance: 0,
+            procedural: null,
+            weight: 1,
           };
-      this.last[cat] = entry.id;
-      this.transitionTo(entry);
-      return entry.id;
+    }
+    // Patch12: a looping overlay (idle_wounded) over the idle animation: on = wanted; it shows while the character idles
+    setOverlay(cat, on) {
+      this.ovWant = on ? cat : null;
+      this.syncOverlay();
+    }
+    syncOverlay() {
+      if (!this.ready || !this.mixer) return;
+      const idling = !!this.cur && this.cur.entry.category === 'idle',
+        want = this.ovWant && idling && !this.dying ? this.ovWant : null,
+        d = Math.max(0.05, this.ch.interpolation.duration);
+      if (this.ov && this.ov.cat !== want) {
+        this.ov.action.fadeOut(d);
+        this.ov = null;
+      }
+      if (want && !this.ov) {
+        const entry = this.entryFor(want);
+        this.last[want] = entry.id;
+        const act = this.mixer.clipAction(this.clipOf(entry));
+        act.enabled = true;
+        act.setLoop(THREE.LoopRepeat, Infinity);
+        act.clampWhenFinished = false;
+        act.timeScale = entry.speed;
+        act.reset();
+        act.setEffectiveWeight(entry.weight == null ? 1 : entry.weight);
+        act.fadeIn(d);
+        act.play();
+        this.ov = { cat: want, entry, action: act };
+      }
     }
     transitionTo(entry) {
       const from = this.cur ? this.cur.entry.id : null,
@@ -162,7 +215,8 @@ const Character3D = (function () {
     begin(entry, interp) {
       const act = this.startAction(this.clipOf(entry), entry.loop, entry.repetitions, entry.speed, interp);
       this.cur = { entry, action: act };
-      this.dieT = entry.category === 'die' ? 0 : null;
+      this.dieT = entry.category === this.dieCat ? 0 : null;
+      this.syncOverlay(); // Patch12: the overlay follows idle
       // the camera animation is picked on its own, and starts in the same frame as the character animation
       if (entry.camera && entry.camera.length && Math.random() < entry.cameraChance && this.hooks.camera) {
         const ce = Anim3DLogic.pick(entry.camera, this.last['cam|' + entry.id]);
@@ -185,7 +239,7 @@ const Character3D = (function () {
       act.reset();
       act.setEffectiveWeight(1);
       this.fades = this.fades.filter(f => f.to !== act && f.from !== act);
-      if (prev && prev !== act) {
+      if (prev && prev !== act && !(this.ov && this.ov.action === prev)) {
         const d = interp.duration;
         if (interp.method === 'cut' || d <= 0) prev.stop();
         else if (interp.method === 'ease') {
@@ -201,7 +255,7 @@ const Character3D = (function () {
       if (!cur || cur.action !== action) return;
       if (cur.next) return this.begin(cur.next, cur.interp); // a transition clip ended: the target animation starts
       const then = cur.entry.then;
-      if (cur.entry.category === 'die') return this.dieDone();
+      if (cur.entry.category === this.dieCat) return this.dieDone();
       if (then && then !== 'hold') this.play(then);
     }
     // die: play it, then call back (the caller removes the character)
@@ -209,7 +263,7 @@ const Character3D = (function () {
       if (!this.ready) return done();
       this.dying = true;
       this.onDie = done;
-      this.play('die');
+      this.play(this.dieCat);
     }
     dieDone() {
       if (!this.onDie) return;
@@ -251,6 +305,7 @@ const Character3D = (function () {
       }
       this.fades = [];
       this.cur = null;
+      this.ov = null;
     }
   }
   return Character;

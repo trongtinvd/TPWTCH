@@ -1,0 +1,362 @@
+{
+  "_doc": "Patch12: the player avatars (Docs/AVATARS.md). characters[] in selection order. A character: id, name, model (a GLB path, null = the placeholder humanoid built from 'body'), body (placeholder proportions, materials, named parts), visual (scale / offset / rotationDeg / heightOffset), icon ({image: PNG path, label, background, color, ring}; no image = a generated icon), animations (an animation set name or an inline set), outfits[], defaultOutfit. An outfit: id, name, model (optional GLB that replaces the character's), meshes {show, hide} (node names), materials {name: '#rrggbb' or {color, emissive, metalness, roughness}}, parts (extra placeholder parts), visual, stats (config/stats.json ids), abilities [{id, name, text}] (none yet: the flavor text is shown), flavor, icon, animations (optional, replaces the character's). sideView: where the avatars stand in the 3D side view.",
+  "sideView": { "behind": 3.2, "offsetX": 0, "height": 0, "scale": 2.4 },
+  "animationSets": {
+    "humanoid": {
+      "defaults": { "interpolation": { "method": "crossfade", "duration": 0.25 } },
+      "animations": {
+        "enter": [
+          { "id": "enter_drop", "procedural": "drop" },
+          { "id": "enter_spin", "procedural": "spin_in" }
+        ],
+        "idle": [
+          { "id": "idle_breathe", "procedural": "breathe" },
+          { "id": "idle_sway", "procedural": "sway" }
+        ],
+        "idle_wounded": [{ "id": "wounded_slump", "procedural": "slump", "weight": 1 }],
+        "dies": [
+          { "id": "dies_fall", "procedural": "fall" },
+          { "id": "dies_kneel", "procedural": "kneel" }
+        ],
+        "playing_card": [
+          { "id": "card_cast", "procedural": "cast" },
+          { "id": "card_throw", "procedural": "throw" }
+        ]
+      },
+      "transitions": [
+        { "from": "idle_breathe", "to": "card_cast", "interpolation": { "method": "ease", "duration": 0.2 } },
+        { "from": "card_throw", "to": "idle_sway", "interpolation": { "method": "crossfade", "duration": 0.45 } }
+      ]
+    },
+    "robot": {
+      "defaults": { "interpolation": { "method": "crossfade", "duration": 0.2 } },
+      "animations": {
+        "enter": [{ "id": "enter_boot", "procedural": "boot" }],
+        "idle": [
+          { "id": "idle_hover", "procedural": "hover" },
+          { "id": "idle_scan", "procedural": "sway" }
+        ],
+        "idle_wounded": [{ "id": "wounded_glitch", "procedural": "glitch", "weight": 1 }],
+        "dies": [{ "id": "dies_shutdown", "procedural": "shutdown" }],
+        "playing_card": [
+          { "id": "card_beam", "procedural": "cast", "speed": 1.2 },
+          { "id": "card_toss", "procedural": "throw" }
+        ]
+      },
+      "transitions": []
+    }
+  },
+  "characters": [
+    {
+      "id": "bot",
+      "name": "Bot",
+      "model": null,
+      "animations": "robot",
+      "icon": { "label": "B" },
+      "body": {
+        "torso": { "shape": "box", "size": [0.62, 0.62, 0.42] },
+        "head": { "shape": "box", "size": [0.5, 0.4, 0.42] },
+        "arms": { "length": 0.55, "thickness": 0.12 },
+        "legs": { "length": 0.6, "thickness": 0.16 },
+        "materials": {
+          "Body": { "color": "#8a94a6", "metalness": 0.6, "roughness": 0.4 },
+          "Skin": { "color": "#5d6675", "metalness": 0.5, "roughness": 0.4 },
+          "Limbs": "#4a5260",
+          "Trim": { "color": "#2fd1c4", "emissive": "#0b4a46" },
+          "Accent": "#2fd1c4",
+          "Eyes": { "color": "#39f3ff", "emissive": "#1fa8b8" }
+        },
+        "parts": [
+          { "name": "Antenna", "shape": "cylinder", "size": [0.04, 0.26, 0.04], "attach": "Head", "at": [0, 0.52, 0], "material": "Limbs" },
+          { "name": "AntennaTip", "shape": "sphere", "size": [0.1, 0.1, 0.1], "attach": "Head", "at": [0, 0.67, 0], "material": "Trim" },
+          { "name": "ChestLight", "shape": "box", "size": [0.24, 0.12, 0.04], "attach": "Torso", "at": [0, 0.42, 0.22], "material": "Trim" },
+          { "name": "PauldronL", "shape": "box", "size": [0.24, 0.12, 0.32], "attach": "Torso", "at": [-0.4, 0.62, 0], "material": "Accent", "hidden": true },
+          { "name": "PauldronR", "shape": "box", "size": [0.24, 0.12, 0.32], "attach": "Torso", "at": [0.4, 0.62, 0], "material": "Accent", "hidden": true },
+          { "name": "Visor", "shape": "box", "size": [0.48, 0.1, 0.06], "attach": "Head", "at": [0, 0.24, 0.22], "material": "Trim", "hidden": true },
+          { "name": "Cape", "shape": "box", "size": [0.62, 0.95, 0.03], "attach": "Torso", "at": [0, 0.2, -0.24], "rotationDeg": [8, 0, 0], "material": "Accent", "hidden": true }
+        ]
+      },
+      "defaultOutfit": "factory",
+      "outfits": [
+        {
+          "id": "factory",
+          "name": "Factory Default",
+          "stats": { "power": 3, "defense": 4, "hp": 20, "initialDistance": 3, "speed": 2, "acceleration": 2 },
+          "abilities": [],
+          "flavor": "Fresh off the line, warranty still valid. Bot does not know what a duel is, but it has read the manual twice."
+        },
+        {
+          "id": "scrap-knight",
+          "name": "Scrap Knight",
+          "meshes": { "show": ["PauldronL", "PauldronR", "Visor"] },
+          "materials": { "Body": { "color": "#8b5a3c", "metalness": 0.5, "roughness": 0.7 }, "Trim": { "color": "#e0a040", "emissive": "#4a2c08" }, "Accent": "#6b4a33" },
+          "stats": { "power": 4, "defense": 6, "hp": 22, "initialDistance": 2, "speed": 1, "acceleration": 1 },
+          "abilities": [],
+          "flavor": "Armour welded from the parts of lesser machines. It squeaks, but it holds."
+        },
+        {
+          "id": "chrome-deluxe",
+          "name": "Chrome Deluxe",
+          "meshes": { "show": ["Cape"] },
+          "materials": { "Body": { "color": "#d9dee6", "metalness": 0.95, "roughness": 0.15 }, "Skin": { "color": "#c0c6cf", "metalness": 0.9, "roughness": 0.2 }, "Trim": { "color": "#f2c14e", "emissive": "#5a4310" }, "Accent": "#f2c14e" },
+          "stats": { "power": 3, "defense": 3, "hp": 18, "initialDistance": 4, "speed": 4, "acceleration": 3 },
+          "abilities": [],
+          "flavor": "The collector's edition. Polished every morning, it reflects its opponent's doubts back at them."
+        }
+      ]
+    },
+    {
+      "id": "epsy",
+      "name": "Epsy",
+      "model": null,
+      "animations": "humanoid",
+      "icon": { "label": "E" },
+      "body": {
+        "torso": { "shape": "cone", "size": [0.6, 0.85, 0.5] },
+        "head": { "shape": "sphere", "size": [0.4, 0.42, 0.4] },
+        "arms": { "length": 0.55, "thickness": 0.1 },
+        "legs": { "length": 0.55, "thickness": 0.12 },
+        "materials": {
+          "Body": "#7b4fc9",
+          "Skin": "#f0d2b4",
+          "Limbs": "#4a2f7a",
+          "Trim": "#e9c46a",
+          "Accent": "#b58cff",
+          "Hair": "#3b2a5a",
+          "Eyes": "#2b1b3d"
+        },
+        "parts": [
+          { "name": "Bun", "shape": "sphere", "size": [0.22, 0.22, 0.22], "attach": "Head", "at": [0, 0.36, -0.16], "material": "Hair" },
+          { "name": "Sash", "shape": "torus", "size": [0.46, 0.08, 0.4], "attach": "Torso", "at": [0, 0.42, 0], "material": "Trim" },
+          { "name": "Hood", "shape": "cone", "size": [0.52, 0.46, 0.52], "attach": "Head", "at": [0, 0.33, -0.03], "material": "Body", "hidden": true },
+          { "name": "Star", "shape": "octahedron", "size": [0.18, 0.18, 0.18], "attach": "Head", "at": [0, 0.64, 0], "material": "Trim", "hidden": true },
+          { "name": "Staff", "shape": "cylinder", "size": [0.05, 1.2, 0.05], "attach": "ArmR", "at": [0, -0.5, 0.06], "material": "Limbs", "hidden": true },
+          { "name": "StaffGem", "shape": "octahedron", "size": [0.14, 0.18, 0.14], "attach": "ArmR", "at": [0, 0.14, 0.06], "material": "Accent", "hidden": true }
+        ]
+      },
+      "defaultOutfit": "apprentice",
+      "outfits": [
+        {
+          "id": "apprentice",
+          "name": "Apprentice Robes",
+          "meshes": { "show": ["Hood"], "hide": ["Bun"] },
+          "stats": { "power": 2, "defense": 2, "hp": 18, "initialDistance": 5, "speed": 3, "acceleration": 4 },
+          "abilities": [],
+          "flavor": "Robes two sizes too big, borrowed from a teacher who has not noticed yet. Epsy counts the stars before every duel."
+        },
+        {
+          "id": "starlit",
+          "name": "Starlit Gown",
+          "meshes": { "show": ["Star", "Staff", "StaffGem"] },
+          "materials": { "Body": "#1d2a5c", "Limbs": "#141c40", "Trim": { "color": "#f5e08a", "emissive": "#6b5a10" }, "Accent": { "color": "#9fb8ff", "emissive": "#22345e" } },
+          "stats": { "power": 4, "defense": 1, "hp": 16, "initialDistance": 6, "speed": 3, "acceleration": 3 },
+          "abilities": [],
+          "flavor": "Woven on the longest night of the year. The hem still glitters when nobody is looking."
+        }
+      ]
+    },
+    {
+      "id": "urines",
+      "name": "Urines",
+      "model": null,
+      "animations": "humanoid",
+      "icon": { "label": "U" },
+      "body": {
+        "torso": { "shape": "sphere", "size": [0.85, 0.78, 0.62] },
+        "head": { "shape": "sphere", "size": [0.36, 0.33, 0.34] },
+        "arms": { "length": 0.45, "thickness": 0.15 },
+        "legs": { "length": 0.42, "thickness": 0.2 },
+        "materials": {
+          "Body": "#c8b43a",
+          "Skin": "#e3d36b",
+          "Limbs": "#8a7a22",
+          "Trim": "#3f8f6a",
+          "Accent": "#2e6b50",
+          "Eyes": "#1b1b1b"
+        },
+        "parts": [
+          { "name": "HornL", "shape": "cone", "size": [0.08, 0.2, 0.08], "attach": "Head", "at": [-0.12, 0.36, 0], "rotationDeg": [0, 0, 22], "material": "Trim" },
+          { "name": "HornR", "shape": "cone", "size": [0.08, 0.2, 0.08], "attach": "Head", "at": [0.12, 0.36, 0], "rotationDeg": [0, 0, -22], "material": "Trim" },
+          { "name": "Belly", "shape": "sphere", "size": [0.5, 0.46, 0.2], "attach": "Torso", "at": [0, 0.34, 0.24], "material": "Skin" },
+          { "name": "BootL", "shape": "box", "size": [0.26, 0.28, 0.3], "attach": "LegL", "at": [0, -0.3, 0.03], "material": "Accent", "hidden": true },
+          { "name": "BootR", "shape": "box", "size": [0.26, 0.28, 0.3], "attach": "LegR", "at": [0, -0.3, 0.03], "material": "Accent", "hidden": true },
+          { "name": "Crown", "shape": "torus", "size": [0.36, 0.07, 0.36], "attach": "Head", "at": [0, 0.35, 0], "material": "Accent", "hidden": true }
+        ]
+      },
+      "defaultOutfit": "swamp-wader",
+      "outfits": [
+        {
+          "id": "swamp-wader",
+          "name": "Swamp Wader",
+          "meshes": { "show": ["BootL", "BootR"] },
+          "materials": { "Accent": "#4b6b3a" },
+          "stats": { "power": 5, "defense": 5, "hp": 24, "initialDistance": 1, "speed": 1, "acceleration": 2 },
+          "abilities": [],
+          "flavor": "Knee-deep in the marsh and perfectly content. Urines insists the smell is part of the strategy."
+        },
+        {
+          "id": "golden-tide",
+          "name": "Golden Tide",
+          "meshes": { "show": ["Crown"] },
+          "materials": { "Body": "#e0b341", "Trim": "#2a7fbf", "Accent": { "color": "#f2c14e", "emissive": "#5a4310" } },
+          "stats": { "power": 6, "defense": 4, "hp": 22, "initialDistance": 2, "speed": 1, "acceleration": 1 },
+          "abilities": [],
+          "flavor": "Crowned king of the flood plain by a committee of three frogs. The vote was unanimous."
+        }
+      ]
+    },
+    {
+      "id": "8x12",
+      "name": "8 by 12",
+      "model": null,
+      "animations": "humanoid",
+      "icon": { "label": "8×12" },
+      "body": {
+        "torso": { "shape": "box", "size": [0.48, 0.9, 0.3] },
+        "head": { "shape": "box", "size": [0.32, 0.48, 0.3] },
+        "arms": { "length": 0.72, "thickness": 0.1 },
+        "legs": { "length": 0.86, "thickness": 0.13 },
+        "materials": {
+          "Body": "#e07a2f",
+          "Skin": "#f2b07a",
+          "Limbs": "#5a3420",
+          "Trim": "#1f2a44",
+          "Accent": "#ffd36b",
+          "Eyes": "#1f2a44"
+        },
+        "parts": [
+          { "name": "Visor", "shape": "box", "size": [0.3, 0.07, 0.04], "attach": "Head", "at": [0, 0.4, 0.16], "material": "Trim" },
+          { "name": "GridPlate", "shape": "box", "size": [0.36, 0.54, 0.03], "attach": "Torso", "at": [0, 0.45, 0.16], "material": "Accent", "hidden": true },
+          { "name": "Scarf", "shape": "torus", "size": [0.4, 0.1, 0.34], "attach": "Torso", "at": [0, 0.88, 0], "material": "Accent", "hidden": true }
+        ]
+      },
+      "defaultOutfit": "sketch",
+      "outfits": [
+        {
+          "id": "sketch",
+          "name": "First Sketch",
+          "stats": { "power": 3, "defense": 3, "hp": 20, "initialDistance": 4, "speed": 3, "acceleration": 3 },
+          "abilities": [],
+          "flavor": "Drawn in a single afternoon on eight by twelve squares of graph paper. Every proportion is exactly right, on paper."
+        },
+        {
+          "id": "blueprint",
+          "name": "Blueprint",
+          "meshes": { "show": ["GridPlate"] },
+          "materials": { "Body": "#2f5fa8", "Skin": "#cfe0ff", "Limbs": "#1d3866", "Trim": "#ffffff", "Accent": "#9cc3ff" },
+          "stats": { "power": 2, "defense": 4, "hp": 20, "initialDistance": 5, "speed": 3, "acceleration": 2 },
+          "abilities": [],
+          "flavor": "Every line measured twice. The plan is to win; the details are in the margins."
+        },
+        {
+          "id": "grid-runner",
+          "name": "Grid Runner",
+          "meshes": { "show": ["GridPlate", "Scarf"] },
+          "materials": { "Body": "#1b1b24", "Skin": "#2a2a38", "Limbs": "#101018", "Trim": { "color": "#39ff9a", "emissive": "#13804a" }, "Accent": { "color": "#39ff9a", "emissive": "#0e6a3c" }, "Eyes": { "color": "#39ff9a", "emissive": "#13804a" } },
+          "stats": { "power": 3, "defense": 2, "hp": 17, "initialDistance": 3, "speed": 6, "acceleration": 5 },
+          "abilities": [],
+          "flavor": "Lit along every edge. It never takes a diagonal step, and it never needs to."
+        }
+      ]
+    },
+    {
+      "id": "furiona",
+      "name": "Furiona",
+      "model": null,
+      "animations": "humanoid",
+      "icon": { "label": "F" },
+      "body": {
+        "torso": { "shape": "box", "size": [0.52, 0.68, 0.32] },
+        "head": { "shape": "sphere", "size": [0.38, 0.4, 0.38] },
+        "arms": { "length": 0.6, "thickness": 0.12 },
+        "legs": { "length": 0.72, "thickness": 0.15 },
+        "materials": {
+          "Body": "#b3261e",
+          "Skin": "#f1c9a5",
+          "Limbs": "#5c120e",
+          "Trim": "#ff9a1f",
+          "Accent": "#ffcf3f",
+          "Hair": { "color": "#ff5a1f", "emissive": "#5a1400" },
+          "Eyes": "#2a0a05"
+        },
+        "parts": [
+          { "name": "Hair", "shape": "box", "size": [0.42, 0.42, 0.16], "attach": "Head", "at": [0, 0.22, -0.15], "material": "Hair" },
+          { "name": "Spike1", "shape": "cone", "size": [0.08, 0.2, 0.08], "attach": "Head", "at": [-0.12, 0.42, 0], "rotationDeg": [0, 0, 15], "material": "Accent" },
+          { "name": "Spike2", "shape": "cone", "size": [0.09, 0.25, 0.09], "attach": "Head", "at": [0, 0.47, 0], "material": "Accent" },
+          { "name": "Spike3", "shape": "cone", "size": [0.08, 0.2, 0.08], "attach": "Head", "at": [0.12, 0.42, 0], "rotationDeg": [0, 0, -15], "material": "Accent" },
+          { "name": "Cape", "shape": "box", "size": [0.6, 1.0, 0.03], "attach": "Torso", "at": [0, 0.15, -0.19], "rotationDeg": [6, 0, 0], "material": "Trim", "hidden": true },
+          { "name": "Skirt", "shape": "cone", "size": [0.72, 0.5, 0.6], "attach": "Torso", "at": [0, 0.02, 0], "material": "Body", "hidden": true }
+        ]
+      },
+      "defaultOutfit": "ember-mantle",
+      "outfits": [
+        {
+          "id": "ember-mantle",
+          "name": "Ember Mantle",
+          "meshes": { "show": ["Cape"] },
+          "stats": { "power": 6, "defense": 2, "hp": 18, "initialDistance": 3, "speed": 4, "acceleration": 4 },
+          "abilities": [],
+          "flavor": "A cloak that is always a little warm to the touch. Furiona has never once lost a staring contest."
+        },
+        {
+          "id": "wildfire-queen",
+          "name": "Wildfire Queen",
+          "meshes": { "show": ["Cape", "Skirt"] },
+          "materials": { "Body": "#ff6a00", "Limbs": "#7a1d00", "Trim": { "color": "#ffe066", "emissive": "#7a5a00" }, "Accent": { "color": "#fff2b0", "emissive": "#806000" } },
+          "stats": { "power": 7, "defense": 1, "hp": 16, "initialDistance": 2, "speed": 5, "acceleration": 5 },
+          "abilities": [],
+          "flavor": "Crowned by the blaze she started. The forest has filed a complaint."
+        }
+      ]
+    },
+    {
+      "id": "finna-emily",
+      "name": "Finna Emily",
+      "model": null,
+      "animations": "humanoid",
+      "icon": { "label": "FE" },
+      "body": {
+        "torso": { "shape": "cylinder", "size": [0.5, 0.62, 0.36] },
+        "head": { "shape": "sphere", "size": [0.4, 0.42, 0.4] },
+        "arms": { "length": 0.55, "thickness": 0.11 },
+        "legs": { "length": 0.6, "thickness": 0.13 },
+        "materials": {
+          "Body": "#3f9b5a",
+          "Skin": "#f3d1b8",
+          "Limbs": "#2b5c3a",
+          "Trim": "#f6f1d9",
+          "Accent": "#f28fb0",
+          "Hair": "#8a5a2b",
+          "Eyes": "#223333"
+        },
+        "parts": [
+          { "name": "Skirt", "shape": "cone", "size": [0.76, 0.45, 0.6], "attach": "Torso", "at": [0, -0.04, 0], "material": "Body" },
+          { "name": "HairBack", "shape": "box", "size": [0.42, 0.52, 0.14], "attach": "Head", "at": [0, 0.14, -0.16], "material": "Hair" },
+          { "name": "Bow", "shape": "torus", "size": [0.22, 0.09, 0.07], "attach": "Head", "at": [0, 0.44, -0.06], "material": "Accent" },
+          { "name": "HatBrim", "shape": "cylinder", "size": [0.64, 0.04, 0.64], "attach": "Head", "at": [0, 0.4, 0], "material": "Trim", "hidden": true },
+          { "name": "HatTop", "shape": "cylinder", "size": [0.34, 0.22, 0.34], "attach": "Head", "at": [0, 0.52, 0], "material": "Trim", "hidden": true },
+          { "name": "Satchel", "shape": "box", "size": [0.2, 0.22, 0.1], "attach": "Torso", "at": [0.3, 0.22, 0.16], "material": "Limbs", "hidden": true }
+        ]
+      },
+      "defaultOutfit": "garden-day",
+      "outfits": [
+        {
+          "id": "garden-day",
+          "name": "Garden Day",
+          "stats": { "power": 2, "defense": 3, "hp": 21, "initialDistance": 4, "speed": 4, "acceleration": 3 },
+          "abilities": [],
+          "flavor": "Finna Emily brought lemonade to the duel. She intends to share it with whoever loses."
+        },
+        {
+          "id": "forest-ranger",
+          "name": "Forest Ranger",
+          "meshes": { "show": ["HatBrim", "HatTop", "Satchel"], "hide": ["Bow"] },
+          "materials": { "Body": "#556b2f", "Limbs": "#3b2a18", "Trim": "#8b6b3d", "Accent": "#c9a54a" },
+          "stats": { "power": 3, "defense": 4, "hp": 22, "initialDistance": 5, "speed": 3, "acceleration": 2 },
+          "abilities": [],
+          "flavor": "Knows every trail, every root and every shortcut. The satchel holds a map she never needs."
+        }
+      ]
+    }
+  ]
+}

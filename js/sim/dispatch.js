@@ -170,6 +170,7 @@ Sim.def('dispatch', function (K) {
         if (cmd.extra && !(c.def.extraCost && canPayExtra(s, c))) return fail('Cannot pay the additional cost');
         const h = s.piles[c.owner].hand;
         h.splice(h.indexOf(c), 1);
+        ev.push({ t: 'CardPlayed', iid: c.iid, player: c.owner }); // Patch12: a player played a card from their hand (avatar playing_card)
         const paid = !!(cmd.extra && c.def.extraCost);
         if (paid) spendAP(s, c.owner, c.def.name + ' (additional cost)', ev);
         if (slowish(c)) spendAP(s, c.owner, (isPerm(c) ? 'Summon ' : 'Cast ') + c.def.name, ev);

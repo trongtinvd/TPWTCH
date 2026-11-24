@@ -799,6 +799,7 @@ function sync() {
     }
   syncPiles();
   if (typeof View3D !== 'undefined') View3D.sync(T); // Patch8: characters follow the board cards
+  if (typeof AvatarView !== 'undefined') AvatarView.refresh(game); // Patch12: avatar icons, life state (wounded, dead)
   for (const p of ['Player', 'Opponent']) {
     sideZones[p + 'deck'].userData.relabel(game.piles[p].deck.length + ' cards');
     sideZones[p + 'gy'].userData.relabel(game.piles[p].gy.length + ' cards');
@@ -1088,5 +1089,6 @@ function animate() {
     m.position.y = u.by + (u.owner ? lift[u.owner] : 0);
   }
   if (typeof View3D !== 'undefined' && View3D.postFrame()) busy = true; // Patch8: characters, card turn / scale, camera animation
+  if (typeof AvatarView !== 'undefined' && AvatarView.frame()) busy = true; // Patch12: the avatars
   return busy;
 }

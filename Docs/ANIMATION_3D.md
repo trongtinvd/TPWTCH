@@ -111,3 +111,8 @@ Each file on its own: no / broken model = cube; no / broken / non-fitting clip =
 - **Configs** load again each time the side view opens: edit a file, switch Top view / Side view to see it. They need the game served over http(s) (GitHub Pages, `python -m http.server`): a `file://` page cannot read them and uses the defaults (console warning; `?anim3d` shows the status). GitHub Pages may serve an old copy for a few minutes.
 - **Hands** are drawn in a second pass over the board (layer 1), so a board card near the camera never cuts them; the wheel over a hand scrolls it when it does not fit (never zooms).
 - **Debug** (Patch10: console only) `View3D.demo()` (Vs self game, characters on both sides, side view on), `View3D.debug.play(cat)`.
+
+## Patch12
+
+- **Player avatars** reuse this system (`Character3D`, the entry format, transitions, the loader and the fallbacks) with their own categories (`enter`, `idle`, `idle_wounded` overlay, `dies`, `playing_card`) and their own config, `config/avatars.json`: see `Docs/AVATARS.md` and `Docs/animationGuide.md` section 5. `Character3D` now reads the categories from the normalised character (`categories`, `looping`, `die`; the card ones by default), has an overlay layer (`setOverlay`, node `__overlay` between motion and model) and two optional hooks (`prepare(model)`, `procClip(entry)`); card characters behave exactly as before.
+- A resize no longer resets a camera the player moved; the own hand can be dragged sideways (`Docs/CAMERA.md`).

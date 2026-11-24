@@ -6,6 +6,10 @@
 // input picking -> pickProxies + userData.pickAs, main loop -> ownsCamera.
 // Debug (console): View3D.demo(), View3D.debug.play('stun'), View3D.stats(). Patch10: ?anim3d is now the standalone card preview
 // (anim3d.html, js/anim/card-preview.js), independent of this scene.
+// Patch12: a resize (opening / closing the browser's DevTools, a panel drag, turning a phone) no longer puts the camera back on its
+// seat once the player has moved it (orbit / zoom / pan): only the projection follows the new size. An untouched camera still
+// re-fits its seat (minAspect). Seat turns and entering the side view place it as before. The own hand can be dragged left / right
+// (camera3d.json hand.own.drag): handGrab / handDrag / handRelease (input.js), the board and its zones never move.
 const View3D = (function () {
   const L = Anim3DLogic,
     CFG = { board: 'config/board3d.json', camera: 'config/camera3d.json', characters: 'config/characters.json' };
@@ -202,8 +206,13 @@ const View3D = (function () {
 
   // ---- camera ----------------------------------------------------------------------------------------------------
   const poseObj = new THREE.Object3D();
+  let manual = false; // Patch12: the player moved the camera since it was last placed on its seat
+  controls.addEventListener('start', () => {
+    if (on && applied) manual = true;
+  });
   function placeSeatCamera(angle) {
     if (!on || !applied) return false;
+    manual = false;
     const p = L.seatPose(cfg.camera, angle, camera.aspect);
     poseObj.position.fromArray(p.position);
     if (p.rotationDeg) poseObj.rotation.set(...p.rotationDeg.map(d => (d * Math.PI) / 180), 'YXZ');
@@ -222,9 +231,15 @@ const View3D = (function () {
     ui.dirty = true;
     return true;
   }
-  addEventListener('resize', () => {
-    if (on && applied) placeSeatCamera(ui.camAngle);
-  });
+  // Patch12: a resize keeps a camera the player moved (position, rotation, orbit target, zoom); the projection (aspect) is updated by
+  // the resize handler of input.js. A camera nobody touched re-fits its seat for the new shape (a narrow window moves it back).
+  function onResize() {
+    if (!on || !applied) return 'off';
+    if (manual) return 'kept';
+    placeSeatCamera(ui.camAngle);
+    return 'refit';
+  }
+  addEventListener('resize', onResize);
   // the orbit controls would turn the camera back to their target: they rest while a camera animation (or a fixed camera) runs
   const ownsCamera = () => on && applied && (CameraAnim3D.owns() || !cfg.camera.orbit.enabled);
   const anchorM = new THREE.Matrix4(),
@@ -361,6 +376,45 @@ const View3D = (function () {
     eT.set(Math.PI / 2 + tiltDeg * D2R, rot, 0, 'XYZ');
     return out.copy(camera.quaternion).multiply(qA.setFromEuler(eT));
   }
+  // ---- Patch12: the own hand slides left / right (only the hand: the board, its zones and the opponent's hand stay) ---------------
+  // handX = offset along the camera's x axis, as a fraction of the visible width at the hand's distance (so it suits any screen);
+  // clamped to hand.own.drag.min .. max, which keeps the centre of the hand on screen (|x| < 0.5)
+  let handX = 0,
+    grab = null;
+  try {
+    const v = Settings.get('handOffset3d');
+    if (typeof v === 'number' && isFinite(v)) handX = v;
+  } catch (e) {}
+  const dragCfg = () => cfg.camera.hand.own.drag;
+  const clampHand = x => {
+    const d = dragCfg();
+    return Math.min(d.max, Math.max(d.min, x));
+  };
+  const visWidthAt = h => 2 * Math.max(0.2, -h.offset[2]) * Math.tan((camera.fov * D2R) / 2) * camera.aspect;
+  // pointer down on the own hand zone (not on a card): the drag starts
+  function handGrab(obj, x) {
+    if (!on || !applied || !dragCfg().enabled || !obj || obj !== handZone(ui.view)) return false;
+    grab = { x, from: clampHand(handX) };
+    return true;
+  }
+  function handDrag(x) {
+    if (!grab) return false;
+    const next = clampHand(grab.from + (x - grab.x) / Math.max(1, VW()));
+    if (next !== handX) {
+      handX = next;
+      ui.dirty = true;
+    }
+    return true;
+  }
+  function handRelease() {
+    if (!grab) return false;
+    grab = null;
+    try {
+      Settings.set('handOffset3d', handX); // the next game keeps it
+    } catch (e) {}
+    return true;
+  }
+  const handOffsetX = h => clampHand(handX) * visWidthAt(h);
   // before the card tween: the hands ride with the camera (camera space, so they never lag behind it)
   function preFrame() {
     if (!on || !applied || typeof game === 'undefined' || !game) return false;
@@ -370,6 +424,7 @@ const View3D = (function () {
       tanH = Math.tan((camera.fov * D2R) / 2);
     for (const p of ['Player', 'Opponent']) {
       const h = p === ui.view ? cfg.camera.hand.own : cfg.camera.hand.opponent,
+        hx = p === ui.view ? handOffsetX(h) : 0, // Patch12: the dragged offset of the own hand
         hand = game.piles[p].hand,
         dist = Math.max(0.2, -h.offset[2]),
         visW = 2 * dist * tanH * camera.aspect,
@@ -381,8 +436,11 @@ const View3D = (function () {
         hz.userData.plane.visible = h.zone;
         onTop(hz, true); // Patch9: the hand zone is drawn over the board
         onTop(hz.userData.plane, true);
-        const zw = Math.min(visW * h.widthFrac, (hand.length ? xs[xs.length - 1] - xs[0] : 0) + CW * h.scale + 0.2);
-        vL.set(h.offset[0], h.offset[1] - 0.02, h.offset[2] - 0.03);
+        const zw = Math.min(
+          visW * h.widthFrac,
+          (hand.length ? xs[xs.length - 1] - xs[0] : 0) + CW * h.scale + 0.2 + (p === ui.view ? h.drag.padding : 0) // Patch12: room to grab it
+        );
+        vL.set(h.offset[0] + hx, h.offset[1] - 0.02, h.offset[2] - 0.03);
         hz.position.copy(camera.localToWorld(vL.clone()));
         faceCam(h.tiltDeg, 0, hz.quaternion); // the label reads upright from the camera, whoever owns the hand
         hz.scale.set(Math.max(0.3, zw) / HAND_W, 1, (CD * h.scale + 0.15) / HAND_D);
@@ -403,7 +461,7 @@ const View3D = (function () {
         }
         inHand.add(m);
         const goal = vL.set(
-          h.offset[0] + xs[i],
+          h.offset[0] + hx + xs[i],
           h.offset[1] + (c === ui.selected || c === ui.placing ? 0.08 : 0),
           h.offset[2] + i * 0.004
         );
@@ -596,6 +654,15 @@ const View3D = (function () {
     setEnabled,
     isOn: () => on,
     placeSeatCamera,
+    onResize, // Patch12
+    cameraMoved: () => manual,
+    handGrab,
+    handDrag,
+    handRelease,
+    get handOffset() {
+      return clampHand(handX);
+    },
+    handZone, // Patch12
     ownsCamera,
     sync: syncT,
     preFrame,

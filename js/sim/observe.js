@@ -156,6 +156,7 @@ Sim.def('observe', function (K) {
       attackPhase: s.attackPhase,
       respond: s.respond ? { kind: s.respond.kind, stage: s.respond.stage } : null,
       maxLife: s.maxLife,
+      avatars: JSON.parse(JSON.stringify(s.avatars || { Player: null, Opponent: null })), // Patch12: public
       players,
       piles,
       cards,

@@ -51,6 +51,14 @@ addEventListener(
     ui.downAt = { x: e.clientX, y: e.clientY };
     const o = pickAt(e.clientX, e.clientY),
       c = o && o.userData.card;
+    // Patch12: the side view's own hand zone (not a card on it) drags the hand sideways; the camera stays still meanwhile
+    if (!c && e.button === 0 && typeof View3D !== 'undefined' && View3D.handGrab(o, e.clientX)) {
+      ui.handDrag = true;
+      ui.dragCand = null;
+      panFrom = null;
+      controls.enabled = false;
+      return;
+    }
     ui.dragCand = !rp.on && c && c.loc === 'hand' && c.owner === ui.view && !uiCanPlay(c) ? c : null;
     panFrom = tv.on && !ui.dragCand ? { x: e.clientX, y: e.clientY } : null;
     if (ui.dragCand) controls.enabled = false; // keep the camera still while dragging a card
@@ -58,6 +66,10 @@ addEventListener(
   true
 );
 addEventListener('pointermove', e => {
+  if (ui.handDrag) {
+    View3D.handDrag(e.clientX); // Patch12
+    return;
+  }
   aim(e.clientX, e.clientY);
   ui.hoverDirty = true;
   if (e.target !== renderer.domElement && !ui.drag) mouse.set(2, 2); // pointer over a panel: nothing on the board is hovered
@@ -122,13 +134,25 @@ function endDrag(e, drop) {
   }
   sync();
 }
+// Patch12: the end of a hand drag (no click follows it)
+function endHandDrag() {
+  if (!ui.handDrag) return false;
+  ui.handDrag = false;
+  View3D.handRelease();
+  controls.enabled = !tv.on;
+  ui.downAt = null;
+  ui.hoverDirty = true;
+  return true;
+}
 addEventListener('pointercancel', e => {
+  endHandDrag();
   if (ui.drag) endDrag(e, false);
   ui.dragCand = null;
   controls.enabled = !tv.on;
 });
 addEventListener('pointerup', e => {
   panFrom = null;
+  if (endHandDrag()) return;
   if (ui.drag) {
     endDrag(e, true);
     ui.downAt = null;
@@ -261,7 +285,13 @@ function updateHover() {
     ((ui.placing || game.choice) && u.baseEm) ||
     (ui.placing && u.card && u.card.loc === 'board' && slotZones[u.card.slot] && slotZones[u.card.slot].userData.baseEm)
       ? 'pointer'
-      : '';
+      : typeof View3D !== 'undefined' &&
+          View3D.isOn() &&
+          m &&
+          m === View3D.handZone(ui.view) &&
+          View3D.config.camera.hand.own.drag.enabled
+        ? 'grab' // Patch12: the own hand zone slides sideways
+        : '';
 }
 
 renderer.domElement.style.touchAction = 'none';

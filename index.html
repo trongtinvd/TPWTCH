@@ -8,6 +8,8 @@
     <link rel="stylesheet" href="css/index.css" />
     <link rel="stylesheet" href="css/screens.css" />
     <link rel="stylesheet" href="css/skin.css" />
+    <link rel="stylesheet" href="css/avatar.css" />
+    <!-- Patch12 -->
     <script>
       // Patch10: ?anim3d opens the standalone 3D card preview (its own page and scene, nothing of the game is loaded)
       if (/[?&]anim3d\b/.test(location.search)) location.replace('anim3d.html' + location.search + location.hash);
@@ -22,14 +24,16 @@
     <div id="deckPanel" class="panel" hidden></div>
     <div id="inspect" class="panel" hidden></div>
     <div id="hp">
-      <div class="hpr" data-p="Player">
+      <div class="hpr me" data-p="Player">
         <span>Player 1</span>
+        <div class="av"></div>
         <div class="bar"><i></i></div>
         <b>20</b>
         <div class="aps"></div>
       </div>
-      <div class="hpr" data-p="Opponent">
+      <div class="hpr foe" data-p="Opponent">
         <span>Player 2</span>
+        <div class="av"></div>
         <div class="bar"><i></i></div>
         <b>20</b>
         <div class="aps"></div>
@@ -96,6 +100,13 @@
     <script src="js/anim/view3d.js"></script>
     <script src="js/view/hand-scroll.js"></script>
     <!-- Patch9 -->
+    <script src="js/avatar/avatar-logic.js"></script>
+    <script src="js/avatar/avatar-catalog.js"></script>
+    <script src="js/avatar/avatar-models.js"></script>
+    <script src="js/avatar/avatar-icons.js"></script>
+    <script src="js/avatar/avatar-view.js"></script>
+    <script src="js/screens/character-select.js"></script>
+    <!-- Patch12 -->
     <script src="tests/harness.js"></script>
     <script src="tests/suites/01-setup.js"></script>
     <script src="tests/suites/02-combat.js"></script>
@@ -120,6 +131,7 @@
     <script src="tests/suites/21-patch9.js"></script>
     <script src="tests/suites/22-patch10.js"></script>
     <script src="tests/suites/23-patch11.js"></script>
+    <script src="tests/suites/24-patch12.js"></script>
     <!-- Patch9 -->
     <script src="tests/selftest.js"></script>
     <script src="js/main.js"></script>

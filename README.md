@@ -52,7 +52,8 @@ Folders under `js/` (Patch6):
 - `js/game/` `game-host.js` host and UI state (send, automation, buttons), `input.js` pointer input, `bot.js` the bot
 - `js/log/` `narrate.js` the per-player story log (no DOM; the Node tests load it to check the logs for leaks), `gamelog.js` the log panel (back of the stack panel)
 - `js/view/` `scene.js`, `board.js`, `card-view.js` (card meshes, card back), `view-sync.js` (state -> meshes, pile tops), `panels.js`, `layout.js` (phone panel resizing), `stops-bar.js` (the stop icons)
-- `js/screens/` `menu.js` (main menu, start dialog, settings), `deck-editor.js`, `replay.js` (duel replays), `result.js` (rematch / continue / leave)
+- `js/screens/` `menu.js` (main menu, start dialog, settings), `character-select.js` (Patch12: the character selection scene), `deck-editor.js`, `replay.js` (duel replays), `result.js` (rematch / continue / leave)
+- `js/avatar/` (Patch12) player avatars: `avatar-logic.js` (pure), `avatar-catalog.js`, `avatar-models.js`, `avatar-icons.js`, `avatar-view.js`; configs `config/avatars.json`, `config/stats.json`; guide `Docs/AVATARS.md`
 - `js/main.js` console hook and render loop
 - `css/theme.css` every colour, distance and sprite setting as a CSS variable
 - `tests/selftest.js` headless rules tests, `tests/run.js` runs them in Node

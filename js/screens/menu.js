@@ -332,7 +332,9 @@ function startDialog(mode) {
           };
           Settings.set('lastGame', MenuUI.last); // the dialog remembers the last choices
           close();
-          MenuUI.play(Object.assign({ mode }, MenuUI.last));
+          // Patch12: Start opens the character selection scene; its Confirm starts the duel with these settings and the avatars
+          if (typeof CharacterSelect !== 'undefined') CharacterSelect.open(Object.assign({ mode }, MenuUI.last));
+          else MenuUI.play(Object.assign({ mode }, MenuUI.last));
         },
         'c-go'
       ),

@@ -305,6 +305,7 @@ function send(cmd, src) {
     if (undoStack.length > 200) undoStack.shift();
     if (!rp.on) cmdLog.push(JSON.parse(JSON.stringify(cmd)));
     eventLog.push(...r.events);
+    if (typeof AvatarView !== 'undefined') AvatarView.onEvents(r.events); // Patch12: playing_card
     GameLog.add(pre, cmd, r.events, src); // src: auto | bot | replay (a click is 'player')
     if (eventLog.length > 200) eventLog.splice(0, eventLog.length - 200);
     ui.placing = null;
@@ -516,6 +517,7 @@ function setTopView(on) {
   cam = on ? ortho : camera;
   controls.enabled = !on;
   if (typeof View3D !== 'undefined') View3D.setEnabled(!on); // Patch8: the side view is the 3D view (layout, characters, camera)
+  if (typeof AvatarView !== 'undefined') AvatarView.setSide(!on); // Patch12: the avatar models show in the side view only
   if (on) {
     tv.zoom = 1;
     tv.cx = tv.cz = 0;
@@ -585,6 +587,7 @@ function setNames(s) {
     const el = document.querySelector('#hp [data-p="' + p + '"] span');
     if (el) el.textContent = NAME[p];
   }
+  if (typeof AvatarView !== 'undefined') AvatarView.newDuel(s); // Patch12: a new duel: its avatars (icons, 3D models, animations)
 }
 function newGame(cfg) {
   ui.lastCfg = cfg;
@@ -616,6 +619,7 @@ function resetGame() {
     orderTriggers: true, // real games: a player with several triggers at once orders them
     rules,
     names,
+    avatars: c.avatars, // Patch12: chosen in the character selection scene
   });
   setNames(sim);
   game = sim;
@@ -640,6 +644,7 @@ function resetGame() {
     ot: true, // the replay needs the same options (the trigger order choices are part of the recorded commands)
     rules, // Patch6: the game options and the names
     names,
+    avatars: sim.avatars, // Patch12: the avatars (a replay shows them too)
     mode: c.mode,
     a: c.p1,
     b: c.p2,

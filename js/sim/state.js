@@ -43,6 +43,16 @@ Sim.def('state', function (K) {
     if (o && o.strikeBack === true) c.strikeBack = true; // Patch10: the "Defender strike back" option (absent = off, the default rules)
     return c;
   };
+  // Patch12: the avatars a duel was started with: plain ids only (the content lives in config/avatars.json, the Sim never reads it)
+  const avatarSeats = a => {
+    const out = { Player: null, Opponent: null },
+      ok = v => typeof v === 'string' && v.length > 0 && v.length <= 64;
+    for (const p of ['Player', 'Opponent']) {
+      const x = a && a[p];
+      if (x && ok(x.character) && ok(x.outfit)) out[p] = { character: x.character, outfit: x.outfit };
+    }
+    return out;
+  };
   function create(n, defs, opts = {}) {
     // opts: {decks:{Player:[ids], Opponent:[ids]}, shuffle:true, autoStart:false} (see createGame)                         // content is injected: the Sim never reads globals
     for (const k in byId) delete byId[k];
@@ -52,6 +62,7 @@ Sim.def('state', function (K) {
       n,
       cfg, // {startHand, drawPhase, drawAction, life, strikeBack?}: cards in the opening hand, drawn in the draw phase, drawn by the Draw action; starting life
       names: { Player: 'Player 1', Opponent: 'Player 2', ...(opts.names || {}) }, // shown names (logs, panels)
+      avatars: avatarSeats(opts.avatars), // Patch12: {Player: {character, outfit} | null, Opponent: ...}, chosen before the duel; rules never read it
       step: 'start', // the turn order: start -> draw -> main -> combat (optional) -> main or end
       drawPending: false, // the draw phase happens once nothing is pending after the turn start
       phase: 'deck',

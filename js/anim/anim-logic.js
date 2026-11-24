@@ -139,6 +139,22 @@ const Anim3DLogic = (function () {
       spacing: Math.max(0, num(h.spacing, d.spacing)),
       widthFrac: Math.max(0.05, num(h.widthFrac, d.widthFrac)),
       zone: h.zone == null ? d.zone : !!h.zone,
+      drag: normDrag(h.drag), // Patch12
+    };
+  }
+  // Patch12: dragging the own hand sideways. min / max = how far its centre may go, as a fraction of the visible width at the hand
+  // (-0.49 .. 0.49: the centre always stays on screen, so the hand never disappears); padding = extra grab room on the hand zone (m)
+  const DRAG_DEFAULTS = { enabled: true, min: -0.3, max: 0.3, padding: 0.5 };
+  function normDrag(g) {
+    g = isObj(g) ? g : {};
+    const lim = v => Math.min(0.49, Math.max(-0.49, v));
+    const a = lim(num(g.min, DRAG_DEFAULTS.min)),
+      b = lim(num(g.max, DRAG_DEFAULTS.max));
+    return {
+      enabled: g.enabled == null ? DRAG_DEFAULTS.enabled : !!g.enabled,
+      min: Math.min(a, b, 0),
+      max: Math.max(a, b, 0),
+      padding: Math.max(0, num(g.padding, DRAG_DEFAULTS.padding)),
     };
   }
   function normalizeCamera(j) {
@@ -246,8 +262,14 @@ const Anim3DLogic = (function () {
     });
     return out;
   }
-  function normCharacter(name, j, errors) {
+  // Patch12: spec = { categories, looping, die } (the avatar categories reuse this: Docs/animationGuide.md). Default = the card characters
+  const CARD_SPEC = { categories: CATEGORIES, looping: LOOPING, die: 'die' };
+  function normCharacter(name, j, errors, spec) {
     j = isObj(j) ? j : {};
+    const S = spec || CARD_SPEC,
+      CATS = S.categories,
+      LOOP = S.looping || {},
+      DIE = S.die || 'die';
     const err = m => errors.push(name + ': ' + m),
       m = isObj(j.model) ? j.model : {},
       d = isObj(j.defaults) ? j.defaults : {},
@@ -263,8 +285,8 @@ const Anim3DLogic = (function () {
       faceOpponent: m.faceOpponent == null ? true : !!m.faceOpponent,
     };
     const src = isObj(j.animations) ? j.animations : {};
-    for (const k of Object.keys(src)) if (!CATEGORIES.includes(k)) err('unknown animation category "' + k + '"');
-    for (const cat of CATEGORIES) {
+    for (const k of Object.keys(src)) if (!CATS.includes(k)) err('unknown animation category "' + k + '"');
+    for (const cat of CATS) {
       animations[cat] = [];
       (Array.isArray(src[cat]) ? src[cat] : []).forEach((a, i) => {
         if (!isObj(a) || typeof a.id !== 'string' || !a.id)
@@ -292,12 +314,14 @@ const Anim3DLogic = (function () {
           category: cat,
           file: typeof a.file === 'string' && a.file ? a.file : null, // null: the procedural animation of the category
           clip: typeof a.clip === 'string' ? a.clip : null,
-          loop: LOOP_MODES.includes(a.loop) ? a.loop : LOOPING[cat] ? 'repeat' : 'once',
+          loop: LOOP_MODES.includes(a.loop) ? a.loop : LOOP[cat] ? 'repeat' : 'once',
           repetitions: Math.max(1, Math.round(num(a.repetitions, Infinity))) || Infinity,
           speed: Math.max(0.01, num(a.speed, 1)) * Math.max(0.01, num(d.speed, 1)),
-          then: typeof a.then === 'string' ? a.then : cat === 'die' ? 'hold' : LOOPING[cat] ? null : 'idle',
+          then: typeof a.then === 'string' ? a.then : cat === DIE ? 'hold' : LOOP[cat] ? null : 'idle',
           camera: cams,
           cameraChance: Math.min(1, Math.max(0, num(a.cameraChance, 1))),
+          procedural: typeof a.procedural === 'string' && a.procedural ? a.procedural : null, // Patch12: which built-in clip stands in (no file)
+          weight: Math.min(1, Math.max(0, num(a.weight, 1))), // Patch12: an overlay's weight (idle_wounded)
         });
       });
     }
@@ -310,7 +334,17 @@ const Anim3DLogic = (function () {
         ids.add(a.id);
       }
     }
-    return { name, model, animations, transitions, interpolation: defInterp, speed: Math.max(0.01, num(d.speed, 1)) };
+    return {
+      name,
+      model,
+      animations,
+      transitions,
+      interpolation: defInterp,
+      speed: Math.max(0.01, num(d.speed, 1)),
+      categories: CATS, // Patch12: Character3D reads these three (a card character: the defaults)
+      looping: LOOP,
+      die: DIE,
+    };
   }
   // characters.json: { "default": "<character>", "cards": { "<card id>": "<character>" }, "characters": { "<character>": {...} } }
   function normalizeCharacters(j) {
@@ -430,8 +464,11 @@ const Anim3DLogic = (function () {
     CATEGORIES,
     LOOPING,
     METHODS,
+    normCharacter, // Patch12: also used for the avatars (js/avatar/avatar-logic.js)
+    normTransitions,
     BOARD_DEFAULTS,
     CAMERA_DEFAULTS,
+    DRAG_DEFAULTS, // Patch12
     normalizeBoard,
     normalizeCamera,
     normalizeCharacters,
