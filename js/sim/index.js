@@ -127,6 +127,9 @@ Sim.boot(K => {
     slotSeen: K.slotSeen, // may a player know what stands on a zone
     strikesBack: K.strikesBack, // the "Defender strike back" option
     HPKINDS: K.HPKINDS,
+    actor: K.actor, // who must act now
+    optionsFor: K.optionsFor, // what one player may do now, as plain data (the bot reads only this)
+    accepts: K.accepts, // would this command be accepted (the state is not changed)
     hpRefs: K.hpRefs,
     hpResolve: K.hpResolve,
     damageHp: K.damageHp,

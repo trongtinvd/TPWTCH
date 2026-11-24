@@ -151,6 +151,38 @@
     );
   });
 
+  Tests.add('bot-options', () => {
+    // ================= the bot decides from its options alone (plain data), never from the state =================
+    const s = Sim.create(601, DEFS, {
+        decks: { Player: BUILTIN_DECKS[0].cards, Opponent: BUILTIN_DECKS[1].cards },
+        shuffle: true,
+        autoStart: true,
+      }),
+      r1 = botRng(8),
+      r2 = botRng(8),
+      m1 = {},
+      m2 = {};
+    let same = 0,
+      steps = 0,
+      plain = true;
+    for (; steps < 300; steps++) {
+      const p = botActor(s),
+        v = Sim.optionsFor(s, p),
+        j = JSON.stringify(v);
+      if (/"def"|"name"|"statuses"|"logs"/.test(j)) plain = false;
+      const a = botChoose(s, p, r1, m1),
+        b = botDecide(deepFreeze(JSON.parse(j)), r2, m2, cmd => Sim.accepts(s, cmd));
+      if (!a) break;
+      if (JSON.stringify(a) === JSON.stringify(b)) same++;
+      D(s, a);
+    }
+    check('the options are plain data: no card definition, name, status or log', plain);
+    eq('a JSON copy of the options gives the same decisions (300 commands)', [same, steps], [300, 300]);
+    const before = JSON.stringify(s);
+    Sim.accepts(s, { type: 'EndTurn', player: botActor(s) });
+    check('Sim.accepts does not change the state', JSON.stringify(s) === before);
+  });
+
   Tests.add('deck-store', () => {
     // ================= DeckStore and the deck editor filter =================
     const ids = DEFS.map(d => d.id).slice(0, 10);

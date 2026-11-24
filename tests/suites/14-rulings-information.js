@@ -154,6 +154,9 @@
           o = Sim.observe(g, V),
           oj = JSON.stringify(Object.assign({}, o, { choice: null })); // the chooser may be offered names (look at the top card, exile from your deck)
         if (bad(oj)) leaks.push('observe ' + V + ' @' + steps + ' ' + cmd.type);
+        const pj = JSON.stringify(Object.assign({}, Sim.optionsFor(g, V), { choice: null })); // what the bot reads
+        if (bad(pj) || hid.some(c => pj.includes(quoted(c.iid))))
+          leaks.push('options ' + V + ' @' + steps + ' ' + cmd.type);
         const ej = JSON.stringify(Sim.observeEvents(pre, g, r.events, V));
         if (hid.some(c => !visible(c.iid) && ej.includes(quoted(c.iid))))
           leaks.push('events ' + V + ' @' + steps + ' ' + cmd.type);
@@ -164,7 +167,7 @@
       }
     }
     check(
-      '500 bot commands, both players: no hidden name in any Observation, event id or log line',
+      '500 bot commands, both players: no hidden name in any Observation, bot options, event id or log line',
       !leaks.length && steps > 100 && lines > 100,
       leaks.slice(0, 3).join(' | ')
     );

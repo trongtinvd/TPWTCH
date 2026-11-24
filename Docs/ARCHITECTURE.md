@@ -23,7 +23,7 @@ Simulation never touches Node3D, meshes, animations, cameras, VFX. It takes **Co
 - **Undo** = `structuredClone` snapshots (max 200); `eventLog` keeps 200 events (not yet a replay format).
 - **UI seat vs priority:** `ui.view` is the viewed seat; "Auto view" follows priority; "Switch player" pins it.
 - **Click-based choices:** a pending `state.choice` without `labels` is answered by clicking; with `labels` the picker lists the options.
-- **Determinism:** `mulberry32(seed)`; seeds from the game number. No other randomness.
+- **Determinism:** `mulberry32(seed)`; seeds from the game number. The only other generator is the bot's own seeded `botRng` (its choices, never the game's).
 
 ## Core systems
 
@@ -71,7 +71,7 @@ Categories: Card, Permanent, Creature, Zone, Column, Player, Stack Object, Damag
 ## Information
 
 **[proto] `Sim.canSee(state, player, card)` is the one rule** for what a player may know: the board (unless covered by a cloud the owner controls), the GY, exile and the stack are public; a hand or the extra deck is known to its owner and to whoever it was revealed to; a deck is known to nobody. The table (face-down cards), the inspector, the deck / extra deck lists and BOTH logs ask it, so a hidden card cannot leak by accident (a test plays bot games with decks that share no card name and fails when a name shows up in a log that may not know it). Each player has their own log (`Narrate.story(pre, post, cmd, events, viewer)`): their own cards by name, the other player's hidden cards as "a card", names coloured by owner; the two logs together are the whole game. "All events" shows the raw events (debug).
-AI and UI get a filtered **Observation**, not raw GameState. **[proto]** `Sim.observe(state, player)` (`js/sim/observe.js`) returns plain data with only what that player may know: own hand and extra deck by name; the other hand and extra deck as opaque stubs (ids are hashes of seed + viewer + real id); decks as sizes; cards under an enemy cloud not mentioned; stack objects from hidden sources masked ("King Eye: Ability"); a choice only for its chooser; status texts scrubbed of hidden names. `Sim.observeEvents` filters a command's events the same way. `tests/suites/14-rulings-information.js` plays bot games with disjoint decks and fails when a hidden name or id shows up in an Observation, an event or a log line. The view still reads the full state (a single-process prototype): moving it onto Observations is the next step.
+AI and UI get a filtered **Observation**, not raw GameState. **[proto]** `Sim.observe(state, player)` (`js/sim/observe.js`) returns plain data with only what that player may know: own hand and extra deck by name; the other hand and extra deck as opaque stubs (ids are hashes of seed + viewer + real id); decks as sizes; cards under an enemy cloud not mentioned; stack objects from hidden sources masked ("King Eye: Ability"); a choice only for its chooser; status texts scrubbed of hidden names. `Sim.observeEvents` filters a command's events the same way. `tests/suites/14-rulings-information.js` plays bot games with disjoint decks and fails when a hidden name or id shows up in an Observation, an event or a log line. The bot reads only its options (`Sim.optionsFor`, below) and the leak test checks those too. The view still reads the full state (a single-process prototype): moving it onto Observations is the next step.
 
 ## Real-time input
 
@@ -91,7 +91,7 @@ AI: BeliefModel (hidden info, sampled worlds) | IPlanner (Greedy/Beam/Determiniz
 - Loop: observe -> sample worlds -> simulate own actions + responses -> evaluate -> execute first action -> re-plan. Belief: probabilities for opponent hand/deck; revealed cards are certain information.
 - Score = StateEvaluation + EventEvaluation; personality = weight vector. Difficulty = search depth, beam width, samples, time budget, noise.
 - Branching: hand abilities, response windows, mode / pick choices and Attack objects on the stack add branching; the planner needs to enumerate `Choose` options cheaply. Statuses make state hashing larger: removed statuses should be excluded from hashes.
-- **[proto]** Not started. `Sim.hasAction` is the only AI-adjacent helper.
+- **[proto]** Planning not started. The bot (`js/game/bot.js`) is random and never sees the state: `Sim.optionsFor(state, p)` (`js/sim/options.js`) gives it plain data (its legal plays with their zones / columns, abilities, attackers, the pending choice's options, action points), and `Sim.accepts(state, cmd)` tells it whether a command would be accepted without changing the state. `botDecide(options, rnd, mem, legal)` is the whole decision; `botChoose(state, p, rnd, mem)` is the host's wrapper. `Sim.actionsOf` / `Sim.hasAction` drive the UI highlights and automation.
 
 ## Simulation lab (dev only)
 

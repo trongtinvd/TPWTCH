@@ -46,8 +46,8 @@ Folders under `js/`:
 
 - `js/core/` `theme.js` (reads `css/theme.css` for the 3D scene), `storage.js` (the only code that touches localStorage), `settings.js`
 - `js/content/` `cards.js` Fx effect API + card definitions, `decks.js` deck store, validation, search
-- `js/sim/*.js` rules (no THREE/DOM; `kernel.js` scaffold, one file per concern and per registry: `ops.js` effects, `costs.js`, `reqs.js`, `targeting.js`, `cond.js` conditions / triggers / passives, `ap.js` action points, `fusion.js` / `choices.js` extra deck flows, `ch.js`, `then.js`; `index.js` is the public `Sim` facade, `validate.js` checks cards against `Sim.API`, `observe.js` per-player Observations)
-- `js/game/` `game-host.js` host and UI state (send, automation, buttons), `input.js` pointer input, `bot.js` the bot
+- `js/sim/*.js` rules (no THREE/DOM; `kernel.js` scaffold, one file per concern and per registry: `ops.js` effects, `costs.js`, `reqs.js`, `targeting.js`, `cond.js` conditions / triggers / passives, `ap.js` action points, `fusion.js` / `choices.js` extra deck flows, `ch.js`, `then.js`; `index.js` is the public `Sim` facade, `validate.js` checks cards against `Sim.API`, `observe.js` per-player Observations, `options.js` a player's legal options for the bot)
+- `js/game/` `game-host.js` host and UI state (send, automation, buttons), `input.js` pointer input, `bot.js` the bot (decides from `Sim.optionsFor` only)
 - `js/log/` `narrate.js` the per-player story log (no DOM; the Node tests load it to check the logs for leaks), `gamelog.js` the log panel (back of the stack panel)
 - `js/view/` `scene.js`, `board.js`, `card-view.js` (card meshes, card back), `view-sync.js` (state -> meshes, pile tops), `panels.js`, `layout.js` (phone panel resizing), `stops-bar.js` (the stop icons)
 - `js/screens/` `menu.js` (main menu, start dialog, settings), `character-select.js` (the character selection scene), `deck-editor.js`, `replay.js` (duel replays), `result.js` (rematch / continue / leave)
