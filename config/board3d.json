@@ -3,7 +3,7 @@
   "zone": { "width": 2, "depth": 3 },
   "columnGap": 0.5,
   "rowGap": 1,
-  "frontGap": 1000,
+  "frontGap": 8,
   "sideGap": 1,
   "cardFit": 0.9,
   "models": { "showFor": ["creature"], "heightOffset": 0 }

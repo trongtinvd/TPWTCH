@@ -126,7 +126,6 @@ Status in `tests/selftest.js` (`node tests/run.js`, or `cardGame.selfTest()` in 
 - [x] Observations and logs leak nothing hidden (bot games with disjoint decks); [ ] the AI and the view read Observations only _(not built)_.
 - [ ] Simulated games reproduce real-game outcomes _(needs command recording)_.
 
-
 ## 3D side view (Patch8)
 
-`js/anim/` holds the 3D side view: config in `config/`, assets in `assets/`. The Sim is untouched; the view reads its events (attack, damage, cards leaving the board) and plays the animations. Details: `Docs/ANIMATION_3D.md`.
+`js/anim/` holds the 3D side view: config in `config/`, assets in `assets/`. The Sim is untouched; the view reads its events (attack, damage, cards leaving the board) and plays the animations. Details: `Docs/ANIMATION_3D.md`. Patch9: `js/view/hand-scroll.js` scrolls a big hand with the mouse wheel (top and side view); `js/core/back-nav.js` maps the browser Back button (popup: cancel, deck editor / replay: Exit, game: Surrender popup, menu: nothing).

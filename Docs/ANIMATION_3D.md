@@ -4,19 +4,19 @@ The **Side view** button now shows the board in 3D with an animated character on
 
 ## Files
 
-| File | What |
-|---|---|
-| `config/board3d.json` | zone size (2 x 2 m), gaps (rows 1 m, front rows 4 m, columns, side zones), card fit, which card types get a character, global height offset |
-| `config/camera3d.json` | seat camera (position + target, or `rotationDeg`), FOV, near / far, `minAspect` (narrow screens move back), orbit limits, the two hands (camera space), camera animation blend / speed / transitions |
-| `config/characters.json` | `cards` (card id -> character), `default`, `characters` (model, animations, transitions) |
-| `assets/camera/*.json`, `*.glb` | camera animations |
-| `assets/samples/test-rig/` | a small sample character: model and animations in separate GLB files |
-| `js/anim/anim-logic.js` | pure logic (tested by `node tests/run.js --only 3d-`) |
-| `js/anim/asset-loader.js` | loaders by extension, one cache per file |
-| `js/anim/procedural.js` | placeholder cube + procedural clips |
-| `js/anim/character.js` | one character: mixer, random pick, transitions, fallbacks |
-| `js/anim/camera-anim.js` | camera animations |
-| `js/anim/view3d.js` | mode switch, layout, hands on the camera, picking, game cues, debug |
+| File                            | What                                                                                                                                                                                                 |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `config/board3d.json`           | zone size (2 x 2 m), gaps (rows 1 m, front rows 4 m, columns, side zones), card fit, which card types get a character, global height offset                                                          |
+| `config/camera3d.json`          | seat camera (position + target, or `rotationDeg`), FOV, near / far, `minAspect` (narrow screens move back), orbit limits, the two hands (camera space), camera animation blend / speed / transitions |
+| `config/characters.json`        | `cards` (card id -> character), `default`, `characters` (model, animations, transitions)                                                                                                             |
+| `assets/camera/*.json`, `*.glb` | camera animations                                                                                                                                                                                    |
+| `assets/samples/test-rig/`      | a small sample character: model and animations in separate GLB files                                                                                                                                 |
+| `js/anim/anim-logic.js`         | pure logic (tested by `node tests/run.js --only 3d-`)                                                                                                                                                |
+| `js/anim/asset-loader.js`       | loaders by extension, one cache per file                                                                                                                                                             |
+| `js/anim/procedural.js`         | placeholder cube + procedural clips                                                                                                                                                                  |
+| `js/anim/character.js`          | one character: mixer, random pick, transitions, fallbacks                                                                                                                                            |
+| `js/anim/camera-anim.js`        | camera animations                                                                                                                                                                                    |
+| `js/anim/view3d.js`             | mode switch, layout, hands on the camera, picking, game cues, debug                                                                                                                                  |
 
 The config files are read at start (`fetch`); a missing or broken file means the built-in defaults.
 
@@ -52,17 +52,17 @@ Metres. Origin = centre of the gap between the front rows; +z towards the Player
 
 ### Animation entry
 
-| Key | Default | |
-|---|---|---|
-| `id` | required | unique within the character (transition clips too) |
-| `file` | none | GLB / glTF / FBX (if FBXLoader is on the page) / JSON clips. None: `clip` from the model's own clips, else the procedural clip |
-| `clip` | first clip | clip name inside the file |
-| `loop` | `repeat` for idle, channeling_idle, stun; else `once` | `repeat`, `once`, `pingpong` |
-| `repetitions` | endless | for repeat / pingpong |
-| `speed` | 1 | x the character's `defaults.speed` |
-| `then` | `idle` (die: `hold`) | category played after a one-shot |
-| `camera` | `[]` | `{ id, file, speed, space, blendIn, blendOut }`, picked at random on its own |
-| `cameraChance` | 1 | 0-1, chance that a camera animation plays at all |
+| Key            | Default                                               |                                                                                                                                |
+| -------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `id`           | required                                              | unique within the character (transition clips too)                                                                             |
+| `file`         | none                                                  | GLB / glTF / FBX (if FBXLoader is on the page) / JSON clips. None: `clip` from the model's own clips, else the procedural clip |
+| `clip`         | first clip                                            | clip name inside the file                                                                                                      |
+| `loop`         | `repeat` for idle, channeling_idle, stun; else `once` | `repeat`, `once`, `pingpong`                                                                                                   |
+| `repetitions`  | endless                                               | for repeat / pingpong                                                                                                          |
+| `speed`        | 1                                                     | x the character's `defaults.speed`                                                                                             |
+| `then`         | `idle` (die: `hold`)                                  | category played after a one-shot                                                                                               |
+| `camera`       | `[]`                                                  | `{ id, file, speed, space, blendIn, blendOut }`, picked at random on its own                                                   |
+| `cameraChance` | 1                                                     | 0-1, chance that a camera animation plays at all                                                                               |
 
 Categories: `enter`, `idle`, `attack`, `get_hit`, `channeling_idle`, `stun`, `die`, `finishing_attack` (empty: uses `attack`). An empty category plays its procedural clip. A random pick never repeats the previous one of that category when there is a choice.
 
@@ -72,8 +72,8 @@ Directional (`from` -> `to` only). A transition clip that loaded plays once firs
 
 ### Camera animation formats
 
-* GLB / glTF: a camera node with an animation (position, rotation; FOV from the camera).
-* JSON: `{ "format": "tpw-camera", "duration": 1.2, "keys": [ { "t": 0, "position": [x,y,z], "target": [x,y,z], "fov": 45 } ] }`.
+- GLB / glTF: a camera node with an animation (position, rotation; FOV from the camera).
+- JSON: `{ "format": "tpw-camera", "duration": 1.2, "keys": [ { "t": 0, "position": [x,y,z], "target": [x,y,z], "fov": 45 } ] }`.
 
 It blends in from where the camera is, blends out back to the seat camera; the orbit controls rest meanwhile.
 
@@ -83,11 +83,11 @@ Each file on its own: no / broken model = cube; no / broken / non-fitting clip =
 
 ## When things play
 
-* `enter`: a creature appears on the board while the side view is open (creatures already there when you switch stand in idle).
-* `attack` / `finishing_attack`: when the sword of a resolving Attack starts flying; finishing = it destroyed a creature it hit, or took a player below 0.
-* `get_hit`: when the sword arrives, or when any other damage lowers its HP.
-* `die`: the creature went to the graveyard (or a token ceased to exist); it plays where the creature stood, then the character is removed. Bounce / exile / spin just remove it.
-* `channeling_idle`, `stun`: not in the game yet; play them by hand (below).
+- `enter`: a creature appears on the board while the side view is open (creatures already there when you switch stand in idle).
+- `attack` / `finishing_attack`: when the sword of a resolving Attack starts flying; finishing = it destroyed a creature it hit, or took a player below 0.
+- `get_hit`: when the sword arrives, or when any other damage lowers its HP.
+- `die`: the creature went to the graveyard (or a token ceased to exist); it plays where the creature stood, then the character is removed. Bounce / exile / spin just remove it.
+- `channeling_idle`, `stun`: not in the game yet; play them by hand (below).
 
 ## Debug
 
@@ -95,8 +95,17 @@ Open the page with `?anim3d`: a button row plays a category on the selected card
 
 ## Limits / next
 
-* A dying character plays at its old zone while its card already glides to the graveyard.
-* Hit-testing a character uses its bounding box (animated limbs outside it do not catch clicks).
-* `channeling_idle` and `stun` have no game event yet.
-* glTF cannot animate the FOV; use the JSON camera format for FOV moves.
-* `minAspect` keeps the board width in view on a phone in portrait; tune it with the camera position.
+- A dying character plays at its old zone while its card already glides to the graveyard.
+- Hit-testing a character uses its bounding box (animated limbs outside it do not catch clicks).
+- `channeling_idle` and `stun` have no game event yet.
+- glTF cannot animate the FOV; use the JSON camera format for FOV moves.
+- `minAspect` keeps the board width in view on a phone in portrait; tune it with the camera position.
+
+## Patch9
+
+- **Card art model**: a character with no model file (or one that fails to load) uses the card's own 3D art (about 0.9 m, feet on the card); the cube only stands in when there is no art. The archer no longer maps to the test rig (the `test-rig` entry is still there: add `"archer": "test-rig"` back under `cards` to see it).
+- **attacking**: a ninth category. It loops while the creature's Attack is on the stack and stops when the Attack resolves (attack / finishing_attack) or leaves the stack.
+- **Sword** (`board3d.json`, optional): `"sword": { "scale": 2, "height": 1.6, "flash": true }`: size factor, metres above the card, flashing flying sword.
+- **Configs** load again each time the side view opens: edit a file, switch Top view / Side view to see it. They need the game served over http(s) (GitHub Pages, `python -m http.server`): a `file://` page cannot read them and uses the defaults (console warning; `?anim3d` shows the status). GitHub Pages may serve an old copy for a few minutes.
+- **Hands** are drawn in a second pass over the board (layer 1), so a board card near the camera never cuts them; the wheel over a hand scrolls it when it does not fit (never zooms).
+- **Debug** `?anim3d`: config status, "3D demo" (Vs self game, characters on both sides, side view on); the category buttons show in the side view only.

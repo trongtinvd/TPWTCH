@@ -13,7 +13,14 @@ const Assets3D = (function () {
   function register(exts, impl) {
     for (const e of [].concat(exts)) loaders[e.toLowerCase()] = Object.assign({}, loaders[e.toLowerCase()], impl);
   }
-  const warn = (what, url, e) => console.warn('[3D] ' + what + ' failed: ' + url + (e ? ' (' + (e.message || (e.type === 'error' ? 'request failed / not found' : e)) + ')' : ''));
+  const warn = (what, url, e) =>
+    console.warn(
+      '[3D] ' +
+        what +
+        ' failed: ' +
+        url +
+        (e ? ' (' + (e.message || (e.type === 'error' ? 'request failed / not found' : e)) + ')' : '')
+    );
   function cached(kind, url, run) {
     const key = kind + '|' + url;
     if (!cache.has(key))
@@ -107,7 +114,8 @@ const Assets3D = (function () {
       console.warn('[3D] ' + clip.name + ': ' + (clip.tracks.length - keep.length) + ' track(s) do not fit the model');
     return keep.length === clip.tracks.length ? clip : new THREE.AnimationClip(clip.name, clip.duration, keep);
   }
-  const cloneScene = s => (THREE.SkeletonUtils && THREE.SkeletonUtils.clone ? THREE.SkeletonUtils.clone(s) : s.clone(true));
+  const cloneScene = s =>
+    THREE.SkeletonUtils && THREE.SkeletonUtils.clone ? THREE.SkeletonUtils.clone(s) : s.clone(true);
   return {
     register,
     loaders,

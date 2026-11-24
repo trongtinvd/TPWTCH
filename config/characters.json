@@ -2,7 +2,6 @@
   "_doc": "Characters of the 3D side view. cards: card id -> character; default: every other creature. Animation categories: enter, idle, attack, get_hit, channeling_idle, stun, die, finishing_attack. See Docs/ANIMATION_3D.md",
   "default": "placeholder",
   "cards": {
-    "archer": "test-rig",
     "shark": "cube-camera-demo",
     "hummingbird": "missing-assets-demo"
   },

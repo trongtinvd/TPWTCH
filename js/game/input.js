@@ -1,17 +1,20 @@
 // input.js - Pointer input: drag, click, hover (commands only)
 // ---- Input: pointer -> commands only ----------------------------------------------
-const pickables = () => ui.pickList || (ui.pickList = [
+const pickables = () =>
+  ui.pickList ||
+  (ui.pickList = [
     ...ui.pickCards,
     ...(typeof View3D !== 'undefined' ? View3D.pickProxies() : []), // Patch8: a character's pick box stands for its card
     ...zones.filter(z => z.visible),
   ]);
+const front3d = hs => (typeof View3D !== 'undefined' ? View3D.front(hs) : hs[0]); // Patch9: the 3D hands are drawn on top, so they are picked first
 function aim(x, y) {
   mouse.set(((x - VX()) / VW()) * 2 - 1, -((y - VY()) / VH()) * 2 + 1);
   ray.setFromCamera(mouse, cam);
 }
 function pickAt(x, y, list) {
   aim(x, y);
-  const h = ray.intersectObjects(list || pickables())[0];
+  const h = front3d(ray.intersectObjects(list || pickables()));
   return h ? h.object.userData.pickAs || h.object : null; // Patch8: a character click is a click on its card
 }
 function passByRightClick() {
@@ -232,7 +235,7 @@ addEventListener('pointerup', e => {
 });
 function updateHover() {
   ray.setFromCamera(mouse, cam);
-  const hit = ray.intersectObjects(pickables())[0],
+  const hit = front3d(ray.intersectObjects(pickables())),
     m = hit ? hit.object.userData.pickAs || hit.object : null; // Patch8: hovering a character hovers its card
   if (m === ui.hovered) return;
   const old = ui.hovered;

@@ -47,7 +47,11 @@ const Character3D = (function () {
       const m = this.ch.model,
         r = m.rotationDeg;
       this.mount.position.set(m.offset[0], m.offset[1] + m.heightOffset + (this.hooks.height || 0), m.offset[2]);
-      this.mount.rotation.set(r[0] * D2R, r[1] * D2R + (m.faceOpponent && this.side === 'Player' ? Math.PI : 0), r[2] * D2R);
+      this.mount.rotation.set(
+        r[0] * D2R,
+        r[1] * D2R + (m.faceOpponent && this.side === 'Player' ? Math.PI : 0),
+        r[2] * D2R
+      );
       this.mount.scale.fromArray(m.scale);
     }
     setSide(side) {
@@ -62,6 +66,8 @@ const Character3D = (function () {
       if (src && src.scene) {
         this.model = Assets3D.cloneScene(src.scene);
         this.cube = false;
+      } else if (this.hooks.art && (this.model = this.hooks.art())) {
+        this.cube = false; // Patch9: no model file (or a broken one): the card's own 3D art stands on the card
       } else {
         this.model = Procedural3D.makeCube(this.side); // missing / broken model: the placeholder cube
         this.cube = true;
@@ -72,19 +78,24 @@ const Character3D = (function () {
       for (const cat of Anim3DLogic.CATEGORIES) all.push(...ch.animations[cat]);
       for (const t of ch.transitions) all.push(...t.animations);
       await Promise.all(
-        all.map(async a => {
-          let clips = a.file ? await Assets3D.loadClips(a.file) : a.clip ? own : null;
-          if (!clips || !clips.length) return; // no file, or it failed: the procedural clip plays instead
-          const c = a.clip ? clips.find(x => x.name === a.clip) : clips[0];
-          const fit = c && !this.cube ? Assets3D.fitClip(c, this.model) : null;
-          if (fit) this.clips.set(a.id, fit);
-          else if (c) console.warn('[3D] ' + ch.name + ': animation "' + a.id + '" does not fit the model, procedural fallback');
-        }).concat(
-          [].concat(...all.map(a => a.camera || [])).map(async c => {
-            const asset = await Assets3D.loadCamera(c.file);
-            if (asset) this.cams.set(c.file, asset);
+        all
+          .map(async a => {
+            let clips = a.file ? await Assets3D.loadClips(a.file) : a.clip ? own : null;
+            if (!clips || !clips.length) return; // no file, or it failed: the procedural clip plays instead
+            const c = a.clip ? clips.find(x => x.name === a.clip) : clips[0];
+            const fit = c && !this.cube ? Assets3D.fitClip(c, this.model) : null;
+            if (fit) this.clips.set(a.id, fit);
+            else if (c)
+              console.warn(
+                '[3D] ' + ch.name + ': animation "' + a.id + '" does not fit the model, procedural fallback'
+              );
           })
-        )
+          .concat(
+            [].concat(...all.map(a => a.camera || [])).map(async c => {
+              const asset = await Assets3D.loadCamera(c.file);
+              if (asset) this.cams.set(c.file, asset);
+            })
+          )
       );
       if (this.dead) return;
       this.mixer = new THREE.AnimationMixer(this.mount);
@@ -106,6 +117,7 @@ const Character3D = (function () {
       return this.clips.get(entry.id) || Procedural3D.clipFor(entry.category, this.cube, this.side);
     }
     play(cat) {
+      if (cat === 'idle' && this.idleAs) cat = this.idleAs; // Patch9: while its Attack waits on the stack, "idle" means "attacking"
       if (this.dead || (this.dying && cat !== 'die')) return null;
       if (!this.ready) {
         if (cat !== 'idle' || !this.pending) this.pending = cat;
@@ -233,7 +245,8 @@ const Character3D = (function () {
       if (this.root.parent) this.root.parent.remove(this.root);
       this.proxy.geometry.dispose();
       if (this.model) {
-        if (this.cube && this.model.userData.dispose) this.model.userData.dispose();
+        if (this.model.userData.dispose)
+          this.model.userData.dispose(); // Patch9: the card art model frees its own parts too
         else this.model.traverse(o => o.isSkinnedMesh && o.skeleton && o.skeleton.dispose()); // geometry and materials stay shared in the cache
       }
       this.fades = [];

@@ -29,7 +29,7 @@ function frame() {
   if (!document.hidden && (busy || ui.dirty || (ui.pulse && now - ui.lastPulse > 33))) {
     ui.dirty = false;
     ui.lastPulse = now;
-    renderer.render(scene, cam);
+    if (typeof View3D === 'undefined' || !View3D.render(renderer, scene, cam)) renderer.render(scene, cam); // Patch9: the 3D hands are drawn over the board
   }
 }
 (function loop() {

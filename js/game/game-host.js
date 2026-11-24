@@ -226,19 +226,27 @@ async function attackJob(pre, ev) {
   if (!from0) return;
   if (a) setSword(a, false, false);
   const cue3d =
-    typeof View3D !== 'undefined' ? View3D.onAttack(ev, sim, ao && ao.kind === 'attack' ? ao.iid : comb[0].source) : null; // Patch8: the attacker's animation // the strike takes over from the sword that stood on the attacker
+    typeof View3D !== 'undefined'
+      ? View3D.onAttack(ev, sim, ao && ao.kind === 'attack' ? ao.iid : comb[0].source)
+      : null; // Patch8: the attacker's animation // the strike takes over from the sword that stood on the attacker
   const sword = makeSword(),
     undo = [];
   let cur = from0;
-  sword.position.set(cur.x, 0.9, cur.z);
+  const sy = typeof View3D !== 'undefined' ? View3D.styleSword(sword) : 0.9; // Patch9: bigger, higher and flashing in the side view
+  sword.position.set(cur.x, sy, cur.z);
   scene.add(sword);
   for (const e of comb) {
     const m = e.t === 'PlayerDamaged' ? null : meshes.get(e.target);
     if (e.t !== 'PlayerDamaged' && !m) continue; // a target that is already gone shows nothing (it used to be drawn as a hit on the player)
-    const to = m ? { x: m.position.x, z: m.position.z } : { x: cur.x, z: (e.player === 'Opponent' ? -1 : 1) * 7.3 },
+    const to = m
+        ? { x: m.position.x, z: m.position.z }
+        : {
+            x: cur.x,
+            z: (e.player === 'Opponent' ? -1 : 1) * ((typeof View3D !== 'undefined' && View3D.playerZ()) || 7.3),
+          },
       from = cur;
     sword.rotation.y = to.z >= from.z ? 0 : Math.PI;
-    await tween(280, t => sword.position.set(from.x + (to.x - from.x) * t, 0.9, from.z + (to.z - from.z) * t));
+    await tween(280, t => sword.position.set(from.x + (to.x - from.x) * t, sy, from.z + (to.z - from.z) * t));
     cur = to;
     if (cue3d && m) View3D.onHit(e.target); // Patch8: the creature hit plays get_hit as the sword arrives
     undo.push(e.t === 'DamageDenied' ? () => {} : m ? splat3D(m) : splatBar(e.player));

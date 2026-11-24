@@ -436,6 +436,12 @@ Sim.def('ops', function (K) {
       OPS.Draw({ ...x, who: x.foe }, { n: 5 });
       s.attackPhase = true;
       s.turnEnding = false; // a second combat phase: the turn is not ending yet
+      s.step = 'combat'; // Patch9: the turn order shows the second combat (it said Main phase)
+      s.mainPending = false; // Patch9: no "main phase started" stop inside the second combat
+      if (s.respond && s.respond.kind === 'combatEnd') {
+        s.respond = null; // Patch9: the first combat's "combat ended" window is over: the second combat replaces it
+        x.ev.push({ t: 'ResponseWindowClosed', kind: 'combatEnd' });
+      }
       clearAttacked(s, 'new combat phase');
       placeAttackCounters(s, x.ev); // Patch4: a new combat phase gives new attack counters
       s.combats = (s.combats || 0) + 1;

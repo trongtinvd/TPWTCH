@@ -13,11 +13,18 @@ function targets() {
     const hand = game.piles[p].hand,
       n = hand.length,
       opp = p === 'Opponent';
-    const sp = n > 1 ? Math.min(1.75, (HAND_W - CW - 0.4) / (n - 1)) : 0;
+    const xs = HandScroll.spread(
+      p,
+      n,
+      HAND_W - CW - 0.4,
+      1.75,
+      CW * 0.42,
+      !(typeof View3D !== 'undefined' && View3D.isOn())
+    ); // Patch9: a big hand scrolls (mouse wheel over it)
     hand.forEach((c, i) =>
       put(
         c,
-        (i - (n - 1) / 2) * sp * (opp ? -1 : 1),
+        xs[i] * (opp ? -1 : 1),
         opp ? -HZ : HZ,
         0.1 + i * 0.02,
         opp ? Math.PI : 0,

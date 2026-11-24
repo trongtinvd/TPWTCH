@@ -30,15 +30,56 @@ const View3D = (function () {
         console.warn('[3D] ' + url + ' not loaded, defaults used (' + e.message + ')');
         return {};
       });
-  const ready = Promise.all([getJSON(CFG.board), getJSON(CFG.camera), getJSON(CFG.characters)]).then(([b, c, ch]) => {
-    cfg = { board: L.normalizeBoard(b), camera: L.normalizeCamera(c), chars: L.normalizeCharacters(ch) };
-    for (const e of cfg.chars.errors) console.warn('[3D] characters.json: ' + e);
-    layout = L.boardLayout(cfg.board);
-    if (on && !applied) apply();
-  });
+  // Patch9: the configs load again each time the side view opens (edit a file, switch Top / Side: the new values show). A config
+  // that arrives while the side view is already open is applied at once (it used to be ignored: the defaults stayed).
+  const cfgState = { board: 'loading', camera: 'loading', characters: 'loading' };
+  let cfgKey = '';
+  function loadCfg() {
+    const one = k =>
+      fetch(CFG[k], { cache: 'no-cache' })
+        .then(r => (r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status))))
+        .then(j => ((cfgState[k] = 'loaded'), j))
+        .catch(e => {
+          cfgState[k] = 'defaults (' + e.message + ')';
+          console.warn(
+            '[3D] ' +
+              CFG[k] +
+              ' not loaded, defaults used (' +
+              e.message +
+              ')' +
+              (location.protocol === 'file:'
+                ? ': a file:// page cannot read config files, open the game through a web server'
+                : '')
+          );
+          return {};
+        });
+    return Promise.all([one('board'), one('camera'), one('characters')]).then(([b, c, ch]) => {
+      const next = { board: L.normalizeBoard(b), camera: L.normalizeCamera(c), chars: L.normalizeCharacters(ch) },
+        key = JSON.stringify(next);
+      if (key === cfgKey) return false;
+      cfgKey = key;
+      cfg = next;
+      for (const e of cfg.chars.errors) console.warn('[3D] characters.json: ' + e);
+      layout = L.boardLayout(cfg.board);
+      if (on && applied) {
+        restore();
+        apply();
+      } else if (on) apply();
+      return true;
+    });
+  }
+  const ready = loadCfg();
   const boardScale = () => cfg.board.cardFit * Math.min(layout.zone.width / CW, layout.zone.depth / CD);
   const sideKey = u =>
-    u.deckOf ? u.deckOf + 'deck' : u.gyOf ? u.gyOf + 'gy' : u.extraOf ? u.extraOf + 'extra' : u.exileOf ? u.exileOf + 'exile' : null;
+    u.deckOf
+      ? u.deckOf + 'deck'
+      : u.gyOf
+        ? u.gyOf + 'gy'
+        : u.extraOf
+          ? u.extraOf + 'extra'
+          : u.exileOf
+            ? u.exileOf + 'exile'
+            : null;
   const handZone = p => zones.find(z => z.userData.name === p + ' Hand');
 
   // ---- entering / leaving ----------------------------------------------------------------------------------------
@@ -48,6 +89,7 @@ const View3D = (function () {
     on = v;
     if (on) {
       if (!applied) apply();
+      loadCfg(); // Patch9: pick up edited config files
     } else restore();
   }
   function apply() {
@@ -122,6 +164,8 @@ const View3D = (function () {
       pl.scale.copy(s.ps);
       pl.quaternion.copy(s.pq);
       pl.visible = s.pvis;
+      onTop(s.z, false); // Patch9
+      onTop(pl, false);
     }
     for (const s of saved.clouds) {
       clouds[s.k].position.copy(s.p);
@@ -139,6 +183,9 @@ const View3D = (function () {
       u.hl = null;
       m.quaternion.identity();
       m.scale.set(1, 1, 1);
+      u.ql = null; // Patch9
+      if (u.top9) onTop(m, false);
+      if (u.sword) swordPose(m, false);
     }
     for (const k in piles3d) {
       piles3d[k].mesh.scale.x = piles3d[k].mesh.scale.z = 1;
@@ -205,7 +252,11 @@ const View3D = (function () {
   // ---- characters ------------------------------------------------------------------------------------------------
   function create(c, side) {
     const ch = L.characterFor(cfg.chars, c.def.id),
-      inst = new Character3D(c.iid, ch, side, { camera: cameraHook, height: cfg.board.models.heightOffset });
+      inst = new Character3D(c.iid, ch, side, {
+        camera: cameraHook,
+        height: cfg.board.models.heightOffset,
+        art: () => (typeof artModel3D === 'function' ? artModel3D(c.def) : null),
+      });
     group.add(inst.root);
     inst.proxy.userData.pickAs = null;
     return inst;
@@ -255,6 +306,17 @@ const View3D = (function () {
         });
       } else inst.dispose(); // bounced, exiled, back to the deck: it just goes
     }
+    // Patch9: a creature whose Attack waits on the stack plays "attacking" until it resolves (attack / finishing_attack) or is gone
+    const waiting = new Set(game.stack.filter(o => o.kind === 'attack').map(o => o.iid));
+    for (const [iid, inst] of insts) {
+      if (waiting.has(iid) && !inst.idleAs) {
+        inst.idleAs = 'attacking';
+        inst.play('attacking');
+      } else if (!waiting.has(iid) && inst.idleAs) {
+        inst.idleAs = null;
+        if (inst.cur && inst.cur.entry.category === 'attacking') inst.play('idle');
+      }
+    }
     seen = true;
     ui.pickList = null;
   }
@@ -262,7 +324,8 @@ const View3D = (function () {
     if (!on || !applied) return [];
     const out = [];
     for (const i of insts.values())
-      if (i.root.visible && i.proxy.userData.pickAs && ui.pickCards.includes(i.proxy.userData.pickAs)) out.push(i.proxy);
+      if (i.root.visible && i.proxy.userData.pickAs && ui.pickCards.includes(i.proxy.userData.pickAs))
+        out.push(i.proxy);
     return out;
   };
   // attackJob: the sword starts flying
@@ -271,7 +334,10 @@ const View3D = (function () {
     const cue = L.attackCue(ev, post, attackerIid);
     if (!cue) return null;
     const a = insts.get(cue.attacker);
-    if (a) a.play(cue.category);
+    if (a) {
+      a.idleAs = null; // Patch9: the Attack resolved: after the strike it goes back to idle
+      a.play(cue.category);
+    }
     return cue;
   }
   function onHit(iid) {
@@ -307,12 +373,14 @@ const View3D = (function () {
         hand = game.piles[p].hand,
         dist = Math.max(0.2, -h.offset[2]),
         visW = 2 * dist * tanH * camera.aspect,
-        xs = L.handSpread(hand.length, h, visW, CW),
+        xs = HandScroll.spread(p, hand.length, visW * h.widthFrac - CW * h.scale, h.spacing, CW * h.scale * 0.42, true), // Patch9: a big hand scrolls
         rot = p === 'Opponent' ? Math.PI : 0;
       const hz = handZone(p);
       if (hz) {
         hz.visible = h.zone;
         hz.userData.plane.visible = h.zone;
+        onTop(hz, true); // Patch9: the hand zone is drawn over the board
+        onTop(hz.userData.plane, true);
         const zw = Math.min(visW * h.widthFrac, (hand.length ? xs[xs.length - 1] - xs[0] : 0) + CW * h.scale + 0.2);
         vL.set(h.offset[0], h.offset[1] - 0.02, h.offset[2] - 0.03);
         hz.position.copy(camera.localToWorld(vL.clone()));
@@ -330,6 +398,7 @@ const View3D = (function () {
         if (ui.drag && ui.drag.card.iid === c.iid) {
           u.cam3d = false; // follows the pointer over the board
           u.hl = null;
+          u.ql = null; // Patch9
           return;
         }
         inHand.add(m);
@@ -347,7 +416,16 @@ const View3D = (function () {
           busy = true;
         } else u.hl.copy(goal);
         m.position.copy(camera.localToWorld(u.hl.clone()));
-        u.q3d = faceCam(h.tiltDeg, rot, u.q3d || new THREE.Quaternion());
+        // Patch9: the card turns in camera space too, so an orbiting camera never leaves it tilted into the hand zone
+        const tq = qA.setFromEuler(eT.set(Math.PI / 2 + h.tiltDeg * D2R, rot, 0, 'XYZ'));
+        if (!u.ql) u.ql = camera.quaternion.clone().invert().multiply(m.quaternion);
+        if (u.ql.angleTo(tq) > 0.002) {
+          u.ql.slerp(tq, 0.25);
+          busy = true;
+        } else u.ql.copy(tq);
+        m.quaternion.copy(camera.quaternion).multiply(u.ql);
+        u.q3d = (u.q3d || new THREE.Quaternion()).copy(m.quaternion);
+        onTop(m, true); // Patch9: hand cards are drawn over the board
         u.s3d = h.scale;
       });
     }
@@ -361,6 +439,8 @@ const View3D = (function () {
         u.by = m.position.y - (u.owner ? lift[u.owner] : 0); // the board tween goes on from here
       }
       u.q3d = null;
+      u.ql = null; // Patch9
+      if (u.top9) onTop(m, false);
       u.s3d = bs;
     }
     return busy;
@@ -388,6 +468,11 @@ const View3D = (function () {
       } else m.scale.copy(sV);
     }
     for (const k in piles3d) piles3d[k].mesh.scale.x = piles3d[k].mesh.scale.z = bs;
+    for (const m of meshes.values()) if (m.userData.sword) swordPose(m, true); // Patch9: the swords stand above the characters, bigger
+    if (flashing.size) {
+      flashTick(now); // Patch9: the flying sword flashes
+      busy = true;
+    }
     for (const i of insts.values()) {
       if (i.card) i.root.position.set(i.card.position.x, i.card.position.y + 0.04, i.card.position.z);
       i.update(dt);
@@ -398,6 +483,72 @@ const View3D = (function () {
     return busy;
   }
 
+  // ---- Patch9: hands on top, swords --------------------------------------------------------------------------------
+  const HAND_LAYER = 1;
+  scene.traverse(o => o.isLight && o.layers.enable(HAND_LAYER)); // the hands keep their light in their own pass
+  ray.layers.enable(HAND_LAYER); // hand cards stay pickable
+  tmpRay.layers.enable(HAND_LAYER);
+  function onTop(o, v) {
+    o.userData.top9 = v;
+    o.traverse(x => x.layers.set(v ? HAND_LAYER : 0));
+  }
+  // two passes: the board, then (depth cleared) the hands, so a board card or zone near the camera never cuts a hand
+  function render(r, sc, c) {
+    if (!on || !applied) return false;
+    c.layers.set(0);
+    r.render(sc, c);
+    const ac = r.autoClear;
+    r.autoClear = false;
+    r.clearDepth();
+    c.layers.set(HAND_LAYER);
+    const bg = sc.background;
+    sc.background = null; // a colour background would clear the board pass
+    r.render(sc, c);
+    sc.background = bg;
+    r.autoClear = ac;
+    c.layers.set(0);
+    return true;
+  }
+  const front = hs => hs.find(h => h.object.layers.mask === 1 << HAND_LAYER) || hs[0]; // a hand card in front is picked first
+  function swordPose(m, v) {
+    const sw = m.userData.sword;
+    if (!sw) return;
+    const b = sw.userData.b9 || (sw.userData.b9 = { y: sw.position.y, s: sw.scale.x });
+    if (!v) {
+      sw.position.y = b.y;
+      sw.scale.setScalar(b.s);
+      return;
+    }
+    const w = cfg.board.sword,
+      k = b.s * w.scale;
+    sw.position.y = w.height;
+    sw.scale.set(k / (m.scale.x || 1), k, k / (m.scale.z || 1));
+  }
+  const flashing = new Set(),
+    FLASH = new THREE.Color(0xfff0b0);
+  // attackJob: the flying sword; returns its height
+  function styleSword(sw) {
+    if (!on || !applied) return 0.9;
+    const w = cfg.board.sword;
+    sw.scale.setScalar(w.scale);
+    if (w.flash) {
+      flashing.add(sw);
+      ui.dirty = true;
+    }
+    return w.height;
+  }
+  function flashTick(now) {
+    const k = 0.15 + 0.85 * Math.abs(Math.sin(now / 70));
+    for (const sw of flashing) {
+      if (!sw.parent) {
+        flashing.delete(sw);
+        continue;
+      }
+      sw.traverse(o => o.material && o.material.emissive && o.material.emissive.copy(FLASH).multiplyScalar(k));
+    }
+  }
+  const playerZ = () => (on && applied ? layout.zBack + layout.zone.depth / 2 + 1.5 : 0); // where a hit on a player lands
+
   // ---- debug -----------------------------------------------------------------------------------------------------
   const debug = {
     play(cat, iid) {
@@ -405,19 +556,60 @@ const View3D = (function () {
       return list.map(i => i.play(cat));
     },
   };
+  // Patch9: ?anim3d row: the config status, "3D demo" (a Vs self game with characters on both sides, side view on) and, in the
+  // side view only, one button per animation category (on the selected card, else on every character)
+  function demo() {
+    if (typeof MenuUI === 'undefined' || typeof Tests === 'undefined') return;
+    const de = document.getElementById('deckEditor');
+    if (de && !de.hidden) DeckEditor.close();
+    MenuUI.play({ mode: 'self', p1: 'Starter Aggro', p2: 'Starter Aggro', shuffle: false });
+    for (const [p, id, col] of [
+      ['Player', 'archer', 0],
+      ['Player', 'shark', 2],
+      ['Player', 'hummingbird', 4],
+      ['Opponent', 'archer', 1],
+      ['Opponent', 'shark', 3],
+    ])
+      try {
+        Tests.ctx.take(sim, p, id, 'board', p + '|front|' + col);
+      } catch (e) {} // a card the deck does not have
+    game = sim;
+    sync();
+    if (!on) setTopView(false);
+  }
   if (/[?&]anim3d\b/.test(location.search)) {
-    const bar = document.createElement('div');
+    const bar = document.createElement('div'),
+      info = document.createElement('span'),
+      mk9 = (t, f) => {
+        const b = document.createElement('button');
+        b.className = 'abtn';
+        b.textContent = t;
+        b.onclick = f;
+        return b;
+      },
+      demoB = mk9('3D demo', demo);
     bar.id = 'anim3dDebug';
     bar.style.cssText =
-      'position:fixed;left:4px;bottom:84px;z-index:50;display:flex;flex-wrap:wrap;gap:3px;max-width:60vw;font:11px sans-serif';
+      'position:fixed;left:236px;top:56px;z-index:50;display:flex;flex-wrap:wrap;gap:3px;max-width:60vw;font:11px sans-serif;align-items:center';
+    info.style.cssText = 'color:#f0e2b6;background:rgba(0,0,0,.6);padding:3px 6px;border-radius:4px';
+    bar.append(info, demoB);
     for (const cat of L.CATEGORIES) {
-      const b = document.createElement('button');
-      b.className = 'abtn';
-      b.textContent = cat;
-      b.onclick = () => debug.play(cat, ui.selected && insts.has(ui.selected.iid) ? ui.selected.iid : null);
+      const b = mk9(cat, () => debug.play(cat, ui.selected && insts.has(ui.selected.iid) ? ui.selected.iid : null));
+      b.dataset.cat = cat;
       bar.appendChild(b);
     }
     document.body.appendChild(bar);
+    setInterval(() => {
+      const in3d = on && applied;
+      info.textContent =
+        '3D config: ' +
+        Object.keys(cfgState)
+          .map(k => k + ' ' + (cfgState[k] === 'loaded' ? '✓' : cfgState[k]))
+          .join(', ') +
+        (in3d ? ' · ' + insts.size + ' characters' : ' · animations: side view only');
+      for (const b of bar.querySelectorAll('[data-cat]')) b.hidden = !in3d;
+      demoB.hidden = in3d;
+    }, 300);
   }
   function stats() {
     let mixers = 0;
@@ -445,6 +637,15 @@ const View3D = (function () {
     postFrame,
     pickProxies,
     onAttack,
+    render, // Patch9
+    front,
+    styleSword,
+    playerZ,
+    demo,
+    reload: loadCfg,
+    get configState() {
+      return cfgState;
+    },
     onHit,
     debug,
     stats,

@@ -6,18 +6,22 @@ const Anim3DLogic = (function () {
     'enter',
     'idle',
     'attack',
+    'attacking',
     'get_hit',
     'channeling_idle',
     'stun',
     'die',
     'finishing_attack',
   ];
+  // Patch9: the Attack waits on the stack (loops until it resolves or is gone)
   // a category that keeps playing until something else is asked for
-  const LOOPING = { idle: 1, channeling_idle: 1, stun: 1 };
+  const LOOPING = { idle: 1, channeling_idle: 1, stun: 1, attacking: 1 };
   const METHODS = ['crossfade', 'warp', 'ease', 'cut'];
   const num = (v, d) => (typeof v === 'number' && isFinite(v) ? v : d);
   const vec = (v, d) =>
-    Array.isArray(v) && v.length === d.length && v.every(x => typeof x === 'number' && isFinite(x)) ? v.slice() : d.slice();
+    Array.isArray(v) && v.length === d.length && v.every(x => typeof x === 'number' && isFinite(x))
+      ? v.slice()
+      : d.slice();
   const isObj = v => !!v && typeof v === 'object' && !Array.isArray(v);
 
   // ---- board ---------------------------------------------------------------------------------------------------
@@ -29,7 +33,32 @@ const Anim3DLogic = (function () {
     sideGap: 1, // between the outer column and the deck / graveyard / extra deck / exile zones
     cardFit: 0.9, // a card on the board fills this much of its zone
     models: { showFor: ['creature'], heightOffset: 0 },
+    sword: { scale: 2, height: 1.6, flash: true }, // Patch9: the sword in the side view (size factor, metres above the card, flashing)
   };
+  // Patch9: the side view sword
+  function normSword(w) {
+    w = isObj(w) ? w : {};
+    const d = BOARD_DEFAULTS.sword;
+    return {
+      scale: Math.max(0.1, num(w.scale, d.scale)),
+      height: Math.max(0, num(w.height, d.height)),
+      flash: typeof w.flash === 'boolean' ? w.flash : d.flash,
+    };
+  }
+  // Patch9: a hand of n cards in `room` (the width the card centres may use): spread as before while the cards fit (at most maxSp
+  // apart); a bigger hand keeps minSp and scrolls. s = scroll in cards (clamped to 0..max). Returns { xs, max, s }.
+  function scrollSpread(n, room, maxSp, minSp, s) {
+    if (n <= 0) return { xs: [], max: 0, s: 0 };
+    room = Math.max(0, room);
+    const fit = n > 1 ? room / (n - 1) : 0;
+    if (n < 2 || fit >= minSp) {
+      const sp = n > 1 ? Math.min(maxSp, fit) : 0;
+      return { xs: Array.from({ length: n }, (_, i) => (i - (n - 1) / 2) * sp || 0), max: 0, s: 0 };
+    }
+    const max = n - 1 - room / minSp,
+      k = Math.min(max, Math.max(0, num(s, 0)));
+    return { xs: Array.from({ length: n }, (_, i) => -room / 2 + (i - k) * minSp), max, s: k };
+  }
   function normalizeBoard(j) {
     j = isObj(j) ? j : {};
     const z = isObj(j.zone) ? j.zone : {},
@@ -45,9 +74,12 @@ const Anim3DLogic = (function () {
       sideGap: Math.max(0, num(j.sideGap, BOARD_DEFAULTS.sideGap)),
       cardFit: Math.min(1, Math.max(0.1, num(j.cardFit, BOARD_DEFAULTS.cardFit))),
       models: {
-        showFor: Array.isArray(m.showFor) ? m.showFor.filter(x => typeof x === 'string') : BOARD_DEFAULTS.models.showFor,
+        showFor: Array.isArray(m.showFor)
+          ? m.showFor.filter(x => typeof x === 'string')
+          : BOARD_DEFAULTS.models.showFor,
         heightOffset: num(m.heightOffset, BOARD_DEFAULTS.models.heightOffset),
       },
+      sword: normSword(j.sword), // Patch9
     };
   }
   // Board coordinates: x = columns (column 1 on the left for the Player), z = towards the Player, y = up, metres.
@@ -159,7 +191,13 @@ const Anim3DLogic = (function () {
       const k = c.minAspect / aspect; // narrower view: same framing of the board width, further away
       pos = [tgt[0] + (pos[0] - tgt[0]) * k, tgt[1] + (pos[1] - tgt[1]) * k, tgt[2] + (pos[2] - tgt[2]) * k];
     }
-    const out = { position: rotY(pos, angle || 0), target: rotY(tgt, angle || 0), fov: c.fov, near: c.near, far: c.far };
+    const out = {
+      position: rotY(pos, angle || 0),
+      target: rotY(tgt, angle || 0),
+      fov: c.fov,
+      near: c.near,
+      far: c.far,
+    };
     if (c.rotationDeg && !c.orbit.enabled)
       out.rotationDeg = [c.rotationDeg[0], c.rotationDeg[1] + ((angle || 0) * 180) / Math.PI, c.rotationDeg[2]];
     return out;
@@ -229,7 +267,8 @@ const Anim3DLogic = (function () {
     for (const cat of CATEGORIES) {
       animations[cat] = [];
       (Array.isArray(src[cat]) ? src[cat] : []).forEach((a, i) => {
-        if (!isObj(a) || typeof a.id !== 'string' || !a.id) return err(cat + '[' + i + ']: every animation needs an "id"');
+        if (!isObj(a) || typeof a.id !== 'string' || !a.id)
+          return err(cat + '[' + i + ']: every animation needs an "id"');
         if (ids.has(a.id)) return err('animation id "' + a.id + '" is used twice (ids must be unique per character)');
         ids.add(a.id);
         const cams = [],
@@ -311,8 +350,7 @@ const Anim3DLogic = (function () {
     return l[Math.min(l.length - 1, Math.floor(r() * l.length))];
   }
   // transitions are directional: A -> B says nothing about B -> A
-  const findTransition = (list, fromId, toId) =>
-    (list || []).find(t => t.from === fromId && t.to === toId) || null;
+  const findTransition = (list, fromId, toId) => (list || []).find(t => t.from === fromId && t.to === toId) || null;
 
   // ---- cues from the game --------------------------------------------------------------------------------------
   // an Attack that hit: attack or finishing_attack for the attacker (finishing = it destroyed a creature it hit, or a player
@@ -348,6 +386,7 @@ const Anim3DLogic = (function () {
     boardLayout,
     seatPose,
     handSpread,
+    scrollSpread, // Patch9
     characterFor,
     entriesFor,
     pick,

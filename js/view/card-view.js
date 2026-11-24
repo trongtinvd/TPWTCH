@@ -320,6 +320,26 @@ function artCanvas(def) {
   return (artCache[def.id] = c);
 }
 const artURL = def => artURLs[def.id] || (artURLs[def.id] = artCanvas(def).toDataURL());
+// Patch9: the card's 3D art as the character of the 3D side view (feet on the card, `size` m at its largest, the front facing +z)
+function artModel3D(def, size) {
+  const key = def.id.replace(/^tok-(.+)-\d+$/, '$1'),
+    inner = new THREE.Group();
+  (SHAPES[key] ? SHAPES[key]() : [mk(Sp(0.7), 0xcccccc)]).forEach(p => inner.add(p));
+  const bb = new THREE.Box3().setFromObject(inner),
+    sz = bb.getSize(new THREE.Vector3()),
+    c = bb.getCenter(new THREE.Vector3());
+  inner.position.set(-c.x, -bb.min.y, -c.z);
+  const g = new THREE.Group();
+  g.name = '__cardArt';
+  g.add(inner);
+  g.scale.setScalar((size || 0.9) / Math.max(sz.x, sz.y, sz.z, 1e-6));
+  g.userData.dispose = () =>
+    g.traverse(o => {
+      if (o.geometry) o.geometry.dispose();
+      if (o.material) o.material.dispose();
+    });
+  return g;
+}
 // Pre-render all artwork once (cards + ability tokens), then release the second WebGL context
 DEFS.forEach(d => {
   artCanvas(d);
