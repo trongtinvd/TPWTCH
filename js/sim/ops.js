@@ -1,6 +1,7 @@
 // ops.js - REGISTRY OPS: effect handlers. Add an entry here (and an Fx builder in cards.js) to give every card a new building block
 Sim.def('ops', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
+  let countValue; // values
   let turnGo; // turn
   let addAttackBonus, cancelAttackObj;
   let ctl;
@@ -129,8 +130,9 @@ Sim.def('ops', function (K) {
       if (x.src.loc === 'board') destroy(x.s, x.src, x.ev);
     }, // effect-sacrifice: only if the effect resolves
     Draw: (x, e) => {
-      const w = e.who === 'foe' ? x.foe : x.who;
-      for (let i = 0; i < e.n; i++) {
+      const w = e.who === 'foe' ? x.foe : x.who,
+        n = countValue(x, e.n); // counted once, before the first draw
+      for (let i = 0; i < n; i++) {
         const d = x.s.piles[w].deck.shift();
         if (d) {
           d.loc = 'hand';
@@ -357,7 +359,6 @@ Sim.def('ops', function (K) {
     DestroyAll: x => {
       for (const c of Object.values(x.s.cards)) if (c.loc === 'board' && !has(c, 'blue')) destroy(x.s, c, x.ev);
     },
-    DrawPerFoeCreature: x => OPS.Draw(x, { n: foeCreatures(x) }),
     VaultFromDeck: (x, e) => askDeck(x.s, x.src, e.n, x.ev),
     RevealVault: x => {
       const c = x.src,
@@ -492,6 +493,7 @@ Sim.def('ops', function (K) {
   return {
     exports: { OPS },
     needs: [
+      'countValue',
       'turnGo',
       'damageHp',
       'placeAttackCounters',
@@ -543,6 +545,7 @@ Sim.def('ops', function (K) {
       'markUnusable',
     ],
     link: () => {
+      ({ countValue } = K);
       ({ turnGo } = K);
       ({ damageHp, placeAttackCounters } = K);
       ({ addAttackBonus, cancelAttackObj } = K);

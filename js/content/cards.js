@@ -61,6 +61,7 @@ const Translate = (function () {
     exInGY: 'an extra deck creature is in your GY',
     attackedCol: 'an opposing creature attacks a column where you control a creature',
   };
+  const VALUE = { foeCreatures: 'creature your opponent controls' }; // the counted things of a value (Fx.count): 'draw a card for each ...'
   const TARGET = { opposingFront: 'the creature facing this card', attacker: 'the attacking creature' };
   const TARGETING = {
     adjacentPair: 'target two adjacent cards your opponent controls',
@@ -94,7 +95,10 @@ const Translate = (function () {
       e.to === 'target'
         ? 'put ' + e.amount + ' life counters on ' + (c.tgt || 'the target')
         : 'gain ' + e.amount + ' life',
-    Draw: e => who(e, 'draw ' + cards(e.n), 'your opponent draws ' + cards(e.n)),
+    Draw: e =>
+      typeof e.n === 'object'
+        ? who(e, 'draw a card for each ' + VALUE[e.n.value], 'your opponent draws a card for each ' + VALUE[e.n.value])
+        : who(e, 'draw ' + cards(e.n), 'your opponent draws ' + cards(e.n)),
     DamageStack: e => 'deal ' + e.amount + ' damage to the stack object beneath this (countered at HP -1 or lower)',
     DamageHp: e =>
       'deal ' +
@@ -147,7 +151,6 @@ const Translate = (function () {
       return (PICK_FROM[e.from] || 'choose a card') + ' and ' + (typeof t === 'function' ? t(e) : t || e.then); // chosen as it resolves: not a target (no ';')
     },
     DestroyAll: () => 'destroy all cards on the board',
-    DrawPerFoeCreature: () => 'draw a card for each creature your opponent controls',
     VaultFromDeck: e => 'choose ' + cards(e.n) + ' from your deck and exile them',
     RevealVault: () => 'your opponent picks one of the cards this card exiled, and you put it into your hand',
     SwapIn: () => 'return that creature to your hand and put this card into its zone',
@@ -422,7 +425,8 @@ const Fx = {
   // effects (run when a spell/ability resolves)
   dealDamage: (to, amount) => ({ op: 'DealDamage', to, amount }), // to: 'player' | 'target'
   gainLife: (amount, to) => ({ op: 'GainLife', amount, to }), // puts life counters on the controller (default) or on the target card
-  draw: (n, who) => ({ op: 'Draw', n, who }),
+  draw: (n, who) => ({ op: 'Draw', n, who }), // n: a number or a counted value (Fx.count.*)
+  count: { foeCreatures: { value: 'foeCreatures' } }, // values counted when the effect resolves (js/sim/values.js)
   damageStack: amount => ({ op: 'DamageStack', amount }),
   // damage the picked non-player HP target (use with targeting: nonPlayerHp). mods: {nonLethal, temporary}
   damageHp: (amount, mods) => ({
@@ -496,7 +500,6 @@ const Fx = {
   mode: (name, min, max, ...effects) => ({ name, min, max, effects }),
   pickCard: (from, then, amount) => ({ op: 'PickCard', from, then, amount }), // from: foeHand | foeBoard | anyTarget | myCreatures; then: toGY | toHand | damage | summon
   destroyAll: () => ({ op: 'DestroyAll' }),
-  drawPerFoeCreature: () => ({ op: 'DrawPerFoeCreature' }),
   vaultFromDeck: n => ({ op: 'VaultFromDeck', n }),
   revealVault: () => ({ op: 'RevealVault' }),
   swapIn: () => ({ op: 'SwapIn' }),
@@ -729,7 +732,7 @@ Cards.add(Fx =>
           Fx.mode('1+: 4 damage to any target', 1, 99, Fx.pickCard('anyTarget', 'damage', 4)),
           Fx.mode('2+: return a card they control to hand', 2, 99, Fx.pickCard('foeBoard', 'toHand')),
           Fx.mode('3+: put a creature from hand, GY or exile into play', 3, 99, Fx.pickCard('myCreatures', 'summon')),
-          Fx.mode('4+: draw cards equal to their creature count', 4, 99, Fx.drawPerFoeCreature()),
+          Fx.mode('4+: draw cards equal to their creature count', 4, 99, Fx.draw(Fx.count.foeCreatures)),
           Fx.mode('5: destroy all cards on the board', 5, 99, Fx.destroyAll())
         )
       ),

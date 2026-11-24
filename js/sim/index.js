@@ -68,6 +68,7 @@ Sim.boot(K => {
     conds: K.COND,
     exConds: K.EXCOND,
     hpKinds: K.HPKINDS, // non-player things with HP
+    values: K.VALUES, // counted values (Fx.count)
   };
   return {
     addStatus,

@@ -423,4 +423,26 @@
       );
     }
   });
+  Tests.add('counted-values', () => {
+    // ================= Fx.count: a number counted when the effect resolves (Parasite 4+: a card for each creature the opponent controls) =================
+    const s = start(702);
+    ['soldier', 'wolf', 'hummingbird', 'blackhawk'].forEach((id, k) =>
+      take(s, 'Player', id, 'board', 'Player|front|' + k)
+    );
+    const pa = take(s, 'Opponent', 'parasite', 'hand'),
+      h0 = s.piles.Opponent.hand.length - 1;
+    s.priority = 'Opponent';
+    D(s, { type: 'PlayCard', iid: pa.iid, slot: 'Opponent|front|0' });
+    drain(s);
+    eq('four opposing creatures: modes 0-4 are unlocked', s.choice.options, ['0', '1', '2', '3', '4']);
+    D(s, { type: 'Choose', player: 'Opponent', option: '4' });
+    drain(s);
+    eq('4+: draws one card for each of the 4 creatures', s.piles.Opponent.hand.length, h0 + 4);
+    check(
+      'the card data names the value, not a card-specific op',
+      JSON.stringify(DEFS.find(d => d.id === 'parasite')).includes('"value":"foeCreatures"') &&
+        !Sim.API.effects.includes('DrawPerFoeCreature')
+    );
+    eq('a counted value is a number at resolution', Sim.API.values, ['foeCreatures']);
+  });
 })();

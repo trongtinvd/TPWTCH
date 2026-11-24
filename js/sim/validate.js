@@ -5,6 +5,9 @@ const apiErrors = () => {
   const walk = (id, list, kind) =>
     (list || []).forEach(e => {
       if (!A[kind].includes(e.op)) bad.push(id + ': unknown ' + kind + ' ' + e.op);
+      for (const v of Object.values(e))
+        if (v && typeof v === 'object' && typeof v.value === 'string' && !A.values.includes(v.value))
+          bad.push(id + ': unknown value ' + v.value);
       if (e.effects) walk(id, e.effects, kind);
       if (e.modes) e.modes.forEach(m => walk(id, m.effects, kind)); // nested mode effects are checked too
     });
