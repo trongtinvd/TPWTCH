@@ -1,10 +1,10 @@
-// character.js - Patch8: one animated character standing on a card (3D side view).
+// character.js - one animated character standing on a card (3D side view).
 // root (placed on the card each frame) > mount (model offset, height, rotation, scale; faces the other side) > motion (the
 // procedural clips move this) > model (the cloned GLB scene, or the placeholder cube). An invisible pick box on the root sends
 // clicks to the card underneath. Animations: random per category without an immediate repeat, directional transitions
 // (a transition clip, else the configured interpolation), loop / once / ping-pong, per-entry speed, cross-fades.
 // Every file falls back on its own: no model = cube, no clip = the procedural clip of its category, no camera file = no camera move.
-// Patch12: also the player avatars (js/avatar/): the categories, looping ones and the death category come from the normalized
+// also the player avatars (js/avatar/): the categories, looping ones and the death category come from the normalized
 // character (ch.categories / ch.looping / ch.die, the card ones by default); hooks.prepare(model) adjusts a loaded model (outfit),
 // hooks.procClip(entry) gives the built-in clip of an entry; setOverlay(cat, on) plays a looping overlay (idle_wounded) over idle,
 // on its own node (motion > overlay > model) so the two never fight over the same transform.
@@ -23,7 +23,7 @@ const Character3D = (function () {
       this.mount = new THREE.Object3D();
       this.motion = new THREE.Object3D();
       this.motion.name = Procedural3D.MOTION;
-      this.overlay = new THREE.Object3D(); // Patch12: the overlay clips (idle_wounded) move this one
+      this.overlay = new THREE.Object3D(); // the overlay clips (idle_wounded) move this one
       this.overlay.name = '__overlay';
       this.root.add(this.mount);
       this.mount.add(this.motion);
@@ -39,7 +39,7 @@ const Character3D = (function () {
       this.last = {}; // category / transition / camera list -> last picked id
       this.fades = [];
       this.cur = null;
-      this.ov = null; // Patch12: the overlay playing {cat, entry, action}
+      this.ov = null; // the overlay playing {cat, entry, action}
       this.ovWant = null; // the overlay category asked for (shown while the character idles)
       this.ready = false;
       this.dead = false;
@@ -76,12 +76,12 @@ const Character3D = (function () {
         this.model = Assets3D.cloneScene(src.scene);
         this.cube = false;
       } else if (this.hooks.art && (this.model = this.hooks.art())) {
-        this.cube = false; // Patch9: no model file (or a broken one): the card's own 3D art stands on the card
+        this.cube = false; // no model file (or a broken one): the card's own 3D art stands on the card
       } else {
         this.model = Procedural3D.makeCube(this.side); // missing / broken model: the placeholder cube
         this.cube = true;
       }
-      if (this.hooks.prepare) this.hooks.prepare(this.model, !!(src && src.scene)); // Patch12: outfit meshes / materials
+      if (this.hooks.prepare) this.hooks.prepare(this.model, !!(src && src.scene)); // outfit meshes / materials
       this.overlay.add(this.model);
       const own = (src && src.clips) || [];
       const all = [];
@@ -131,10 +131,10 @@ const Character3D = (function () {
       );
     }
     get dieCat() {
-      return this.ch.die || 'die'; // Patch12: avatars die with "dies"
+      return this.ch.die || 'die'; // avatars die with "dies"
     }
     play(cat) {
-      if (cat === 'idle' && this.idleAs) cat = this.idleAs; // Patch9: while its Attack waits on the stack, "idle" means "attacking"
+      if (cat === 'idle' && this.idleAs) cat = this.idleAs; // while its Attack waits on the stack, "idle" means "attacking"
       if (this.dead || (this.dying && cat !== this.dieCat)) return null;
       if (!this.ready) {
         if (cat !== 'idle' || !this.pending) this.pending = cat;
@@ -164,7 +164,7 @@ const Character3D = (function () {
             weight: 1,
           };
     }
-    // Patch12: a looping overlay (idle_wounded) over the idle animation: on = wanted; it shows while the character idles
+    // a looping overlay (idle_wounded) over the idle animation: on = wanted; it shows while the character idles
     setOverlay(cat, on) {
       this.ovWant = on ? cat : null;
       this.syncOverlay();
@@ -216,7 +216,7 @@ const Character3D = (function () {
       const act = this.startAction(this.clipOf(entry), entry.loop, entry.repetitions, entry.speed, interp);
       this.cur = { entry, action: act };
       this.dieT = entry.category === this.dieCat ? 0 : null;
-      this.syncOverlay(); // Patch12: the overlay follows idle
+      this.syncOverlay(); // the overlay follows idle
       // the camera animation is picked on its own, and starts in the same frame as the character animation
       if (entry.camera && entry.camera.length && Math.random() < entry.cameraChance && this.hooks.camera) {
         const ce = Anim3DLogic.pick(entry.camera, this.last['cam|' + entry.id]);
@@ -300,7 +300,7 @@ const Character3D = (function () {
       this.proxy.geometry.dispose();
       if (this.model) {
         if (this.model.userData.dispose)
-          this.model.userData.dispose(); // Patch9: the card art model frees its own parts too
+          this.model.userData.dispose(); // the card art model frees its own parts too
         else this.model.traverse(o => o.isSkinnedMesh && o.skeleton && o.skeleton.dispose()); // geometry and materials stay shared in the cache
       }
       this.fades = [];

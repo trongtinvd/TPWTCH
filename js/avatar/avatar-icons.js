@@ -1,4 +1,4 @@
-// avatar-icons.js - Patch12: the avatar icon next to a player's name (and in the selection scene). An outfit or character "icon.image"
+// avatar-icons.js - the avatar icon next to a player's name (and in the selection scene). An outfit or character "icon.image"
 // (a PNG) is shown when it loads; otherwise, or when it fails, a generated placeholder: the character's colour, a silhouette in the
 // outfit's colour, a ring in its trim colour and the character's label (config/avatars.json, AvatarLogic.iconOf).
 const AvatarIcons = (function () {

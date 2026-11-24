@@ -1,4 +1,4 @@
-// eye.js - Patch10: a procedural card model (an example of a model made by code). Registers CardModelScripts.eye(THREE, params).
+// eye.js - a procedural card model (an example of a model made by code). Registers CardModelScripts.eye(THREE, params).
 // params: color (iris), size. The model draws its own selection animation (userData.select) and frees what it made (userData.dispose).
 (window.CardModelScripts = window.CardModelScripts || {}).eye = function (THREE, params) {
   const size = typeof params.size === 'number' ? params.size : 0.6,

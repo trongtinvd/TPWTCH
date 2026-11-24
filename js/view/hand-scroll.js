@@ -1,4 +1,4 @@
-// hand-scroll.js - Patch9: a big hand scrolls. While the cards fit, the hand is spread as before; past that the cards keep a
+// hand-scroll.js - a big hand scrolls. While the cards fit, the hand is spread as before; past that the cards keep a
 // minimum spacing and the mouse wheel over the hand (its zone or one of its cards) scrolls it. The wheel over a hand never
 // zooms the scene (top view or 3D side view). The scroll is kept in cards, so it means the same in both views.
 const HandScroll = (function () {

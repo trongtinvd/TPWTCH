@@ -1,7 +1,7 @@
 // ch.js - REGISTRY CH: answers to non-shift choices (Choose command)
 Sim.def('ch', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
-  let addAttackBonus, cancelAttackObj; // added by Patch3
+  let addAttackBonus, cancelAttackObj;
   let other; // util
   let addStatus, has, hurt, live, removeStatus; // statuses
   let bounce, destroy, enterBoard, freeSlots, makeToken; // state
@@ -47,7 +47,7 @@ Sim.def('ch', function (K) {
       s.trg.R[k.p] = cmd.option.split(',').map(Number);
       advanceTrg(s, ev);
     },
-    abtarget: (s, k, c, cmd, ev) => activate(s, c, k.ab, cmd.option, ev), // Patch4: the ability's target was picked: pay the costs, put it on the stack
+    abtarget: (s, k, c, cmd, ev) => activate(s, c, k.ab, cmd.option, ev), // the ability's target was picked: pay the costs, put it on the stack
     trigtarget: (s, k, c, cmd, ev) => {
       s.trg.items[k.tk].tgt = cmd.option;
       advanceTrg(s, ev);
@@ -145,7 +145,7 @@ Sim.def('ch', function (K) {
   return {
     exports: { CH },
     needs: [
-      'activate', // Patch4
+      'activate',
       'addAttackBonus',
       'cancelAttackObj',
       'THEN',
@@ -175,7 +175,7 @@ Sim.def('ch', function (K) {
       'upToAsk',
     ],
     link: () => {
-      ({ activate } = K); // Patch4
+      ({ activate } = K);
       ({ addAttackBonus, cancelAttackObj } = K);
       ({
         THEN,

@@ -1,4 +1,4 @@
-// avatar-logic.js - Patch12: the pure part of the player avatars (no THREE, no DOM: runs in the headless tests too).
+// avatar-logic.js - the pure part of the player avatars (no THREE, no DOM: runs in the headless tests too).
 // config/stats.json (the player stats and their icons) and config/avatars.json (characters, outfits, animation sets, side view
 // placement) are normalised here; the selection scene, the life bars and the 3D view only read the normalised catalog, so a new
 // character or outfit is a config change. The Sim never reads any of this: a duel only records {character, outfit} per seat.
@@ -369,7 +369,7 @@ const AvatarLogic = (function () {
       facing: seat === 'Player' ? Math.PI : 0,
     };
   }
-  // Patch13: landscape, the status line goes up into the top row, centred in the gap between the other seat's row (right edge foeR)
+  // landscape, the status line goes up into the top row, centred in the gap between the other seat's row (right edge foeR)
   // and the top right buttons (left edge fnL), when that gap is at least minW wide; null = no room (it stays under the buttons)
   const STATUS_MIN_W = 260;
   function statusSlot(foeR, fnL, minW) {
@@ -400,7 +400,7 @@ const AvatarLogic = (function () {
     lifeState,
     cues,
     placement,
-    STATUS_MIN_W, // Patch13
+    STATUS_MIN_W,
     statusSlot,
   };
 })();

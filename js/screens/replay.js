@@ -317,9 +317,9 @@ const Replays = (function () {
       autoStart: true,
       stops: rec.stops,
       orderTriggers: !!rec.ot,
-      rules: rec.rules || LEGACY_RULES, // Patch6: older replays had no draw phase
+      rules: rec.rules || LEGACY_RULES, // older replays had no draw phase
       names: rec.names,
-      avatars: rec.avatars, // Patch12 (older replays: none, the seats' defaults show)
+      avatars: rec.avatars, // (older replays: none, the seats' defaults show)
     });
     setNames(sim);
     game = sim;
@@ -363,9 +363,9 @@ const Replays = (function () {
         autoStart: true,
         stops: rec.stops,
         orderTriggers: !!rec.ot,
-        rules: rec.rules || LEGACY_RULES, // Patch6
+        rules: rec.rules || LEGACY_RULES,
         names: rec.names,
-        avatars: rec.avatars, // Patch12
+        avatars: rec.avatars,
       });
       setNames(sim);
       undoStack.length = 0; // (from the current state the replay's snapshots stay: Undo goes back through the replayed moves too)
@@ -386,10 +386,10 @@ const Replays = (function () {
       shuffle: !!rec.sh,
       botEnd: MenuUI.last.botEnd || 'random',
       botSeat: ui.botSeat,
-      ...(rec.rules || LEGACY_RULES), // Patch6: a rematch keeps the game options
+      ...(rec.rules || LEGACY_RULES), // a rematch keeps the game options
       name1: (rec.names || {}).Player,
       name2: (rec.names || {}).Opponent,
-      avatars: rec.avatars, // Patch12: a rematch keeps the avatars
+      avatars: rec.avatars, // a rematch keeps the avatars
     };
     ui.rpInit = {
       n: rec.n,
@@ -400,9 +400,9 @@ const Replays = (function () {
       sh: !!rec.sh,
       stops: rec.stops || null,
       ot: !!rec.ot,
-      rules: rec.rules || LEGACY_RULES, // Patch6
+      rules: rec.rules || LEGACY_RULES,
       names: rec.names,
-      avatars: rec.avatars, // Patch12
+      avatars: rec.avatars,
       mode: ui.mode,
       a: rec.a,
       b: rec.b,

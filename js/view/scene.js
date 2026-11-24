@@ -5,7 +5,7 @@ const VW = () => renderer.domElement.clientWidth || innerWidth,
   VH = () => renderer.domElement.clientHeight || innerHeight,
   VX = () => renderer.domElement.getBoundingClientRect().left,
   VY = () => renderer.domElement.getBoundingClientRect().top; // the canvas may be a sub-rectangle of the window (portrait)
-// Patch10: the camera numbers come from config/camera.json (CameraCfg, js/core/camera-config.js); the defaults are the same values
+// the camera numbers come from config/camera.json (CameraCfg, js/core/camera-config.js); the defaults are the same values
 const camCfg0 = CameraCfg.get().classic;
 const camera = new THREE.PerspectiveCamera(camCfg0.fov, innerWidth / innerHeight, camCfg0.near, camCfg0.far);
 camera.position.fromArray(camCfg0.position);

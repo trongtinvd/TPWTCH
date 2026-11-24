@@ -4,10 +4,10 @@ const pickables = () =>
   ui.pickList ||
   (ui.pickList = [
     ...ui.pickCards,
-    ...(typeof View3D !== 'undefined' ? View3D.pickProxies() : []), // Patch8: a character's pick box stands for its card
+    ...(typeof View3D !== 'undefined' ? View3D.pickProxies() : []), // a character's pick box stands for its card
     ...zones.filter(z => z.visible),
   ]);
-const front3d = hs => (typeof View3D !== 'undefined' ? View3D.front(hs) : hs[0]); // Patch9: the 3D hands are drawn on top, so they are picked first
+const front3d = hs => (typeof View3D !== 'undefined' ? View3D.front(hs) : hs[0]); // the 3D hands are drawn on top, so they are picked first
 function aim(x, y) {
   mouse.set(((x - VX()) / VW()) * 2 - 1, -((y - VY()) / VH()) * 2 + 1);
   ray.setFromCamera(mouse, cam);
@@ -15,7 +15,7 @@ function aim(x, y) {
 function pickAt(x, y, list) {
   aim(x, y);
   const h = front3d(ray.intersectObjects(list || pickables()));
-  return h ? h.object.userData.pickAs || h.object : null; // Patch8: a character click is a click on its card
+  return h ? h.object.userData.pickAs || h.object : null; // a character click is a click on its card
 }
 function passByRightClick() {
   if (rp.on) return false;
@@ -32,7 +32,7 @@ function passByRightClick() {
     b.run();
     return true;
   }
-  // Patch5: no action point left and nothing on the stack: right click / double tap on empty space = the End turn button
+  // no action point left and nothing on the stack: right click / double tap on empty space = the End turn button
   const e = FN.find(x => x.id === 'endturn');
   if (e && e.on() && !game.stack.length && !Sim.hasAP(game, ui.view)) {
     closeMenu();
@@ -51,7 +51,7 @@ addEventListener(
     ui.downAt = { x: e.clientX, y: e.clientY };
     const o = pickAt(e.clientX, e.clientY),
       c = o && o.userData.card;
-    // Patch12: the side view's own hand zone (not a card on it) drags the hand sideways; the camera stays still meanwhile (Patch13: either hand)
+    // the side view's own hand zone (not a card on it) drags the hand sideways; the camera stays still meanwhile (either hand)
     if (!c && e.button === 0 && typeof View3D !== 'undefined' && View3D.handGrab(o, e.clientX)) {
       ui.handDrag = true;
       ui.dragCand = null;
@@ -67,7 +67,7 @@ addEventListener(
 );
 addEventListener('pointermove', e => {
   if (ui.handDrag) {
-    View3D.handDrag(e.clientX); // Patch12
+    View3D.handDrag(e.clientX);
     return;
   }
   aim(e.clientX, e.clientY);
@@ -77,11 +77,11 @@ addEventListener('pointermove', e => {
     const k = (2 * ortho.top) / VH(),
       dx = e.clientX - panFrom.x,
       dy = e.clientY - panFrom.y,
-      r = ui.camAngle + (CameraCfg.get().top.rotationDeg * Math.PI) / 180, // the screen axes of the top view (Patch10: it may be rotated)
+      r = ui.camAngle + (CameraCfg.get().top.rotationDeg * Math.PI) / 180, // the screen axes of the top view (it may be rotated)
       s = Math.sin(r),
       c = Math.cos(r);
     panFrom = { x: e.clientX, y: e.clientY };
-    const lim = CameraCfg.get().top.panLimit; // Patch10: config/camera.json
+    const lim = CameraCfg.get().top.panLimit; // config/camera.json
     tv.cx = Math.max(-lim, Math.min(lim, tv.cx + (-c * dx - s * dy) * k));
     tv.cz = Math.max(-lim, Math.min(lim, tv.cz + (s * dx - c * dy) * k));
     placeTop();
@@ -134,7 +134,7 @@ function endDrag(e, drop) {
   }
   sync();
 }
-// Patch12: the end of a hand drag (no click follows it)
+// the end of a hand drag (no click follows it)
 function endHandDrag() {
   if (!ui.handDrag) return false;
   ui.handDrag = false;
@@ -262,7 +262,7 @@ addEventListener('pointerup', e => {
 function updateHover() {
   ray.setFromCamera(mouse, cam);
   const hit = front3d(ray.intersectObjects(pickables())),
-    m = hit ? hit.object.userData.pickAs || hit.object : null; // Patch8: hovering a character hovers its card
+    m = hit ? hit.object.userData.pickAs || hit.object : null; // hovering a character hovers its card
   if (m === ui.hovered) return;
   const old = ui.hovered;
   ui.hovered = m;
@@ -286,7 +286,7 @@ function updateHover() {
     (ui.placing && u.card && u.card.loc === 'board' && slotZones[u.card.slot] && slotZones[u.card.slot].userData.baseEm)
       ? 'pointer'
       : typeof View3D !== 'undefined' && View3D.isOn() && m && View3D.grabRole(m)
-        ? 'grab' // Patch12: a hand zone slides sideways (Patch13: the opponent's too)
+        ? 'grab' // a hand zone slides sideways (the opponent's too)
         : '';
 }
 

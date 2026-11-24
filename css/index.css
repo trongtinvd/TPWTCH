@@ -1080,7 +1080,7 @@ canvas {
   text-decoration: underline dotted;
 }
 
-/* ---- Patch6: the stops, small icon buttons in the bottom right corner (MTG Arena style): their turn / your turn ---- */
+/* ---- the stops, small icon buttons in the bottom right corner (MTG Arena style): their turn / your turn ---- */
 #stops {
   display: flex;
   flex-direction: column;
@@ -1130,7 +1130,7 @@ canvas {
 #stops .stb:not(.lock):hover {
   background: rgba(255, 255, 255, 0.12);
 }
-/* ---- Patch6: the status line sits under the life bars, whatever their height (--hpB = bottom of #hp, set by layout.js) ---- */
+/* ---- the status line sits under the life bars, whatever their height (--hpB = bottom of #hp, set by layout.js) ---- */
 #status {
   top: calc(var(--hpB, 76px) + 6px);
 }
@@ -1153,12 +1153,12 @@ canvas {
     width: auto;
     margin-right: 2px;
   }
-  /* Patch13: folded with the "Stops: hidden" button (stops-bar.js) */
+  /* folded with the "Stops: hidden" button (stops-bar.js) */
   #stops.pfold {
     display: none;
   }
 }
-/* Patch13: the stops button is for portrait only (landscape always shows the stops) */
+/* the stops button is for portrait only (landscape always shows the stops) */
 @media (orientation: landscape) {
   #dbg .abtn.pOnly {
     display: none;

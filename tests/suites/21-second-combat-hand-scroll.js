@@ -1,6 +1,6 @@
-// 21-patch9.js - Patch9: Shark's second combat with the stops on, the "attacking" animation category, the hand scroll spread,
+// 21-second-combat-hand-scroll.js - Shark's second combat with the stops on, the "attacking" animation category, the hand scroll spread,
 // the side view sword settings, the board config defaults.
-// Run only these: node tests/run.js --only p9-
+// Run only these: node tests/run.js --only second-combat-stops,3d-attacking-category,3d-hand-scroll,3d-board-config
 (function () {
   const { D, check, eq, start, take } = Tests.ctx;
   const L = Anim3DLogic;
@@ -20,7 +20,7 @@
       D(s, { type: 'Pass', player: s.priority });
   };
 
-  Tests.add('p9-shark-second-combat-stops', () => {
+  Tests.add('second-combat-stops', () => {
     const s = start(901);
     s.stops = { Player: { opp: ALL, own: ALL }, Opponent: { opp: ALL, own: ALL } }; // every stop on, like a real game
     take(s, 'Player', 'shark', 'board', 'Player|front|0');
@@ -55,7 +55,7 @@
     check('...and the Wolf can attack again', r.ok);
   });
 
-  Tests.add('p9-attacking-category', () => {
+  Tests.add('3d-attacking-category', () => {
     check('"attacking" is an animation category', L.CATEGORIES.includes('attacking'));
     check('...it loops until the attack resolves or is gone', !!L.LOOPING.attacking);
     const ch = L.normalizeCharacters({
@@ -69,7 +69,7 @@
     );
   });
 
-  Tests.add('p9-hand-scroll', () => {
+  Tests.add('3d-hand-scroll', () => {
     const fit = L.scrollSpread(3, 10, 1.5, 0.5, 4);
     eq('a hand that fits: centred, normal spacing, no scroll', [fit.xs, fit.max, fit.s], [[-1.5, 0, 1.5], 0, 0]);
     const tight = L.scrollSpread(9, 4, 1.5, 0.4, 0);
@@ -86,7 +86,7 @@
     eq('one card / no card', [L.scrollSpread(1, 4, 1.5, 0.4, 3).xs, L.scrollSpread(0, 4, 1.5, 0.4, 0).xs], [[0], []]);
   });
 
-  Tests.add('p9-board-config', () => {
+  Tests.add('3d-board-config', () => {
     const b = L.normalizeBoard({}),
       lay = L.boardLayout(b);
     eq(

@@ -207,7 +207,7 @@
       const a3 = take(s, 'Player', 'archer', 'board', 'Player|front|0');
       setLife(s, 'Player', 0);
       rej(
-        'Volley with 0 life: cannot pay the 1-life cost (Patch7: it would leave life -1)',
+        'Volley with 0 life: cannot pay the 1-life cost (it would leave life -1)',
         s,
         { type: 'Activate', iid: a3.iid, ab: 0 },
         'not enough life'
@@ -333,7 +333,7 @@
         const s = Sim.create(seed, DEFS.concat(FIXTURES), { stops });
         for (const p of ['Player', 'Opponent']) D(s, { type: 'Start', player: p });
         if (stops) {
-          eq('the first turn’s draw phase opens the "cards drawn" stop (Patch6)', s.respond && s.respond.kind, 'draw');
+          eq('the first turn’s draw phase opens the "cards drawn" stop', s.respond && s.respond.kind, 'draw');
           D(s, { type: 'Pass', player: 'Opponent' });
         }
         return s;
@@ -366,7 +366,7 @@
     D(s, { type: 'SetAttackPhase', player: 'Player', on: false });
     eq('stop "combat ended"', [s.respond && s.respond.kind, s.priority], ['combatEnd', 'Opponent']);
     D(s, { type: 'Pass', player: 'Opponent' });
-    eq('combat ended: back in the main phase, no end step window (Patch5)', [s.respond, s.priority], [null, 'Player']);
+    eq('combat ended: back in the main phase, no end step window', [s.respond, s.priority], [null, 'Player']);
     D(s, { type: 'EndTurn', player: 'Player' });
     eq('End turn opens the end step window', s.respond && s.respond.kind, 'end');
     D(s, { type: 'Pass', player: 'Opponent' });

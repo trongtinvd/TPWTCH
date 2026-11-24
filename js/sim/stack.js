@@ -1,7 +1,7 @@
 // stack.js - playing cards, activating abilities, the stack, triggers (fire), response windows, end of turn
 Sim.def('stack', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
-  let ctl; // added by Patch3
+  let ctl;
   let byId, isPerm, other, slotRow, slowish; // util
   let gainAP, hasAP; // ap
   let PL, abDef, clearAttacked, expiresAtTurnEnd, has, hasKw, hasSt, live, removeStatus; // statuses
@@ -15,7 +15,7 @@ Sim.def('stack', function (K) {
   function canPlay(s, c) {
     // reason string, or null if legal
     if (s.phase !== 'play') return 'The game has not started';
-    if (s.choice) return 'Waiting for ' + s.choice.player + ' to choose'; // Patch10: like dispatch (a pending choice blocks every play)
+    if (s.choice) return 'Waiting for ' + s.choice.player + ' to choose'; // like dispatch (a pending choice blocks every play)
     if (c.loc !== 'hand') return 'Not in hand';
     if (c.owner !== s.priority) return 'Not this player\u2019s priority';
     if (s.attackPhase && !hasKw(c, 'flash') && (isPerm(c) || c.def.timing !== 'Quick'))
@@ -42,7 +42,7 @@ Sim.def('stack', function (K) {
     // reason string, or null. Order: 1 requirements, 2 timing, 3 costs
     const a = c && abDef(c).abilities && abDef(c).abilities[i];
     if (!a) return 'No such ability';
-    if (s.choice) return 'Waiting for ' + s.choice.player + ' to choose'; // Patch10: like dispatch
+    if (s.choice) return 'Waiting for ' + s.choice.player + ' to choose'; // like dispatch
     const zones = [].concat(a.zone || 'board'); // one zone or a list (Depth Sea Fusion: deck or GY)
     if (!zones.includes(c.loc))
       return (
@@ -55,7 +55,7 @@ Sim.def('stack', function (K) {
       const why = REQS[r] && REQS[r](s, c, a);
       if (why) return why;
     }
-    if (a.targeting && !TARGETINGS[a.targeting].options(s, c).length) return 'Requirement: no legal target'; // Patch4
+    if (a.targeting && !TARGETINGS[a.targeting].options(s, c).length) return 'Requirement: no legal target';
     if (ctl(c) !== s.priority) return 'Timing: you do not have priority';
     if (a.speed === 'Slow') {
       if (ctl(c) !== s.active) return 'Timing: Slow abilities only on your turn';
@@ -69,7 +69,7 @@ Sim.def('stack', function (K) {
     }
     return null;
   }
-  // Patch4: activation after the checks. Targeting is part of the cost (Yu-Gi-Oh): the target is picked first (`pick`), then costs are paid
+  // activation after the checks. Targeting is part of the cost (Yu-Gi-Oh): the target is picked first (`pick`), then costs are paid
   function activate(s, c, i, pick, ev) {
     const a = abDef(c).abilities[i],
       tgt = findTarget(s, c, a);
@@ -135,7 +135,7 @@ Sim.def('stack', function (K) {
   }
   function fire(s, ev, on, subject, evt) {
     // event -> ALL matching triggers go onto the stack together, then priority passes (non-turn player first)
-    // evt (Patch10): what happened, for the triggers that need it ('damaged': {type, source, amount, power, spell}); the stack object keeps it
+    // evt: what happened, for the triggers that need it ('damaged': {type, source, amount, power, spell}); the stack object keeps it
     const hits = []; // 1) collect every trigger that matches this event
     for (const c of Object.values(s.cards)) {
       if (c.loc === 'stack' || c.loc === 'gone') continue;
@@ -153,7 +153,7 @@ Sim.def('stack', function (K) {
       Object.assign({ iid: h.c.iid, i: h.i, owner: ctl(h.c), optional: h.optional }, evt ? { evt } : null)
     );
     if (s.trg) {
-      // Patch5: triggers are still waiting (a choice is pending): the new ones join them; their owners order again
+      // triggers are still waiting (a choice is pending): the new ones join them; their owners order again
       items.forEach(it => {
         s.trg.items.push(it);
         if (!it.optional) delete s.trg.R[it.owner];
@@ -210,7 +210,7 @@ Sim.def('stack', function (K) {
         it.tgt = null; // no targeting: nothing is picked now
         continue;
       }
-      if (s.choice) return; // Patch5: targeting is part of the COST (Yu-Gi-Oh: condition : cost / targeting ; effect), so it is never moved to the
+      if (s.choice) return; // targeting is part of the COST (Yu-Gi-Oh: condition : cost / targeting ; effect), so it is never moved to the
       // resolution: while another choice is pending the triggers wait in s.trg; dispatch('Choose') carries on (advanceTrg) once nothing is pending
       const G = TARGETINGS[t.targeting],
         opts = G.options(s, c);
@@ -266,7 +266,7 @@ Sim.def('stack', function (K) {
     ) {
       ev.push({ t: 'StackObjectFizzled', sid: o.sid });
       return;
-    } // Patch4: the picked target is no longer legal
+    } // the picked target is no longer legal
     if (def.colTarget && COLTARGETS[def.colTarget](s, o.col)) {
       ev.push({ t: 'StackObjectFizzled', sid: o.sid });
       return;
@@ -275,7 +275,7 @@ Sim.def('stack', function (K) {
   }
   // Q49 / Q50: s.stops = null | {Player:{opp:{kind:true}, own:{kind:true}}, Opponent:{...}}. `opp` = the windows a player gets as the NON-turn player
   // (enter and end are on unless turned off), `own` = as the turn player. A window is {kind, stage:'foe'|'turn'}: the non-turn player first, then the turn player.
-  // Patch10: "permanent entered" and "end step" on the opponent's turn are ON BY DEFAULT, not forced: a player turns them off like any
+  // "permanent entered" and "end step" on the opponent's turn are ON BY DEFAULT, not forced: a player turns them off like any
   // stop (SetStop ... on:false). Only a stop never set falls back to the default. The stop icons read stopOn too (one source of truth).
   const STOP_DEFAULTS = { opp: { enter: true, end: true }, own: {} };
   const stopOn = (s, p, role, kind) => {
@@ -287,8 +287,8 @@ Sim.def('stack', function (K) {
   const respPri = s => (s.respond && s.respond.stage === 'turn' ? s.active : other(s.active)); // who holds priority in the open window
   function openRespond(s, ev, kind, then) {
     // an empty-stack priority window (triggers on the stack resolve first); nothing opens when neither player wants this stop.
-    // Patch7: `then` = a command that waits for the window to close (main ended: the Combat / End turn press happens after it). Returns true when a window opened
-    if (kind === 'end') s.step = 'end'; // Patch6: the turn order shown in the game
+    // `then` = a command that waits for the window to close (main ended: the Combat / End turn press happens after it). Returns true when a window opened
+    if (kind === 'end') s.step = 'end'; // the turn order shown in the game
     const foe = other(s.active),
       stage = stopWants(s, foe, kind) ? 'foe' : stopWants(s, s.active, kind) ? 'turn' : null;
     if (!stage) return false;
@@ -297,7 +297,7 @@ Sim.def('stack', function (K) {
     ev.push({ t: 'ResponseWindowOpened', kind, player: s.priority }); // the non-turn player ALWAYS responds first, even with enter triggers already on the stack
     return true;
   }
-  // the end step: its window opens when a player wants it; when nobody does (both stops off) the turn ends at once (Patch10: with the
+  // the end step: its window opens when a player wants it; when nobody does (both stops off) the turn ends at once (with the
   // opponent's end step stop off the turn used to wait for a window that never opened)
   function enterEndStep(s, ev) {
     const opened = openRespond(s, ev, 'end');
@@ -337,7 +337,7 @@ Sim.def('stack', function (K) {
       live(o)
         .filter(x => expiresAtTurnEnd(x, s.active)) // 'turnEnd', or {turns, whose}: only the turns that count are counted down (Q11)
         .forEach(x => removeStatus(s, x, 'expired')); // end of turn: expiring statuses go
-    expireStatuses(s, 'combatEnd', 'combat ended'); // Patch4: the turn ending ends any combat phase still open
+    expireStatuses(s, 'combatEnd', 'combat ended'); // the turn ending ends any combat phase still open
     clearAttacked(s, 'turn ended');
     s.active = other(s.active);
     s.turnEnding = false;
@@ -349,7 +349,7 @@ Sim.def('stack', function (K) {
     ev.push({ t: 'TurnChanged', active: s.active });
     gainAP(s, s.active, ev); // one action point at the start of each turn; unspent ones stay
     s.step = 'start';
-    s.drawPending = true; // Patch6: the draw phase follows once the turn start is over (dispatch: checkDrawStep)
+    s.drawPending = true; // the draw phase follows once the turn start is over (dispatch: checkDrawStep)
     fire(s, ev, 'turnStart', null);
     stopAt(s, ev, 'turnStart');
   }
@@ -375,7 +375,7 @@ Sim.def('stack', function (K) {
     needs: [
       'expireStatuses',
       'findTarget',
-      'payCost', // Patch4
+      'payCost',
       'ctl',
       'expiresAtTurnEnd',
       'hasKw',
@@ -407,7 +407,7 @@ Sim.def('stack', function (K) {
       'targetZones',
     ],
     link: () => {
-      ({ expireStatuses, findTarget, payCost } = K); // Patch4
+      ({ expireStatuses, findTarget, payCost } = K);
       ({ ctl } = K);
       ({ expiresAtTurnEnd, hasKw, hasSt } = K);
       ({

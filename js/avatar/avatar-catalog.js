@@ -1,4 +1,4 @@
-// avatar-catalog.js - Patch12: loads config/stats.json and config/avatars.json once (again with reload()), normalised by AvatarLogic.
+// avatar-catalog.js - loads config/stats.json and config/avatars.json once (again with reload()), normalised by AvatarLogic.
 // AvatarCatalog.get() is null until they arrive; a file that cannot be read leaves an empty catalog (no characters) and a warning.
 const AvatarCatalog = (function () {
   const URL = { stats: 'config/stats.json', avatars: 'config/avatars.json' };

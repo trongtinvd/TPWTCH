@@ -1,4 +1,4 @@
-// procedural.js - Patch8: the placeholder character (a cube) and the procedural animations of the eight categories.
+// procedural.js - the placeholder character (a cube) and the procedural animations of the eight categories.
 // The clips are ordinary THREE.AnimationClips on the "motion" node, so they blend and cross-fade like loaded ones. They also stand in
 // for a missing or broken animation file of a real model (then only the transform tracks are used). Each category looks different:
 //   enter: drops in and pops      idle: slow bob      attack: lunge      get_hit: knocked back + red flash

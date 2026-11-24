@@ -497,7 +497,7 @@
       );
       const h0 = s.piles.Player.hand.length;
       pass2(s);
-      eq('...it draws a card, then the draw phase draws one more (Patch6)', s.piles.Player.hand.length, h0 + 1 + 1);
+      eq('...it draws a card, then the draw phase draws one more', s.piles.Player.hand.length, h0 + 1 + 1);
     }
     {
       // L4 plays a permanent of the opponent

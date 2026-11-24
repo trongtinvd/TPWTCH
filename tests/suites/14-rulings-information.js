@@ -146,7 +146,7 @@
             Object.values(g.cards)
               .filter(c => visible(c.iid))
               .map(c => c.def.name)
-          ), // Patch6: a name a visible card also has (two Vine tokens, one under a cloud) is no leak
+          ), // a name a visible card also has (two Vine tokens, one under a cloud) is no leak
           hid = Object.values(g.cards).filter(
             c => c.def.type !== 'ability' && !visible(c.iid) && !Sim.canSee(g, V, c) && !seen.has(c.def.name)
           ),

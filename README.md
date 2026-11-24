@@ -31,20 +31,18 @@ Godot (final presentation); three.js board prototype to validate rules/feel. Pri
 
 ## Files (`Docs/`)
 
-- `README.md` overview, goals, risk
 - `RULES.md` current rules
 - `ARCHITECTURE.md` sim/presentation split, systems, AI, risks
 - `effects.md` effect system as implemented in the prototype
 - `OPEN_QUESTIONS.md` rules to settle before the card pool grows
-- `ROADMAP.md` phases
-- `CONTRIBUTING.md` ground rules
-- `game_design_document.txt` card texts and detailed rule notes not covered elsewhere
+- `ANIMATION_3D.md` the 3D side view; `animationGuide.md` how to add GLB models, animations and camera moves
+- `CAMERA.md` camera settings; `AVATARS.md` player avatars
 
 ## Code
 
 Plain scripts loaded in order by `index.html` (no build step):
 
-Folders under `js/` (Patch6):
+Folders under `js/`:
 
 - `js/core/` `theme.js` (reads `css/theme.css` for the 3D scene), `storage.js` (the only code that touches localStorage), `settings.js`
 - `js/content/` `cards.js` Fx effect API + card definitions, `decks.js` deck store, validation, search
@@ -52,13 +50,13 @@ Folders under `js/` (Patch6):
 - `js/game/` `game-host.js` host and UI state (send, automation, buttons), `input.js` pointer input, `bot.js` the bot
 - `js/log/` `narrate.js` the per-player story log (no DOM; the Node tests load it to check the logs for leaks), `gamelog.js` the log panel (back of the stack panel)
 - `js/view/` `scene.js`, `board.js`, `card-view.js` (card meshes, card back), `view-sync.js` (state -> meshes, pile tops), `panels.js`, `layout.js` (phone panel resizing), `stops-bar.js` (the stop icons)
-- `js/screens/` `menu.js` (main menu, start dialog, settings), `character-select.js` (Patch12: the character selection scene), `deck-editor.js`, `replay.js` (duel replays), `result.js` (rematch / continue / leave)
-- `js/avatar/` (Patch12) player avatars: `avatar-logic.js` (pure), `avatar-catalog.js`, `avatar-models.js`, `avatar-icons.js`, `avatar-view.js`; configs `config/avatars.json`, `config/stats.json`; guide `Docs/AVATARS.md`
+- `js/screens/` `menu.js` (main menu, start dialog, settings), `character-select.js` (the character selection scene), `deck-editor.js`, `replay.js` (duel replays), `result.js` (rematch / continue / leave)
+- `js/avatar/` player avatars: `avatar-logic.js` (pure), `avatar-catalog.js`, `avatar-models.js`, `avatar-icons.js`, `avatar-view.js`; configs `config/avatars.json`, `config/stats.json`; guide `Docs/AVATARS.md`
 - `js/main.js` console hook and render loop
 - `css/theme.css` every colour, distance and sprite setting as a CSS variable
-- `tests/selftest.js` headless rules tests, `tests/run.js` runs them in Node
+- `tests/harness.js` + `tests/suites/*.js` headless rules tests, `tests/run.js` runs them in Node
 
 ## Running the tests
 
 `node tests/run.js` (Node 18+, no dependencies). The same tests run in the browser console with `cardGame.selfTest()`.
-`npx prettier --write js css tests` formats the code (see `.prettierrc.json`).
+`npm run format` formats the code (see `.prettierrc.json`); CI runs `npm run format:check`.

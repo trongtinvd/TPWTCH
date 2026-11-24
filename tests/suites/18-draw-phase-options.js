@@ -1,4 +1,4 @@
-// 18-patch6.js - Patch6: the draw phase (start -> draw -> main -> combat (optional) -> main or end), the game options of the start dialog
+// 18-draw-phase-options.js - the draw phase (start -> draw -> main -> combat (optional) -> main or end), the game options of the start dialog
 // (cards in the opening hand, per draw phase, per Draw action, starting life, player names), stops changed during the game (SetStop),
 // cards revealed in a deck stay revealed while they are there.
 // Run only these: node tests/run.js --only draw-phase,game-options,set-stop,deck-reveal
@@ -103,7 +103,7 @@
     });
     const b = Sim.create(1813, DEFS.concat(FIXTURES), { rules: { startHand: -2, life: 0, drawAction: 'x' } });
     eq(
-      'bad values are clamped or ignored (Patch7: life 0 is allowed)',
+      'bad values are clamped or ignored (life 0 is allowed)',
       [b.cfg.startHand, b.cfg.life, b.cfg.drawAction],
       [0, 0, 2]
     );

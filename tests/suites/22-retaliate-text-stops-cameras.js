@@ -1,7 +1,7 @@
-// 22-patch10.js - Patch10: Retaliate is a keyworded TRIGGER (stack, priority, responses), generated card text with Stack HP + the
+// 22-retaliate-text-stops-cameras.js - Retaliate is a keyworded TRIGGER (stack, priority, responses), generated card text with Stack HP + the
 // written descriptions database, the camera config, removable stops, the legal picks of a choice (Ambush of the Night), the 3D card
 // models index, "Defender strike back", King Eye's hidden information in the log and in the observed events.
-// Run only these: node tests/run.js --only p10-
+// Run only these: node tests/run.js --only retaliate-keyword,strike-back,stops-removable,stops-copies,choice-picks,king-eye-log,generated-text,camera-config
 (function () {
   const { D, check, eq, start, take, pass2, drain, dl, ndmg } = Tests.ctx;
   const byId = id => DEFS.find(d => d.id === id);
@@ -31,7 +31,7 @@
   };
 
   // ================= 1. Retaliate: an ordinary trigger, abbreviated by its keyword =================
-  Tests.add('p10-retaliate-keyword', () => {
+  Tests.add('retaliate-keyword', () => {
     const sgd = byId('shieldguard'),
       t = sgd.triggers[0];
     check(
@@ -158,7 +158,7 @@
   });
 
   // ================= 9. Defender strike back (game option) =================
-  Tests.add('p10-strike-back', () => {
+  Tests.add('strike-back', () => {
     let s = start(2210);
     const w = take(s, 'Player', 'wolf', 'board', 'Player|front|1'),
       k = take(s, 'Opponent', 'knight', 'board', 'Opponent|front|1');
@@ -267,7 +267,7 @@
   });
 
   // ================= 5. Stops: the opponent's end step and permanent entered can be turned off =================
-  Tests.add('p10-stops', () => {
+  Tests.add('stops-removable', () => {
     let s = start(2220);
     check(
       'defaults: on the opponent’s turn "permanent entered" and "end step" are on (Sim.stopOn), other stops off',
@@ -337,7 +337,7 @@
     );
   });
 
-  Tests.add('p10-stops-copies', () => {
+  Tests.add('stops-copies', () => {
     const flat = { turnStart: true },
       s = Sim.create(2225, DEFS.concat(FIXTURES), { stops: flat });
     D(s, { type: 'SetStop', player: 'Player', role: 'opp', kind: 'end', on: false });
@@ -348,7 +348,7 @@
   });
 
   // ================= 6. Ambush of the Night: the legal picks come from the Sim =================
-  Tests.add('p10-choice-picks', () => {
+  Tests.add('choice-picks', () => {
     const s = start(2230),
       a = take(s, 'Player', 'ambush', 'hand');
     take(s, 'Player', 'soldier', 'gy');
@@ -391,7 +391,7 @@
   });
 
   // ================= 10. King Eye: hidden identities stay hidden in the log and the observed events =================
-  Tests.add('p10-king-eye-log', () => {
+  Tests.add('king-eye-log', () => {
     const s = start(2240);
     take(s, 'Opponent', 'kingeye', 'board', 'Opponent|front|1');
     const ar = take(s, 'Opponent', 'archer', 'hand');
@@ -454,7 +454,7 @@
   });
 
   // ================= 2 + 3. Generated card text, the written descriptions database =================
-  Tests.add('p10-card-text', () => {
+  Tests.add('generated-text', () => {
     if (!CardText.loaded() && typeof readRepoFile === 'function') CardText.load(JSON.parse(readRepoFile(CardText.URL)));
     check('the descriptions database is loaded (js/content/cardDescription.json)', CardText.loaded());
     eq(
@@ -524,7 +524,7 @@
   });
 
   // ================= 4 + 8. Camera config, 3D card models =================
-  Tests.add('p10-config', () => {
+  Tests.add('camera-config', () => {
     const dflt = CameraCfg.normalize({});
     eq(
       'camera config defaults = the old hard-coded values (top height 60, side camera (3, 29, 22), fov 45)',

@@ -78,7 +78,7 @@ Sim.def('observe', function (K) {
     });
     for (const id in s.cards) {
       const c = s.cards[id];
-      if (c.def.type === 'ability' || (c.loc === 'deck' && !sc.known(id)) || c.loc === 'gone') continue; // a deck: only its size, and the cards revealed to p (Patch6)
+      if (c.def.type === 'ability' || (c.loc === 'deck' && !sc.known(id)) || c.loc === 'gone') continue; // a deck: only its size, and the cards revealed to p
       if (sc.known(id)) cards[id] = card(c);
       else if (c.loc === 'hand' || c.loc === 'extra') cards[sc.alias(id)] = stub(c); // a card under an enemy cloud is not even mentioned
     }
@@ -88,7 +88,7 @@ Sim.def('observe', function (K) {
         ids = list => list.map(c => sc.alias(c.iid));
       piles[q] = {
         deck: P.deck.length,
-        deckKnown: P.deck.map((c, i) => (sc.known(c.iid) ? [i, c.iid] : null)).filter(Boolean), // Patch6: [position, iid] of the deck cards revealed to p
+        deckKnown: P.deck.map((c, i) => (sc.known(c.iid) ? [i, c.iid] : null)).filter(Boolean), // [position, iid] of the deck cards revealed to p
         hand: ids(P.hand),
         gy: ids(P.gy),
         exile: ids(P.exile),
@@ -156,7 +156,7 @@ Sim.def('observe', function (K) {
       attackPhase: s.attackPhase,
       respond: s.respond ? { kind: s.respond.kind, stage: s.respond.stage } : null,
       maxLife: s.maxLife,
-      avatars: JSON.parse(JSON.stringify(s.avatars || { Player: null, Opponent: null })), // Patch12: public
+      avatars: JSON.parse(JSON.stringify(s.avatars || { Player: null, Opponent: null })), // public
       players,
       piles,
       cards,
@@ -175,7 +175,7 @@ Sim.def('observe', function (K) {
     const sc = scope([pre, post], p);
     return ev.map(e => {
       const o = Object.assign({}, e);
-      // Patch10: where a card p cannot see stands is hidden too (a card played or moved under an enemy cloud): the zone goes
+      // where a card p cannot see stands is hidden too (a card played or moved under an enemy cloud): the zone goes
       if (typeof o.slot === 'string' && typeof e.iid === 'string' && !slotKnown(pre, post, p, e.iid, o.slot))
         o.slot = null;
       for (const k of ['iid', 'source', 'target']) if (typeof o[k] === 'string') o[k] = sc.alias(o[k]);

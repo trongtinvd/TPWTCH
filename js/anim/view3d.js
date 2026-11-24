@@ -1,16 +1,16 @@
-// view3d.js - Patch8: the 3D side view. The side view (viewBtn) now uses config/board3d.json (2 x 2 m zones, 1 m between a
+// view3d.js - the 3D side view. The side view (viewBtn) now uses config/board3d.json (2 x 2 m zones, 1 m between a
 // player's rows, 4 m between the front rows), config/camera3d.json (seat camera, FOV, clipping, orbit limits, the hands that
 // ride with the camera) and config/characters.json (a character on every creature, with its animations). The top view is
 // untouched: leaving the side view disposes every character, stops the camera animation and puts the original layout back.
 // Hooks (one line each): setTopView -> setEnabled, sync -> sync(T), animate -> preFrame / postFrame, attackJob -> onAttack / onHit,
 // input picking -> pickProxies + userData.pickAs, main loop -> ownsCamera.
-// Debug (console): View3D.demo(), View3D.debug.play('stun'), View3D.stats(). Patch10: ?anim3d is now the standalone card preview
+// Debug (console): View3D.demo(), View3D.debug.play('stun'), View3D.stats(). ?anim3d is now the standalone card preview
 // (anim3d.html, js/anim/card-preview.js), independent of this scene.
-// Patch12: a resize (opening / closing the browser's DevTools, a panel drag, turning a phone) no longer puts the camera back on its
+// a resize (opening / closing the browser's DevTools, a panel drag, turning a phone) no longer puts the camera back on its
 // seat once the player has moved it (orbit / zoom / pan): only the projection follows the new size. An untouched camera still
 // re-fits its seat (minAspect). Seat turns and entering the side view place it as before. The own hand can be dragged left / right
 // (camera3d.json hand.own.drag): handGrab / handDrag / handRelease (input.js), the board and its zones never move.
-// Patch13: the opponent's hand drags the same way (hand.opponent.drag), its offset kept apart.
+// the opponent's hand drags the same way (hand.opponent.drag), its offset kept apart.
 const View3D = (function () {
   const L = Anim3DLogic,
     CFG = { board: 'config/board3d.json', camera: 'config/camera3d.json', characters: 'config/characters.json' };
@@ -35,7 +35,7 @@ const View3D = (function () {
         console.warn('[3D] ' + url + ' not loaded, defaults used (' + e.message + ')');
         return {};
       });
-  // Patch9: the configs load again each time the side view opens (edit a file, switch Top / Side: the new values show). A config
+  // the configs load again each time the side view opens (edit a file, switch Top / Side: the new values show). A config
   // that arrives while the side view is already open is applied at once (it used to be ignored: the defaults stayed).
   const cfgState = { board: 'loading', camera: 'loading', characters: 'loading' };
   let cfgKey = '';
@@ -94,7 +94,7 @@ const View3D = (function () {
     on = v;
     if (on) {
       if (!applied) apply();
-      loadCfg(); // Patch9: pick up edited config files
+      loadCfg(); // pick up edited config files
     } else restore();
   }
   function apply() {
@@ -169,7 +169,7 @@ const View3D = (function () {
       pl.scale.copy(s.ps);
       pl.quaternion.copy(s.pq);
       pl.visible = s.pvis;
-      onTop(s.z, false); // Patch9
+      onTop(s.z, false);
       onTop(pl, false);
     }
     for (const s of saved.clouds) {
@@ -188,7 +188,7 @@ const View3D = (function () {
       u.hl = null;
       m.quaternion.identity();
       m.scale.set(1, 1, 1);
-      u.ql = null; // Patch9
+      u.ql = null;
       if (u.top9) onTop(m, false);
       if (u.sword) swordPose(m, false);
     }
@@ -207,7 +207,7 @@ const View3D = (function () {
 
   // ---- camera ----------------------------------------------------------------------------------------------------
   const poseObj = new THREE.Object3D();
-  let manual = false; // Patch12: the player moved the camera since it was last placed on its seat
+  let manual = false; // the player moved the camera since it was last placed on its seat
   controls.addEventListener('start', () => {
     if (on && applied) manual = true;
   });
@@ -232,7 +232,7 @@ const View3D = (function () {
     ui.dirty = true;
     return true;
   }
-  // Patch12: a resize keeps a camera the player moved (position, rotation, orbit target, zoom); the projection (aspect) is updated by
+  // a resize keeps a camera the player moved (position, rotation, orbit target, zoom); the projection (aspect) is updated by
   // the resize handler of input.js. A camera nobody touched re-fits its seat for the new shape (a narrow window moves it back).
   function onResize() {
     if (!on || !applied) return 'off';
@@ -322,7 +322,7 @@ const View3D = (function () {
         });
       } else inst.dispose(); // bounced, exiled, back to the deck: it just goes
     }
-    // Patch9: a creature whose Attack waits on the stack plays "attacking" until it resolves (attack / finishing_attack) or is gone
+    // a creature whose Attack waits on the stack plays "attacking" until it resolves (attack / finishing_attack) or is gone
     const waiting = new Set(game.stack.filter(o => o.kind === 'attack').map(o => o.iid));
     for (const [iid, inst] of insts) {
       if (waiting.has(iid) && !inst.idleAs) {
@@ -351,7 +351,7 @@ const View3D = (function () {
     if (!cue) return null;
     const a = insts.get(cue.attacker);
     if (a) {
-      a.idleAs = null; // Patch9: the Attack resolved: after the strike it goes back to idle
+      a.idleAs = null; // the Attack resolved: after the strike it goes back to idle
       a.play(cue.category);
     }
     return cue;
@@ -377,8 +377,8 @@ const View3D = (function () {
     eT.set(Math.PI / 2 + tiltDeg * D2R, rot, 0, 'XYZ');
     return out.copy(camera.quaternion).multiply(qA.setFromEuler(eT));
   }
-  // ---- Patch12: the own hand slides left / right (only the hand: the board, its zones and the other hands stay) ---------------------
-  // Patch13: the opponent's hand too, each on its own (hand.own.drag / hand.opponent.drag, Settings handOffset3d / handOffset3dFoe).
+  // ---- the own hand slides left / right (only the hand: the board, its zones and the other hands stay) ---------------------
+  // the opponent's hand too, each on its own (hand.own.drag / hand.opponent.drag, Settings handOffset3d / handOffset3dFoe).
   // The offset = along the camera's x axis, as a fraction of the visible width at the hand's distance (so it suits any screen);
   // clamped to drag.min .. max, which keeps the centre of the hand on screen (|x| < 0.5)
   const handX = { own: 0, opponent: 0 };
@@ -434,21 +434,21 @@ const View3D = (function () {
     for (const p of ['Player', 'Opponent']) {
       const role = roleOf(p),
         h = cfg.camera.hand[role],
-        hx = handOffsetX(role, h), // Patch12 / Patch13: the dragged offset of this hand
+        hx = handOffsetX(role, h), // the dragged offset of this hand
         hand = game.piles[p].hand,
         dist = Math.max(0.2, -h.offset[2]),
         visW = 2 * dist * tanH * camera.aspect,
-        xs = HandScroll.spread(p, hand.length, visW * h.widthFrac - CW * h.scale, h.spacing, CW * h.scale * 0.42, true), // Patch9: a big hand scrolls
+        xs = HandScroll.spread(p, hand.length, visW * h.widthFrac - CW * h.scale, h.spacing, CW * h.scale * 0.42, true), // a big hand scrolls
         rot = p === 'Opponent' ? Math.PI : 0;
       const hz = handZone(p);
       if (hz) {
         hz.visible = h.zone;
         hz.userData.plane.visible = h.zone;
-        onTop(hz, true); // Patch9: the hand zone is drawn over the board
+        onTop(hz, true); // the hand zone is drawn over the board
         onTop(hz.userData.plane, true);
         const zw = Math.min(
           visW * h.widthFrac,
-          (hand.length ? xs[xs.length - 1] - xs[0] : 0) + CW * h.scale + 0.2 + (h.drag.enabled ? h.drag.padding : 0) // Patch12: room to grab it
+          (hand.length ? xs[xs.length - 1] - xs[0] : 0) + CW * h.scale + 0.2 + (h.drag.enabled ? h.drag.padding : 0) // room to grab it
         );
         vL.set(h.offset[0] + hx, h.offset[1] - 0.02, h.offset[2] - 0.03);
         hz.position.copy(camera.localToWorld(vL.clone()));
@@ -466,7 +466,7 @@ const View3D = (function () {
         if (ui.drag && ui.drag.card.iid === c.iid) {
           u.cam3d = false; // follows the pointer over the board
           u.hl = null;
-          u.ql = null; // Patch9
+          u.ql = null;
           return;
         }
         inHand.add(m);
@@ -484,7 +484,7 @@ const View3D = (function () {
           busy = true;
         } else u.hl.copy(goal);
         m.position.copy(camera.localToWorld(u.hl.clone()));
-        // Patch9: the card turns in camera space too, so an orbiting camera never leaves it tilted into the hand zone
+        // the card turns in camera space too, so an orbiting camera never leaves it tilted into the hand zone
         const tq = qA.setFromEuler(eT.set(Math.PI / 2 + h.tiltDeg * D2R, rot, 0, 'XYZ'));
         if (!u.ql) u.ql = camera.quaternion.clone().invert().multiply(m.quaternion);
         if (u.ql.angleTo(tq) > 0.002) {
@@ -493,7 +493,7 @@ const View3D = (function () {
         } else u.ql.copy(tq);
         m.quaternion.copy(camera.quaternion).multiply(u.ql);
         u.q3d = (u.q3d || new THREE.Quaternion()).copy(m.quaternion);
-        onTop(m, true); // Patch9: hand cards are drawn over the board
+        onTop(m, true); // hand cards are drawn over the board
         u.s3d = h.scale;
       });
     }
@@ -507,7 +507,7 @@ const View3D = (function () {
         u.by = m.position.y - (u.owner ? lift[u.owner] : 0); // the board tween goes on from here
       }
       u.q3d = null;
-      u.ql = null; // Patch9
+      u.ql = null;
       if (u.top9) onTop(m, false);
       u.s3d = bs;
     }
@@ -536,9 +536,9 @@ const View3D = (function () {
       } else m.scale.copy(sV);
     }
     for (const k in piles3d) piles3d[k].mesh.scale.x = piles3d[k].mesh.scale.z = bs;
-    for (const m of meshes.values()) if (m.userData.sword) swordPose(m, true); // Patch9: the swords stand above the characters, bigger
+    for (const m of meshes.values()) if (m.userData.sword) swordPose(m, true); // the swords stand above the characters, bigger
     if (flashing.size) {
-      flashTick(now); // Patch9: the flying sword flashes
+      flashTick(now); // the flying sword flashes
       busy = true;
     }
     for (const i of insts.values()) {
@@ -551,7 +551,7 @@ const View3D = (function () {
     return busy;
   }
 
-  // ---- Patch9: hands on top, swords --------------------------------------------------------------------------------
+  // ---- hands on top, swords --------------------------------------------------------------------------------
   const HAND_LAYER = 1;
   scene.traverse(o => o.isLight && o.layers.enable(HAND_LAYER)); // the hands keep their light in their own pass
   ray.layers.enable(HAND_LAYER); // hand cards stay pickable
@@ -624,7 +624,7 @@ const View3D = (function () {
       return list.map(i => i.play(cat));
     },
   };
-  // Patch9: "3D demo" (a Vs self game with characters on both sides, side view on); console only since Patch10
+  // "3D demo" (a Vs self game with characters on both sides, side view on); console only
   function demo() {
     if (typeof MenuUI === 'undefined' || typeof Tests === 'undefined') return;
     const de = document.getElementById('deckEditor');
@@ -664,7 +664,7 @@ const View3D = (function () {
     setEnabled,
     isOn: () => on,
     placeSeatCamera,
-    onResize, // Patch12
+    onResize,
     cameraMoved: () => manual,
     handGrab,
     handDrag,
@@ -673,17 +673,17 @@ const View3D = (function () {
       return clampHand('own');
     },
     get handOffsetFoe() {
-      return clampHand('opponent'); // Patch13
+      return clampHand('opponent');
     },
-    grabRole, // Patch13
-    handZone, // Patch12
+    grabRole,
+    handZone,
     ownsCamera,
     sync: syncT,
     preFrame,
     postFrame,
     pickProxies,
     onAttack,
-    render, // Patch9
+    render,
     front,
     styleSword,
     playerZ,

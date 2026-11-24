@@ -136,7 +136,7 @@
     check('entering the battle phase uses the action point', s.attackPhase && !Sim.apCount(s, 'Player'));
     D(s, { type: 'SetAttackPhase', player: 'Player', on: false });
     rej(
-      'leaving the battle phase goes back to the main phase (Patch5): another combat needs another action point',
+      'leaving the battle phase goes back to the main phase: another combat needs another action point',
       s,
       { type: 'SetAttackPhase', player: 'Player', on: true },
       'No action point'

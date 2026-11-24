@@ -1,4 +1,4 @@
-// 16-attack-counters-hp.js - Patch4: attack counters, non-lethal and temporary damage, non-player HP targets (hp.js HPKINDS), Vanguard.
+// 16-attack-counters-hp.js - attack counters, non-lethal and temporary damage, non-player HP targets (hp.js HPKINDS), Vanguard.
 // Run only these: node tests/run.js --only attack-counters,non-player-hp
 (function () {
   const { D, check, eq, rej, start, take, pass2, drain, dmg, shield, kinds, endTurnFlow } = Tests.ctx;

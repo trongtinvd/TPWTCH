@@ -3,7 +3,7 @@
    colours are #hex, distances are world units (a card is --card-w x --card-d), pairs are "fill line". */
 :root {
   /* ---- UI colours ---- */
-  /* Patch7: one navy-and-gold look, taken from the card back (there is no light version any more) */
+  /* one navy-and-gold look, taken from the card back (there is no light version any more) */
   --bg: #0b0f26;
   --fg: #ece6d4;
   --panel: linear-gradient(160deg, rgba(29, 37, 80, 0.94), rgba(11, 15, 38, 0.94));
@@ -20,14 +20,14 @@
   --btn-exit: #a8302a; /* Exit / Leave */
   --exit-glow: #ff5a4d; /* the pulsing Exit button */
   --ap-color: #ffd34d; /* action points (the four-point star under each life bar) */
-  --stop-on: #ffd34d; /* Patch6: a stop icon that is on (bottom right corner) */
-  --stop-off: #8f9cc8; /* ...and one that is off (Patch7: readable on the navy panel) */
+  --stop-on: #ffd34d; /* a stop icon that is on (bottom right corner) */
+  --stop-off: #8f9cc8; /* ...and one that is off (readable on the navy panel) */
   --stop-off-bg: rgba(255, 255, 255, 0.06); /* the faint tile behind an icon that is off */
   --stop-size: 26px; /* ...the size of one stop icon */
-  --card-back-a: #1d2550; /* Patch6: the card back: gradient, frame and emblem colours */
+  --card-back-a: #1d2550; /* the card back: gradient, frame and emblem colours */
   --card-back-b: #0b0f26;
   --card-back-line: #c9a54a;
-  --card-gold-text: #f3e6c0; /* Patch7: the name and type line on the card faces */
+  --card-gold-text: #f3e6c0; /* the name and type line on the card faces */
   --accent: #3fe07a; /* hover links, drop targets, selected highlight */
   --drop: #3fa66a;
   --splat: #b3121c;
@@ -65,7 +65,7 @@
   --side-p2: #4a2433;
   --hand-p1: #1c2a4e;
   --hand-p2: #3a1e2a;
-  --zone-line: rgba(201, 165, 74, 0.45); /* Patch7: the gold frame and the label text on every zone */
+  --zone-line: rgba(201, 165, 74, 0.45); /* the gold frame and the label text on every zone */
   --zone-text: #f3e6c0;
   --zone-sub: rgba(243, 230, 192, 0.6);
   --zone-valid: #1f6b2f; /* legal target / placement */

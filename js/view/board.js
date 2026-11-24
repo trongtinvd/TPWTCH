@@ -17,7 +17,7 @@ function labelTexture(title, sub, w, d) {
     return size;
   }
   const tSize = fit(title, 'bold', 52);
-  g.strokeStyle = cssStr('--zone-line', 'rgba(201,165,74,0.45)'); // Patch7: a thin gold frame, like the cards
+  g.strokeStyle = cssStr('--zone-line', 'rgba(201,165,74,0.45)'); // a thin gold frame, like the cards
   g.lineWidth = 3;
   g.strokeRect(6, 6, c.width - 12, c.height - 12);
   g.fillStyle = cssStr('--zone-text', 'rgba(255,255,255,0.92)');

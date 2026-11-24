@@ -206,7 +206,7 @@ function settingsDialog() {
     note.textContent =
       'Browsers slow hidden tabs down: the bot and the automatic passes may act about once per second there.';
     box.appendChild(note);
-    // Patch6: the stops moved into the game (the stop icons in the bottom right corner)
+    // the stops moved into the game (the stop icons in the bottom right corner)
     const sn = mkEl('p', 'mmsg');
     sn.style.fontSize = '12px';
     sn.style.opacity = '0.7';
@@ -240,7 +240,7 @@ function startDialog(mode) {
     };
     const s1 = sel('Player 1 deck', MenuUI.last.p1),
       s2 = sel(mode === 'bot' ? 'Bot deck (Player 2)' : 'Player 2 deck', MenuUI.last.p2);
-    // Patch6: player names and the game options (cards in the opening hand, per draw phase, per Draw action, starting life)
+    // player names and the game options (cards in the opening hand, per draw phase, per Draw action, starting life)
     const txt = (label, def) => {
       const w = mkEl('label', 'mfield');
       w.appendChild(mkEl('span')).textContent = label;
@@ -283,7 +283,7 @@ function startDialog(mode) {
     cb.checked = MenuUI.last.shuffle;
     cw.append(cb, document.createTextNode(' Shuffle the decks at the start'));
     box.appendChild(cw);
-    // Patch10: game option "Defender strike back" (off = the default rules)
+    // game option "Defender strike back" (off = the default rules)
     const kw = mkEl('label', 'mcheck'),
       kb = mkEl('input');
     kb.type = 'checkbox';
@@ -328,11 +328,11 @@ function startDialog(mode) {
             drawPhase: int(gd, 1, 0, 10),
             drawAction: int(ga, 2, 0, 10),
             life: int(gl, 20, 0, 999),
-            strikeBack: kb.checked, // Patch10
+            strikeBack: kb.checked,
           };
           Settings.set('lastGame', MenuUI.last); // the dialog remembers the last choices
           close();
-          // Patch12: Start opens the character selection scene; its Confirm starts the duel with these settings and the avatars
+          // Start opens the character selection scene; its Confirm starts the duel with these settings and the avatars
           if (typeof CharacterSelect !== 'undefined') CharacterSelect.open(Object.assign({ mode }, MenuUI.last));
           else MenuUI.play(Object.assign({ mode }, MenuUI.last));
         },

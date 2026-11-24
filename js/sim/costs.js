@@ -1,14 +1,14 @@
 // costs.js - REGISTRY COSTS: check (payable?) and pay (mutates)
 Sim.def('costs', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
-  let ctl; // added by Patch3
+  let ctl;
   let PL, addStatus, has, syncLife; // statuses
   let destroy; // state
   let hasAP, spendAP; // ap
   const COSTS = {
     // check -> reason|null; pay mutates (never refunded if countered)
     PayLife: {
-      check: (s, c, k) => (s.life[ctl(c)] - k.n <= -1 ? 'Cost: not enough life' : null), // Patch7: paying down to 0 is fine (life -1 or less loses)
+      check: (s, c, k) => (s.life[ctl(c)] - k.n <= -1 ? 'Cost: not enough life' : null), // paying down to 0 is fine (life -1 or less loses)
       pay: (s, c, k, ev) => {
         addStatus(s, PL(s, ctl(c)), { kind: 'paid', amount: k.n, srcName: c.def.name });
         syncLife(s, ctl(c));
@@ -41,7 +41,7 @@ Sim.def('costs', function (K) {
       pay: (s, c, k, ev) => spendAP(s, ctl(c), c.def.name + ' (cost)', ev),
     },
     SpendStatus: {
-      // Patch4: remove one status of kind k.kind from this card (Vanguard: an attack counter)
+      // remove one status of kind k.kind from this card (Vanguard: an attack counter)
       check: (s, c, k) => (hasSt(c, k.kind) ? null : 'Cost: no ' + (k.label || k.kind) + ' on this card'),
       pay: (s, c, k, ev) => {
         removeStatus(
@@ -60,7 +60,7 @@ Sim.def('costs', function (K) {
     needs: [
       'hasSt',
       'live',
-      'removeStatus', // Patch4
+      'removeStatus',
       'ctl',
       'PL',
       'addStatus',
@@ -71,7 +71,7 @@ Sim.def('costs', function (K) {
       'syncLife',
     ],
     link: () => {
-      ({ hasSt, live, removeStatus } = K); // Patch4
+      ({ hasSt, live, removeStatus } = K);
       ({ ctl } = K);
       ({ PL, addStatus, destroy, has, hasAP, spendAP, syncLife } = K);
     },

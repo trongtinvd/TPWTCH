@@ -1,4 +1,4 @@
-// avatar-view.js - Patch12: the avatars in the duel. Each seat has ONE avatar (a Character3D with its own animation controller),
+// avatar-view.js - the avatars in the duel. Each seat has ONE avatar (a Character3D with its own animation controller),
 // made when the duel starts (setNames) and kept until the next duel or a different selection: switching Top / Side view only shows
 // or hides it, so nothing is ever duplicated. Top view: hidden and paused. Side view: it stands behind its board, facing the other.
 // It reads the duel's avatars ({character, outfit} per seat, state.avatars) and life, and the events of each command:
@@ -87,7 +87,7 @@ const AvatarView = (function () {
     st.setProperty('--foeB', a + 'px');
     st.setProperty('--foeR', r + 'px');
     st.setProperty('--meT', (b > 0 ? b : innerHeight) + 'px');
-    // Patch13: the status line goes up between this row and the top right buttons when there is room (the top of the board is free)
+    // the status line goes up between this row and the top right buttons when there is room (the top of the board is free)
     const slot = land && fr.width ? AvatarLogic.statusSlot(r, fl) : null;
     document.body.classList.toggle('statusTop', !!slot);
     if (slot) {
@@ -95,14 +95,14 @@ const AvatarView = (function () {
       st.setProperty('--stW', slot.maxW + 'px');
     }
   }
-  // Patch13: the left edge of the visible top right buttons (#fn)
+  // the left edge of the visible top right buttons (#fn)
   function fnLeft(fn) {
     const bs = fn ? [...fn.children].filter(x => x.offsetParent) : [];
     return bs.length ? Math.floor(Math.min(...bs.map(x => x.getBoundingClientRect().left))) : innerWidth - 12;
   }
   if (typeof ResizeObserver !== 'undefined') {
     document.querySelectorAll('#hp .hpr').forEach(r => new ResizeObserver(() => ((mKey = ''), measure())).observe(r));
-    const fnEl = document.getElementById('fn'); // Patch13: buttons shown / hidden move the gap for the status line
+    const fnEl = document.getElementById('fn'); // buttons shown / hidden move the gap for the status line
     if (fnEl) new ResizeObserver(() => ((mKey = ''), measure())).observe(fnEl);
   }
   addEventListener('resize', () => {

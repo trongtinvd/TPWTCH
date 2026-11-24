@@ -1,4 +1,4 @@
-# Player avatars (Patch12)
+# Player avatars
 
 An **avatar** is the character a player controls in a duel. It has a character identity and name, outfits, a 3D model (per character, optionally per outfit), outfit meshes and materials, outfit stats, outfit abilities (for now a flavor text) and animations. All of it is data: adding a character or an outfit is a JSON edit, nothing in the selection scene or the game code names a character (a test checks this).
 
@@ -152,7 +152,7 @@ The selection scene lists the outfits in this order; the small preview shows the
 
 ## Stats and icons
 
-`config/stats.json`: `{ "id", "name", "icon", "description" }` per stat, in display order. The stats are the player stats of `Docs/RULES.md` (Power, Defense, HP, Initial Distance, Speed, Acceleration); the design documents name them but had no icons, so Patch12 drew simple ones: `icon` is SVG path data in a 16 x 16 box, or an image path. A new stat = a new entry here plus a value in each outfit.
+`config/stats.json`: `{ "id", "name", "icon", "description" }` per stat, in display order. The stats are the player stats of `Docs/RULES.md` (Power, Defense, HP, Initial Distance, Speed, Acceleration); the design documents name them but had no icons, so simple ones were drawn: `icon` is SVG path data in a 16 x 16 box, or an image path. A new stat = a new entry here plus a value in each outfit.
 
 ## In the duel
 
@@ -162,7 +162,7 @@ The selection scene lists the outfits in this order; the small preview shows the
 
 ## Checks
 
-`node tests/run.js --only p12-` (configs, selection, animation categories, wounded / death thresholds, the duel record, CardPlayed, placement, hand drag limits, no hard-coded character). In the browser: `AvatarView.stats()`, `CharacterSelect.debug()`.
+`node tests/run.js --only avatar-` (configs, selection, animation categories, wounded / death thresholds, the duel record, CardPlayed, placement, hand drag limits, no hard-coded character). In the browser: `AvatarView.stats()`, `CharacterSelect.debug()`.
 
 ## Not built yet
 

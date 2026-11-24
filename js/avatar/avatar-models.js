@@ -1,4 +1,4 @@
-// avatar-models.js - Patch12: the avatar models. A character without a GLB gets a placeholder humanoid built from its "body"
+// avatar-models.js - the avatar models. A character without a GLB gets a placeholder humanoid built from its "body"
 // (config/avatars.json): named pivots Torso, Head, ArmL, ArmR, LegL, LegR (feet on y = 0, facing +z) and named parts. An outfit is
 // applied the same way to a placeholder or to a loaded GLB: materials by name, nodes shown / hidden by name, extra parts attached to a
 // node by name. The built-in ("procedural") avatar clips are here too; a GLB without limbs gets only their whole-body tracks.

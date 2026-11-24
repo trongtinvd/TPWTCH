@@ -1,4 +1,4 @@
-// hp.js - REGISTRY HPKINDS: every NON-PLAYER thing that can have active HP (Patch4).
+// hp.js - REGISTRY HPKINDS: every NON-PLAYER thing that can have active HP.
 // Each kind lists the refs a targeting may pick, resolves a ref back to the thing (null = no longer a legal target) and damages it.
 // Add a kind here and every non-player HP effect ('nonPlayerHp' targeting, the DamageHp op: Vanguard) covers it with no card change.
 // Refs: a board card is its iid (so the board can be clicked), a zone 'Z:<slot>', a stack object 'S:<sid>'.

@@ -1,4 +1,4 @@
-// 19-patch7.js - Patch7: life 0 is alive (paying life down to 0, starting life 0), the "main phase started" / "main phase ended" stops,
+// 19-life-zero-main-stops.js - life 0 is alive (paying life down to 0, starting life 0), the "main phase started" / "main phase ended" stops,
 // a resolving spell that waits for choices stays visible (s.resolving keeps its card).
 // Run only these: node tests/run.js --only life-zero,main-stops
 (function () {

@@ -57,7 +57,7 @@
     h.addEventListener('pointerup', end);
     h.addEventListener('pointercancel', end);
   }
-  // Patch6: --hpB = the bottom of the life bars (they grow with the action point stars): the status line and the buttons sit under it
+  // --hpB = the bottom of the life bars (they grow with the action point stars): the status line and the buttons sit under it
   const hp = document.getElementById('hp');
   const measure = () => {
     if (hp) rootStyle.setProperty('--hpB', Math.ceil(hp.getBoundingClientRect().bottom) + 'px');
@@ -65,7 +65,7 @@
   if (hp && typeof ResizeObserver !== 'undefined') new ResizeObserver(measure).observe(hp);
   addEventListener('resize', measure);
   measure();
-  // Patch7: --dbgT = the top of the buttons and stops in the bottom right corner: the deck panel ends above them
+  // --dbgT = the top of the buttons and stops in the bottom right corner: the deck panel ends above them
   const dbgEl = document.getElementById('dbg');
   const measureDbg = () => {
     if (!dbgEl) return;

@@ -1,9 +1,9 @@
-// 24-patch12.js - Patch12: player avatars. The shipped character / outfit / stat configs, selection (six characters, outfits, defaults,
+// 24-avatars.js - player avatars. The shipped character / outfit / stat configs, selection (six characters, outfits, defaults,
 // invalid selections), the avatar animation categories (random without repeat, transitions, looping, held death), the wounded and
 // death thresholds (from THIS duel's starting life), the duel recording the avatars (Sim, observations, replays), the CardPlayed event
 // behind playing_card, where the 3D avatars stand (behind their board, facing each other), the hand drag limits, and that nothing in
 // the selection scene or the in-game view names a character. Camera / layout / clicks are checked in a browser (Docs/AVATARS.md).
-// Run only these: node tests/run.js --only p12-
+// Run only these: node tests/run.js --only avatar-
 (function () {
   const { D, check, eq, start, take } = Tests.ctx;
   const AL = AvatarLogic;
@@ -12,7 +12,7 @@
   const catalog = () => AL.normalizeCatalog(J('config/avatars.json'), AL.normalizeStats(J('config/stats.json')));
   const NAMES = ['Bot', 'Epsy', 'Urines', '8 by 12', 'Furiona', 'Finna Emily'];
 
-  Tests.add('p12-catalog', () => {
+  Tests.add('avatar-catalog', () => {
     if (!headless) return check('the config files are checked headless only (node tests/run.js)', true);
     const cat = catalog();
     eq('config/avatars.json + config/stats.json: no config error', cat.errors, []);
@@ -97,7 +97,7 @@
     );
   });
 
-  Tests.add('p12-selection', () => {
+  Tests.add('avatar-selection', () => {
     if (!headless) return check('checked headless only', true);
     const cat = catalog();
     // < and > go through all six and wrap, each time with the new character's default outfit
@@ -173,7 +173,7 @@
     );
   });
 
-  Tests.add('p12-animations', () => {
+  Tests.add('avatar-animations', () => {
     eq('the avatar categories', AL.CATEGORIES, ['enter', 'idle', 'idle_wounded', 'dies', 'playing_card']);
     const n = Anim3DLogic.normCharacter(
       't',
@@ -245,7 +245,7 @@
     );
   });
 
-  Tests.add('p12-life-state', () => {
+  Tests.add('avatar-life-state', () => {
     const L = AL.lifeState;
     eq(
       'starting life 20: 20 / 10 normal, 9 / 1 / 0 wounded (below half), -1 dead',
@@ -264,7 +264,7 @@
     eq('starting life 0: never wounded, -1 dead', [L(0, 0), L(-1, 0)], ['normal', 'dead']);
   });
 
-  Tests.add('p12-duel', () => {
+  Tests.add('avatar-duel', () => {
     const av = { Player: { character: 'epsy', outfit: 'starlit' }, Opponent: { character: 'bot', outfit: 'factory' } };
     const s = Sim.create(11, DEFS.concat(FIXTURES), { avatars: av });
     eq('the duel records the avatars (state.avatars)', s.avatars, av);
@@ -325,7 +325,7 @@
     check('determinism with avatars', run() === run());
   });
 
-  Tests.add('p12-placement', () => {
+  Tests.add('avatar-placement', () => {
     const cat = AL.normalizeCatalog({}, { stats: [] }),
       lay = Anim3DLogic.boardLayout({}),
       sv = Object.assign({}, cat.sideView, { behind: 2, offsetX: 0.5, scale: 1.3 }),
@@ -346,7 +346,7 @@
     check('shipped: centred behind the board, at least 1 m behind it', shipped.offsetX === 0 && shipped.behind >= 1);
   });
 
-  Tests.add('p12-hand-drag', () => {
+  Tests.add('avatar-hand-drag', () => {
     const c = Anim3DLogic.normalizeCamera({});
     eq(
       'defaults: the own hand can be dragged, centre within 30% of the visible width',
@@ -369,7 +369,7 @@
     check('shipped camera3d.json: on, a range on both sides', d.enabled && d.min < 0 && d.max > 0);
   });
 
-  Tests.add('p12-no-hardcoded-characters', () => {
+  Tests.add('avatar-no-hardcoded-characters', () => {
     if (!headless) return check('checked headless only', true);
     const files = [
       'js/screens/character-select.js',

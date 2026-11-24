@@ -22,9 +22,9 @@ Last pass: 2026-11-22 (the owner answered every numbered question). What is left
 
 These rulings differ from the prototype (or need new code). Each needs tests first, then code. Detail in `RULES.md` ("Rulings 2026-11-22").
 
-- Built (group 1, Patch1; tagged [proto] in RULES.md): Q19, Q21, Q49, Q50, Q7.
-- Built (group 2, Patch2; tagged [proto] in RULES.md): Q8, Q37 (rule statuses `cannot` / `can`), Q33 / Q34 (statuses on stack objects and zones), Q11 (`expires:{turns, whose}`), Q10 (zone HP bar, no card yet).
-- Built (groups 3-6, Patch3; tagged [proto] in RULES.md): Q56 (owner / controller), Q41 (attack picks), Q39 / Q44 (`Sim.observe`, `Sim.observeEvents`, narrate leak tests), Q43 (history cap), Q13 (flat ordered event array, tested), Q40 (`self` picks).
+- Built (group 1; tagged [proto] in RULES.md): Q19, Q21, Q49, Q50, Q7.
+- Built (group 2; tagged [proto] in RULES.md): Q8, Q37 (rule statuses `cannot` / `can`), Q33 / Q34 (statuses on stack objects and zones), Q11 (`expires:{turns, whose}`), Q10 (zone HP bar, no card yet).
+- Built (groups 3-6; tagged [proto] in RULES.md): Q56 (owner / controller), Q41 (attack picks), Q39 / Q44 (`Sim.observe`, `Sim.observeEvents`, narrate leak tests), Q43 (history cap), Q13 (flat ordered event array, tested), Q40 (`self` picks).
 
 - Q1 Zone moves are described by from / to / how / why, not by keywords.
 - Q16 The Vine's text says it may create tokens in back-row zones (card text updated 2026-11-22).
@@ -85,8 +85,8 @@ These rulings differ from the prototype (or need new code). Each needs tests fir
 - [x] 13. The sim emits its results as a 1D array of events; the view reads it in order to play animations.
 - [x] 17. What ends an effect: **kept**.
 - [x] 19. Slow abilities are free unless the card says otherwise. Slow/Fast is declared per card.
-- [x] 21. ~~Combat ends, then the turn ends.~~ Rule update 2026-11-24: ending combat goes back to the main phase; another combat costs another action point (Patch5). Entering combat and not attacking is legal.
-- [x] 45. "Destroy" is only a description of a card being sent from the field to the graveyard, not a keyword. The move records from / to / by (`rule`: lethal damage or a zone that is gone; `effect`; `cost`). A rule-sent card is sent exactly like an effect-sent one: anything that triggers on a card sent from the field to the graveyard triggers for all of them; "by an effect" wording ignores `by:'rule'` moves. **[proto since Patch4]**
+- [x] 21. ~~Combat ends, then the turn ends.~~ Rule update 2026-11-24: ending combat goes back to the main phase; another combat costs another action point. Entering combat and not attacking is legal.
+- [x] 45. "Destroy" is only a description of a card being sent from the field to the graveyard, not a keyword. The move records from / to / by (`rule`: lethal damage or a zone that is gone; `effect`; `cost`). A rule-sent card is sent exactly like an effect-sent one: anything that triggers on a card sent from the field to the graveyard triggers for all of them; "by an effect" wording ignores `by:'rule'` moves. **[proto]**
 - [x] 46. Win and loss at the same time: whichever resolves first; if simultaneous, a draw.
 - [x] 47. Continuing a decided game does not change who won.
 - [x] 48. Leaving a running game: **kept**.

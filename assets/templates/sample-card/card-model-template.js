@@ -1,4 +1,4 @@
-// card-model-template.js - TEMPLATE (Patch11): a card model made by code, for the 3D card preview (?anim3d).
+// card-model-template.js - TEMPLATE: a card model made by code, for the 3D card preview (?anim3d).
 // 1. Copy this file into assets/3dModels/cards/procedural/ and rename the builder ("templateModel").
 // 2. Add to assets/3dModels/cards/index.json: "<card id>": { "type": "script", "path": "procedural/<file>.js", "builder": "<name>" }
 // The builder gets THREE and the entry's "params" and returns a THREE.Object3D, feet at y = 0, facing +Z.

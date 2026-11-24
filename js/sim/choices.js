@@ -2,10 +2,10 @@
 // then playing the opponent's top card (L4: The Librarian). Each flow is started by an op (ops.js) and continued by a CH handler (ch.js).
 Sim.def('choices', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
-  let ctl; // added by Patch3
+  let ctl;
   let byId, cname, isPerm, other, zoneDist; // util
   let has; // statuses
-  let addStatus, isRevealed; // Patch6
+  let addStatus, isRevealed;
   let cloudMap, destroy, enterBoard, freeSlots, isUnusable; // state
   let ask; // fx
   let REQS; // reqs
@@ -98,7 +98,7 @@ Sim.def('choices', function (K) {
       ev
     );
   }
-  // Patch6: a card someone looked at in a deck is revealed to them while it stays in that deck (it keeps the status when the deck is reordered)
+  // a card someone looked at in a deck is revealed to them while it stays in that deck (it keeps the status when the deck is reordered)
   const revealInDeck = (s, c, who, src) => {
     if (c && c.owner !== who && !isRevealed(c, who))
       addStatus(s, c, { kind: 'revealed', to: who, zone: 'deck', srcName: src.def.name });
@@ -203,8 +203,8 @@ Sim.def('choices', function (K) {
   return {
     exports: { declareAsk, libLook, libPlay, pairLabel, pairOptions, pairPicked, pairStart, reorderAsk, reorderStart },
     needs: [
-      'addStatus', // Patch6
-      'isRevealed', // Patch6
+      'addStatus',
+      'isRevealed',
       'ctl',
       'REQS',
       'ask',
@@ -221,7 +221,7 @@ Sim.def('choices', function (K) {
       'zoneDist',
     ],
     link: () => {
-      ({ addStatus, isRevealed } = K); // Patch6
+      ({ addStatus, isRevealed } = K);
       ({ ctl } = K);
       ({ REQS, ask, byId, cloudMap, cname, destroy, enterBoard, freeSlots, has, isPerm, isUnusable, other, zoneDist } =
         K);

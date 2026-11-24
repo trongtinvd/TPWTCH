@@ -1,5 +1,5 @@
 {
-  "_doc": "TEMPLATE (Patch11): a character for the 3D side view whose clips are INSIDE its model (no file per animation: `clip` names the clip). Copy the \"characters\" entry into config/characters.json, and the \"cards\" line too, with your card id instead of <card id>. Docs/animationGuide.md, step 2.",
+  "_doc": "TEMPLATE: a character for the 3D side view whose clips are INSIDE its model (no file per animation: `clip` names the clip). Copy the \"characters\" entry into config/characters.json, and the \"cards\" line too, with your card id instead of <card id>. Docs/animationGuide.md, step 2.",
   "cards": { "<card id>": "sample-card" },
   "characters": {
     "sample-card": {

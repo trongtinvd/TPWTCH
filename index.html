@@ -9,9 +9,8 @@
     <link rel="stylesheet" href="css/screens.css" />
     <link rel="stylesheet" href="css/skin.css" />
     <link rel="stylesheet" href="css/avatar.css" />
-    <!-- Patch12 -->
     <script>
-      // Patch10: ?anim3d opens the standalone 3D card preview (its own page and scene, nothing of the game is loaded)
+      // ?anim3d opens the standalone 3D card preview (its own page and scene, nothing of the game is loaded)
       if (/[?&]anim3d\b/.test(location.search)) location.replace('anim3d.html' + location.search + location.hash);
     </script>
   </head>
@@ -50,7 +49,6 @@
     <script src="js/core/storage.js"></script>
     <script src="js/core/settings.js"></script>
     <script src="js/core/camera-config.js"></script>
-    <!-- Patch10 -->
     <script src="js/view/scene.js"></script>
     <script src="js/content/cards.js"></script>
     <script src="js/sim/kernel.js"></script>
@@ -99,14 +97,12 @@
     <script src="js/anim/camera-anim.js"></script>
     <script src="js/anim/view3d.js"></script>
     <script src="js/view/hand-scroll.js"></script>
-    <!-- Patch9 -->
     <script src="js/avatar/avatar-logic.js"></script>
     <script src="js/avatar/avatar-catalog.js"></script>
     <script src="js/avatar/avatar-models.js"></script>
     <script src="js/avatar/avatar-icons.js"></script>
     <script src="js/avatar/avatar-view.js"></script>
     <script src="js/screens/character-select.js"></script>
-    <!-- Patch12 -->
     <script src="tests/harness.js"></script>
     <script src="tests/suites/01-setup.js"></script>
     <script src="tests/suites/02-combat.js"></script>
@@ -124,19 +120,17 @@
     <script src="tests/suites/14-rulings-information.js"></script>
     <script src="tests/suites/15-rulings-sent-to-gy.js"></script>
     <script src="tests/suites/16-attack-counters-hp.js"></script>
-    <script src="tests/suites/17-patch5.js"></script>
-    <script src="tests/suites/18-patch6.js"></script>
-    <script src="tests/suites/19-patch7.js"></script>
-    <script src="tests/suites/20-patch8.js"></script>
-    <script src="tests/suites/21-patch9.js"></script>
-    <script src="tests/suites/22-patch10.js"></script>
-    <script src="tests/suites/23-patch11.js"></script>
-    <script src="tests/suites/24-patch12.js"></script>
-    <script src="tests/suites/25-patch13.js"></script>
-    <!-- Patch9 -->
+    <script src="tests/suites/17-keywords-derived-text.js"></script>
+    <script src="tests/suites/18-draw-phase-options.js"></script>
+    <script src="tests/suites/19-life-zero-main-stops.js"></script>
+    <script src="tests/suites/20-side-view-3d.js"></script>
+    <script src="tests/suites/21-second-combat-hand-scroll.js"></script>
+    <script src="tests/suites/22-retaliate-text-stops-cameras.js"></script>
+    <script src="tests/suites/23-animation-templates.js"></script>
+    <script src="tests/suites/24-avatars.js"></script>
+    <script src="tests/suites/25-hand-drag-status-preview.js"></script>
     <script src="tests/selftest.js"></script>
     <script src="js/main.js"></script>
     <script src="js/core/back-nav.js"></script>
-    <!-- Patch9 -->
   </body>
 </html>

@@ -1,4 +1,4 @@
-// camera-config.js - Patch10: where the cameras are set. Every camera parameter lives in a config file, none in the source code:
+// camera-config.js - where the cameras are set. Every camera parameter lives in a config file, none in the source code:
 //   config/camera.json   (this file reads it) the TOP view (height, screen rotation, frustum, zoom and pan limits), the classic side camera
 //                        (position, target, FOV, clipping, orbit limit; used when the 3D view is not available) and the seat turn
 //                        (how far the camera turns for the Opponent seat, and how fast)

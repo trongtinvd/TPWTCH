@@ -1,4 +1,4 @@
-// anim-logic.js - Patch8: the pure part of the 3D side view (no THREE, no DOM, runs in the headless tests too).
+// anim-logic.js - the pure part of the 3D side view (no THREE, no DOM, runs in the headless tests too).
 // Config normalising (board, camera, characters), random pick without an immediate repeat, directional transitions,
 // the 3D board layout, the seat camera pose and the animation cues read from the game events.
 const Anim3DLogic = (function () {
@@ -13,7 +13,7 @@ const Anim3DLogic = (function () {
     'die',
     'finishing_attack',
   ];
-  // Patch9: the Attack waits on the stack (loops until it resolves or is gone)
+  // the Attack waits on the stack (loops until it resolves or is gone)
   // a category that keeps playing until something else is asked for
   const LOOPING = { idle: 1, channeling_idle: 1, stun: 1, attacking: 1 };
   const METHODS = ['crossfade', 'warp', 'ease', 'cut'];
@@ -33,9 +33,9 @@ const Anim3DLogic = (function () {
     sideGap: 1, // between the outer column and the deck / graveyard / extra deck / exile zones
     cardFit: 0.9, // a card on the board fills this much of its zone
     models: { showFor: ['creature'], heightOffset: 0 },
-    sword: { scale: 2, height: 1.6, flash: true }, // Patch9: the sword in the side view (size factor, metres above the card, flashing)
+    sword: { scale: 2, height: 1.6, flash: true }, // the sword in the side view (size factor, metres above the card, flashing)
   };
-  // Patch9: the side view sword
+  // the side view sword
   function normSword(w) {
     w = isObj(w) ? w : {};
     const d = BOARD_DEFAULTS.sword;
@@ -45,7 +45,7 @@ const Anim3DLogic = (function () {
       flash: typeof w.flash === 'boolean' ? w.flash : d.flash,
     };
   }
-  // Patch9: a hand of n cards in `room` (the width the card centres may use): spread as before while the cards fit (at most maxSp
+  // a hand of n cards in `room` (the width the card centres may use): spread as before while the cards fit (at most maxSp
   // apart); a bigger hand keeps minSp and scrolls. s = scroll in cards (clamped to 0..max). Returns { xs, max, s }.
   function scrollSpread(n, room, maxSp, minSp, s) {
     if (n <= 0) return { xs: [], max: 0, s: 0 };
@@ -79,7 +79,7 @@ const Anim3DLogic = (function () {
           : BOARD_DEFAULTS.models.showFor,
         heightOffset: num(m.heightOffset, BOARD_DEFAULTS.models.heightOffset),
       },
-      sword: normSword(j.sword), // Patch9
+      sword: normSword(j.sword),
     };
   }
   // Board coordinates: x = columns (column 1 on the left for the Player), z = towards the Player, y = up, metres.
@@ -139,10 +139,10 @@ const Anim3DLogic = (function () {
       spacing: Math.max(0, num(h.spacing, d.spacing)),
       widthFrac: Math.max(0.05, num(h.widthFrac, d.widthFrac)),
       zone: h.zone == null ? d.zone : !!h.zone,
-      drag: normDrag(h.drag), // Patch12
+      drag: normDrag(h.drag),
     };
   }
-  // Patch12: dragging the own hand sideways. min / max = how far its centre may go, as a fraction of the visible width at the hand
+  // dragging the own hand sideways. min / max = how far its centre may go, as a fraction of the visible width at the hand
   // (-0.49 .. 0.49: the centre always stays on screen, so the hand never disappears); padding = extra grab room on the hand zone (m)
   const DRAG_DEFAULTS = { enabled: true, min: -0.3, max: 0.3, padding: 0.5 };
   function normDrag(g) {
@@ -157,7 +157,7 @@ const Anim3DLogic = (function () {
       padding: Math.max(0, num(g.padding, DRAG_DEFAULTS.padding)),
     };
   }
-  // Patch13: either hand can be dragged; each keeps its own offset (Settings key per role), clamped to its drag range
+  // either hand can be dragged; each keeps its own offset (Settings key per role), clamped to its drag range
   const HAND_SETTING = { own: 'handOffset3d', opponent: 'handOffset3dFoe' };
   const clampDrag = (d, x) => Math.min(d.max, Math.max(d.min, typeof x === 'number' && isFinite(x) ? x : 0));
   function normalizeCamera(j) {
@@ -265,7 +265,7 @@ const Anim3DLogic = (function () {
     });
     return out;
   }
-  // Patch12: spec = { categories, looping, die } (the avatar categories reuse this: Docs/animationGuide.md). Default = the card characters
+  // spec = { categories, looping, die } (the avatar categories reuse this: Docs/animationGuide.md). Default = the card characters
   const CARD_SPEC = { categories: CATEGORIES, looping: LOOPING, die: 'die' };
   function normCharacter(name, j, errors, spec) {
     j = isObj(j) ? j : {};
@@ -323,8 +323,8 @@ const Anim3DLogic = (function () {
           then: typeof a.then === 'string' ? a.then : cat === DIE ? 'hold' : LOOP[cat] ? null : 'idle',
           camera: cams,
           cameraChance: Math.min(1, Math.max(0, num(a.cameraChance, 1))),
-          procedural: typeof a.procedural === 'string' && a.procedural ? a.procedural : null, // Patch12: which built-in clip stands in (no file)
-          weight: Math.min(1, Math.max(0, num(a.weight, 1))), // Patch12: an overlay's weight (idle_wounded)
+          procedural: typeof a.procedural === 'string' && a.procedural ? a.procedural : null, // which built-in clip stands in (no file)
+          weight: Math.min(1, Math.max(0, num(a.weight, 1))), // an overlay's weight (idle_wounded)
         });
       });
     }
@@ -344,7 +344,7 @@ const Anim3DLogic = (function () {
       transitions,
       interpolation: defInterp,
       speed: Math.max(0.01, num(d.speed, 1)),
-      categories: CATS, // Patch12: Character3D reads these three (a card character: the defaults)
+      categories: CATS, // Character3D reads these three (a card character: the defaults)
       looping: LOOP,
       die: DIE,
     };
@@ -378,7 +378,7 @@ const Anim3DLogic = (function () {
     return [];
   }
 
-  // ---- Patch13: the 3D preview page (anim3d.html) ----------------------------------------------------------------
+  // ---- the 3D preview page (anim3d.html) ----------------------------------------------------------------
   // What it can show, as one id (also the ?anim3d= value): a card's 3D model "<card id>" (as before), a side view character
   // "char:<name>" (characters.json; "char:placeholder" = the default cube) or an avatar "avatar:<character>/<outfit>".
   function parsePreviewId(s) {
@@ -466,7 +466,7 @@ const Anim3DLogic = (function () {
   // a creature that left the board: die when it went to the graveyard (or a token ceased to exist), else it just leaves
   const leaveCategory = c => (!c || c.loc === 'gy' || c.loc === 'gone' ? 'die' : null);
 
-  // ---- Patch10: 3D card models (assets/3dModels/cards/index.json), used by the standalone preview (?anim3d) -------------------------
+  // ---- 3D card models (assets/3dModels/cards/index.json), used by the standalone preview (?anim3d) -------------------------
   // index = { dir, byConvention, cards: { <card id>: entry } }. An entry: { type: 'gltf', path } (a .glb / .gltf file) or
   // { type: 'script', path, builder, params } (a script that registers CardModelScripts[builder](THREE, params) -> Object3D).
   // A path is relative to dir unless it starts with "assets/" (anywhere in the repo), "/" or a scheme (https:).
@@ -522,31 +522,31 @@ const Anim3DLogic = (function () {
     CATEGORIES,
     LOOPING,
     METHODS,
-    normCharacter, // Patch12: also used for the avatars (js/avatar/avatar-logic.js)
+    normCharacter, // also used for the avatars (js/avatar/avatar-logic.js)
     normTransitions,
     BOARD_DEFAULTS,
     CAMERA_DEFAULTS,
-    DRAG_DEFAULTS, // Patch12
+    DRAG_DEFAULTS,
     normalizeBoard,
     normalizeCamera,
     normalizeCharacters,
     boardLayout,
     seatPose,
     handSpread,
-    HAND_SETTING, // Patch13
+    HAND_SETTING,
     clampDrag,
-    scrollSpread, // Patch9
+    scrollSpread,
     characterFor,
     entriesFor,
     pick,
     findTransition,
     attackCue,
     leaveCategory,
-    MODEL_TYPES, // Patch10
+    MODEL_TYPES,
     MODEL_DIR,
     cardModelEntry,
     selectClipName,
-    parsePreviewId, // Patch13
+    parsePreviewId,
     previewId,
     characterAnimOptions,
     clipAnimOptions,

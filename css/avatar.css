@@ -1,4 +1,4 @@
-/* avatar.css - Patch12: the character selection scene and the avatar next to each life bar (loaded after skin.css).
+/* avatar.css - the character selection scene and the avatar next to each life bar (loaded after skin.css).
    The life bar rows: .me = the seat on screen (bottom), .foe = the other one (AvatarView sets them; Vs Self swaps with the view).
    Avatar icon, name and life bar are ONE click area (the row's own handler, view-sync.js): no handler of their own. */
 
@@ -90,7 +90,7 @@
     top: calc(var(--foeB, 96px) + 52px);
     max-height: calc(100% - var(--foeB, 96px) - 108px - env(safe-area-inset-bottom, 0px));
   }
-  /* the status line: under the top right buttons, never under the top-left row. Patch13: right-aligned under them (the right of the
+  /* the status line: under the top right buttons, never under the top-left row. right-aligned under them (the right of the
      view is free; the opponent's hand is in the middle) */
   #status {
     top: calc(54px + env(safe-area-inset-top, 0px));
@@ -101,7 +101,7 @@
     font-size: 12px;
     padding: 6px 12px;
   }
-  /* Patch13: room between the top-left row and the top right buttons (body.statusTop, avatar-view.js): the status line goes up there,
+  /* room between the top-left row and the top right buttons (body.statusTop, avatar-view.js): the status line goes up there,
      so the top of the board (the opponent's hand) is clear */
   body.statusTop #status {
     top: calc(12px + env(safe-area-inset-top, 0px));

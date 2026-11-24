@@ -1,8 +1,8 @@
 // ops.js - REGISTRY OPS: effect handlers. Add an entry here (and an Fx builder in cards.js) to give every card a new building block
 Sim.def('ops', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
-  let addAttackBonus, cancelAttackObj; // added by Patch3
-  let ctl; // added by Patch3
+  let addAttackBonus, cancelAttackObj;
+  let ctl;
   let cname, colKeys, zoneDist; // util
   let PL, addStatus, allowed, clearAttacked, clearStatuses, has, hasSt, hurt, isRevealed, live, removeStatus, syncLife; // statuses
   let cloudMap,
@@ -23,7 +23,7 @@ Sim.def('ops', function (K) {
   let CH; // ch
   let dealDamage; // combat
   let fire, hitStack; // stack
-  let atkOf; // statuses (Patch10: Retaliate)
+  let atkOf; // statuses (Retaliate)
   // Board picks for the player x.who. A card under an enemy cloud is never offered by itself: its ZONE is ('Z:slot'), empty or not,
   // so the picker learns nothing about what is underneath. Elsewhere a card is offered unless it has a red shield.
   const boardPicks = (x, foeOnly) => {
@@ -61,7 +61,7 @@ Sim.def('ops', function (K) {
     );
   const OPS = {
     // effect handlers: (ctx, effect). ctx = {s, ev, src, t, who, foe}
-    // Patch10: Retaliate (the effect of the keyworded trigger, Fx.retaliate). The trigger kept the damage it saw (o.evt). Damage equal to
+    // Retaliate (the effect of the keyworded trigger, Fx.retaliate). The trigger kept the damage it saw (o.evt). Damage equal to
     // this card's power (now, if it is still on the board; else its power when it was damaged) goes to the source: the creature that dealt
     // it while it is on the board, or the player behind a spell. Its type is 'retaliate', which never triggers Retaliate.
     Retaliate: x => {
@@ -135,12 +135,12 @@ Sim.def('ops', function (K) {
           d.loc = 'hand';
           x.s.piles[w].hand.push(d);
           x.ev.push({ t: 'CardDrawn', iid: d.iid, player: w });
-          x.s.drawn[w]++; // Patch5: every draw counts (L4's condition), not only the Draw action
+          x.s.drawn[w]++; // every draw counts (L4's condition), not only the Draw action
         }
       }
     },
     DamageHp: (x, e) => {
-      // Patch4: damage the picked non-player HP target (x.o.pick: a card, a zone / cloud, a stack object; see hp.js)
+      // damage the picked non-player HP target (x.o.pick: a card, a zone / cloud, a stack object; see hp.js)
       const ref = x.o && x.o.pick;
       if (ref != null)
         damageHp(x.s, x.src, ref, e.amount, x.ev, { nonLethal: !!e.nonLethal, temporary: !!e.temporary });
@@ -434,7 +434,7 @@ Sim.def('ops', function (K) {
     SkipFoeCombat: (x, e) => {
       const s = x.s;
       if (e.pay) {
-        if (s.life[x.who] - e.pay <= -1) return; // Patch7: 0 life is still alive
+        if (s.life[x.who] - e.pay <= -1) return; // 0 life is still alive
         addStatus(s, PL(s, x.who), { kind: 'paid', amount: e.pay, srcName: x.src.def.name });
         syncLife(s, x.who);
         x.ev.push({ t: 'LifePaid', player: x.who, amount: e.pay });
@@ -452,14 +452,14 @@ Sim.def('ops', function (K) {
       OPS.Draw({ ...x, who: x.foe }, { n: 5 });
       s.attackPhase = true;
       s.turnEnding = false; // a second combat phase: the turn is not ending yet
-      s.step = 'combat'; // Patch9: the turn order shows the second combat (it said Main phase)
-      s.mainPending = false; // Patch9: no "main phase started" stop inside the second combat
+      s.step = 'combat'; // the turn order shows the second combat (it said Main phase)
+      s.mainPending = false; // no "main phase started" stop inside the second combat
       if (s.respond && s.respond.kind === 'combatEnd') {
-        s.respond = null; // Patch9: the first combat's "combat ended" window is over: the second combat replaces it
+        s.respond = null; // the first combat's "combat ended" window is over: the second combat replaces it
         x.ev.push({ t: 'ResponseWindowClosed', kind: 'combatEnd' });
       }
       clearAttacked(s, 'new combat phase');
-      placeAttackCounters(s, x.ev); // Patch4: a new combat phase gives new attack counters
+      placeAttackCounters(s, x.ev); // a new combat phase gives new attack counters
       s.combats = (s.combats || 0) + 1;
       x.ev.push({ t: 'AttackPhaseChanged', on: true });
       fire(s, x.ev, 'combat', null);
@@ -496,7 +496,7 @@ Sim.def('ops', function (K) {
     exports: { OPS },
     needs: [
       'damageHp',
-      'placeAttackCounters', // Patch4
+      'placeAttackCounters',
       'addAttackBonus',
       'cancelAttackObj',
       'ctl',
@@ -538,14 +538,14 @@ Sim.def('ops', function (K) {
       'upToAsk',
       'zoneDist',
       'allowed',
-      'atkOf', // Patch10
+      'atkOf',
       'damageZone',
       'giveZoneHp',
       'isUnusable',
       'markUnusable',
     ],
     link: () => {
-      ({ damageHp, placeAttackCounters } = K); // Patch4
+      ({ damageHp, placeAttackCounters } = K);
       ({ addAttackBonus, cancelAttackObj } = K);
       ({ ctl } = K);
       ({
@@ -588,7 +588,7 @@ Sim.def('ops', function (K) {
         zoneDist,
       } = K);
       ({ allowed, damageZone, giveZoneHp, isUnusable, markUnusable } = K);
-      ({ atkOf } = K); // Patch10
+      ({ atkOf } = K);
     },
   };
 });

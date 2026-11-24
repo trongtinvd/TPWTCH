@@ -1,4 +1,4 @@
-// 20-patch8.js - Patch8: the 3D side view logic (Anim3DLogic): board layout, camera config, character / animation config,
+// 20-side-view-3d.js - the 3D side view logic (Anim3DLogic): board layout, camera config, character / animation config,
 // random pick without a repeat, directional transitions, the cues read from the game (attack, finishing attack, get hit, die).
 // Run only these: node tests/run.js --only 3d-
 (function () {
@@ -259,7 +259,7 @@
     eq('config/characters.json has no errors', ch.errors, []);
     const b = L.boardLayout(L.normalizeBoard(j('config/board3d.json')));
     check(
-      'config/board3d.json loads (Patch9: its values are yours to change; the defaults are tested by p9-board-config)',
+      'config/board3d.json loads (its values are yours to change; the defaults are tested by 3d-board-config)',
       b.zone.width > 0 && b.zFront > 0
     );
     const c = L.normalizeCamera(j('config/camera3d.json'));

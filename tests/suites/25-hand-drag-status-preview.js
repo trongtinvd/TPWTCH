@@ -1,7 +1,7 @@
-// 25-patch13.js - Patch13: the opponent's hand drags like the own one (its own offset), the landscape status line moves up into the
+// 25-hand-drag-status-preview.js - the opponent's hand drags like the own one (its own offset), the landscape status line moves up into the
 // top row when there is room (and the opponent's hand moves up), a portrait button folds the stops, and the ?anim3d preview shows the
 // side view characters (the default cube) and the avatars with an Animation list. Layout / drags / the page are checked in a browser.
-// Run only these: node tests/run.js --only p13-
+// Run only these: node tests/run.js --only hand-drag-both,status-slot,stops-toggle,anim3d-preview-ids,anim3d-preview-animations
 (function () {
   const { check, eq } = Tests.ctx;
   const L = Anim3DLogic,
@@ -9,11 +9,11 @@
   const headless = typeof readRepoFile === 'function';
   const J = f => JSON.parse(readRepoFile(f));
 
-  Tests.add('p13-hand-drag-both', () => {
+  Tests.add('hand-drag-both', () => {
     const c = L.normalizeCamera({});
     eq('defaults: the opponent hand drags like the own one', c.hand.opponent.drag, L.DRAG_DEFAULTS);
     check('each hand keeps its own offset (two Settings keys)', L.HAND_SETTING.own !== L.HAND_SETTING.opponent);
-    check('the own key is unchanged (Patch12 offsets are kept)', L.HAND_SETTING.own === 'handOffset3d');
+    check('the own key is unchanged (stored offsets are kept)', L.HAND_SETTING.own === 'handOffset3d');
     const d = { min: -0.3, max: 0.3 };
     check(
       'clamped to the range',
@@ -45,7 +45,7 @@
     );
   });
 
-  Tests.add('p13-status-slot', () => {
+  Tests.add('status-slot', () => {
     check('a narrow gap: no slot (the status line stays under the buttons)', AL.statusSlot(384, 600) === null);
     const s = AL.statusSlot(384, 858);
     check('a wide gap: centred between the row and the buttons', s && s.centre === 621);
@@ -60,7 +60,7 @@
     );
   });
 
-  Tests.add('p13-stops-toggle', () => {
+  Tests.add('stops-toggle', () => {
     if (!headless) return check('checked headless only', true);
     const host = readRepoFile('js/game/game-host.js'),
       css = readRepoFile('css/index.css'),
@@ -80,7 +80,7 @@
     );
   });
 
-  Tests.add('p13-preview-ids', () => {
+  Tests.add('anim3d-preview-ids', () => {
     eq('a bare id is a card (old links keep working)', L.parsePreviewId('shark'), { kind: 'card', id: 'shark' });
     eq('the default cube', L.parsePreviewId('char:placeholder'), { kind: 'char', id: 'placeholder' });
     eq('an avatar with its outfit', L.parsePreviewId('avatar:bot/factory'), {
@@ -106,7 +106,7 @@
       );
   });
 
-  Tests.add('p13-preview-animations', () => {
+  Tests.add('anim3d-preview-animations', () => {
     const cube = L.normalizeCharacters({}).characters.placeholder,
       o = L.characterAnimOptions(cube);
     eq(

@@ -1,4 +1,4 @@
-// camera-anim.js - Patch8: camera animations of the 3D side view. One plays at a time; it drives the camera position, rotation and
+// camera-anim.js - camera animations of the 3D side view. One plays at a time; it drives the camera position, rotation and
 // FOV, blends in from wherever the camera is and blends out back to the seat camera ("base"). A newer one takes over with the
 // transition configured for that pair (camera.json animation.transitions), else with its own blend-in. Nothing here ever invents a
 // camera move: an asset that did not load is simply not played and the camera stays as it is.

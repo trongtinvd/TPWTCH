@@ -40,7 +40,7 @@ Sim.def('statuses', function (K) {
     for (const x of live(o)) if (x.what === what) ok = x.kind === 'can' ? true : x.kind === 'cannot' ? false : ok;
     return ok;
   };
-  // Patch4: 'combatEnd' statuses (attack counters) end when a combat phase ends; every object with statuses is swept
+  // 'combatEnd' statuses (attack counters) end when a combat phase ends; every object with statuses is swept
   const expireStatuses = (s, when, why) => {
     for (const o of [
       ...Object.values(s.cards),
@@ -53,7 +53,7 @@ Sim.def('statuses', function (K) {
         .filter(x => x.expires === when)
         .forEach(x => removeStatus(s, x, why));
   };
-  // Patch4: non-lethal damage. The NEWEST live status that changes HP decides: while it is non-lethal damage, HP at or below the death line
+  // non-lethal damage. The NEWEST live status that changes HP decides: while it is non-lethal damage, HP at or below the death line
   // does not kill (a card, a zone bar). Any HP status entered later (damage, life, an HP modifier, zone HP) takes over and can kill.
   const changesHp = x =>
     x.kind === 'damage' ||
@@ -82,7 +82,7 @@ Sim.def('statuses', function (K) {
     return d ? byId[d.to] : c.def;
   }; // ability layer: the newest active 'ability' status decides; c.def is never edited
   // keyworded abilities belong to the EFFECTIVE ability set, so losing abilities (Avatar of Rabies) loses them too: a keyworded passive
-  // (Flash: op Keyword) or a keyworded trigger / ability (Retaliate: kw on a trigger, Patch10)
+  // (Flash: op Keyword) or a keyworded trigger / ability (Retaliate: kw on a trigger)
   const hasKw = (c, kw) => {
     if (!c) return false;
     const d = abDef(c);

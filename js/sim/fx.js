@@ -1,8 +1,8 @@
 // fx.js - effect runner and the choice helpers (ask, continuations)
 Sim.def('fx', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
-  let ctl; // added by Patch3
-  let canSee; // state (Patch10: choicePicks)
+  let ctl;
+  let canSee; // state (choicePicks)
   let cname; // util
   let dmgs, removeStatus; // statuses
   let cloudMap, freeSlots; // state
@@ -149,7 +149,7 @@ Sim.def('fx', function (K) {
       }
     }
   }
-  // Patch10: the legal selections of the pending choice, for player p: ONE source of truth. Choose accepts exactly `options`; `cards` are the
+  // the legal selections of the pending choice, for player p: ONE source of truth. Choose accepts exactly `options`; `cards` are the
   // options that are cards, `buttons` the others ('done', 'no'...). `click`: every card option is a card p can click where it stands
   // (in p's own hand, or on the board where p can see it), so the UI highlights `cards` and answers by a click on them, never with a
   // list (Ambush of the Night: put creatures from your hand into play). Decided from the rules, never from what the view drew.

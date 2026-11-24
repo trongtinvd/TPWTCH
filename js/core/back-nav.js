@@ -1,4 +1,4 @@
-// back-nav.js - Patch9: the browser Back button. It never leaves the page: an open popup is cancelled; in the deck editor and in a
+// back-nav.js - the browser Back button. It never leaves the page: an open popup is cancelled; in the deck editor and in a
 // replay it does what their Exit button does; in a game it opens the Surrender popup; in the main menu it does nothing.
 const BackNav = (function () {
   const TRAP = { tpwBack: 1 };
@@ -20,7 +20,7 @@ const BackNav = (function () {
       return 'replay';
     }
     if (typeof CharacterSelect !== 'undefined' && CharacterSelect.isOpen()) {
-      CharacterSelect.back(); // Patch12: the selection scene's Back (step back, or the start dialog)
+      CharacterSelect.back(); // the selection scene's Back (step back, or the start dialog)
       return 'select';
     }
     if (typeof MenuUI === 'undefined' || MenuUI.away) return 'menu';

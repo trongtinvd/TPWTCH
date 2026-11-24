@@ -122,7 +122,7 @@ const DeckEditor = (function () {
       .join('');
     insp.querySelector('p').textContent = textParts(d)
       .map(x => x.text)
-      .join(' '); // Patch10: generated or written (CardText.mode), never d.text edited
+      .join(' '); // generated or written (CardText.mode), never d.text edited
     insp.querySelector('.where').textContent =
       k >= 0
         ? 'In the deck: position ' + (k + 1) + ' of ' + S.cards.length + (k === 0 ? ' (top)' : '')

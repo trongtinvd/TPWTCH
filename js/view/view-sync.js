@@ -20,7 +20,7 @@ function targets() {
       1.75,
       CW * 0.42,
       !(typeof View3D !== 'undefined' && View3D.isOn())
-    ); // Patch9: a big hand scrolls (mouse wheel over it)
+    ); // a big hand scrolls (mouse wheel over it)
     hand.forEach((c, i) =>
       put(
         c,
@@ -481,9 +481,9 @@ const isPairChoice = k =>
       .map(o => o.split('#'))
       .filter(p => p.includes(z))
       .map(p => (p[0] === z ? p[1] : p[0]));
-// Engine rule (Patch5): a choice whose CARD options are all cards the player can see and click (on the board, not under a cloud,
+// Engine rule: a choice whose CARD options are all cards the player can see and click (on the board, not under a cloud,
 // or in their own hand) is answered by clicking them, never with a list. Options that are not cards ('done', 'no'...) stay as buttons.
-// Patch10: the Sim decides it (Sim.choicePicks: the same options Choose accepts). It used to be read from the meshes, mid-sync: a card
+// the Sim decides it (Sim.choicePicks: the same options Choose accepts). It used to be read from the meshes, mid-sync: a card
 // drawn or returned by the same effect had no mesh yet, so the other cards of the hand lost their highlight (Ambush of the Night).
 const choiceCards = k => k.options.filter(o => game.cards[o]),
   choiceButtons = k => k.options.filter(o => !game.cards[o]);
@@ -645,7 +645,7 @@ function buildStack() {
         : showCard(c, true, o.kind === 'ability' && !mk ? { from: o.from, list: o.list, i: o.ab, src: o.src } : null);
     stackEl.appendChild(el);
   }
-  // Patch7: a spell that left the stack but still waits for its choices (Ambush of the Night) shows here as "resolving", instead of vanishing
+  // a spell that left the stack but still waits for its choices (Ambush of the Night) shows here as "resolving", instead of vanishing
   const rs = game.resolving && game.resolving.kind === 'spell' && game.cards[game.resolving.iid];
   if (rs && rs.loc === 'stack' && !game.stack.some(o => o.iid === rs.iid)) {
     const el = document.createElement('div'),
@@ -659,7 +659,7 @@ function buildStack() {
     stackEl.appendChild(el);
   }
 }
-// ---- Patch6: the deck, extra deck, graveyard and exile show their top card: its front when the viewer may know it (a deck card only when it
+// ---- the deck, extra deck, graveyard and exile show their top card: its front when the viewer may know it (a deck card only when it
 // was revealed to them, e.g. by L4), otherwise the card back. The pile is a thin stack with the number of cards on a badge; it is not pickable,
 // so a click still opens the zone's list.
 const PILE_TOP = {
@@ -766,7 +766,7 @@ function sync() {
         : {
             pw: t.c.def.type === 'creature' ? [Sim.atkOf(t.c), t.c.def.atk] : null,
             hp: [effHp(t.c), t.c.def.hp],
-            opp: ui.view === 'Opponent', // Patch5: the stats face the VIEWER (power bottom left, HP bottom right on every card), whoever controls it
+            opp: ui.view === 'Opponent', // the stats face the VIEWER (power bottom left, HP bottom right on every card), whoever controls it
           }
     );
     setSword(
@@ -798,8 +798,8 @@ function sync() {
       setGlow(m, false);
     }
   syncPiles();
-  if (typeof View3D !== 'undefined') View3D.sync(T); // Patch8: characters follow the board cards
-  if (typeof AvatarView !== 'undefined') AvatarView.refresh(game); // Patch12: avatar icons, life state (wounded, dead)
+  if (typeof View3D !== 'undefined') View3D.sync(T); // characters follow the board cards
+  if (typeof AvatarView !== 'undefined') AvatarView.refresh(game); // avatar icons, life state (wounded, dead)
   for (const p of ['Player', 'Opponent']) {
     sideZones[p + 'deck'].userData.relabel(game.piles[p].deck.length + ' cards');
     sideZones[p + 'gy'].userData.relabel(game.piles[p].gy.length + ' cards');
@@ -871,7 +871,7 @@ function sync() {
   zones.forEach(z => {
     const dead = !!(z.userData.slotKey && Sim.isUnusable(game, z.userData.slotKey));
     z.visible = !dead;
-    z.userData.plane.visible = !dead && !z.userData.pileShown; // Patch6: a pile with a card on it hides its label (the count is on the pile)
+    z.userData.plane.visible = !dead && !z.userData.pileShown; // a pile with a card on it hides its label (the count is on the pile)
   }); // an unusable zone vanishes from the board
   stackEl.classList.toggle(
     'drop',
@@ -916,7 +916,7 @@ function sync() {
                   : 'Placing ' + ui.placing.def.name + ': click a highlighted zone (Esc to cancel)'
               : NAME[game.active] +
                 '\u2019s turn' +
-                (' \u00b7 ' + (STEP_NAMES[game.step] || 'Main phase')) + // Patch6: start -> draw -> main -> combat -> main or end
+                (' \u00b7 ' + (STEP_NAMES[game.step] || 'Main phase')) + // start -> draw -> main -> combat -> main or end
                 (' (' +
                   Sim.apCount(game, game.active) +
                   ' action point' +
@@ -1013,7 +1013,7 @@ function sync() {
   }
   if (ui.openList) buildList();
   if (ui.selected && ui.selected.loc === 'hand' && ui.selected.owner !== ui.view) ui.selected = null;
-  refreshMenu(); // Patch5: the open action menu follows the game
+  refreshMenu(); // the open action menu follows the game
   refreshInspect();
   ui.dirty = true;
   ui.hoverDirty = true;
@@ -1036,10 +1036,10 @@ function animate() {
     ui.camAngle += (ui.camGoal - ui.camAngle) * CameraCfg.get().seat.turnSpeed;
     if (Math.abs(ui.camGoal - ui.camAngle) < 0.002) ui.camAngle = ui.camGoal;
     if (typeof View3D === 'undefined' || !View3D.placeSeatCamera(ui.camAngle)) {
-      const pose = CameraCfg.classicPose(CameraCfg.get(), ui.camAngle); // Patch10: config/camera.json classic
+      const pose = CameraCfg.classicPose(CameraCfg.get(), ui.camAngle); // config/camera.json classic
       camera.position.fromArray(pose.position);
       controls.target.fromArray(pose.target);
-    } // Patch8: the 3D side view places its camera from config/camera3d.json
+    } // the 3D side view places its camera from config/camera3d.json
     busy = true;
     if (tv.on) placeTop();
   }
@@ -1059,14 +1059,14 @@ function animate() {
     z.userData.plane.position.y = 0.065 + L;
   });
   for (const k in clouds) clouds[k].position.y = 0.2 + lift[k.split('|')[0]];
-  for (const k in piles3d) if (piles3d[k].h) placePile(piles3d[k]); // Patch6: the piles ride with their zones
-  if (typeof View3D !== 'undefined' && View3D.preFrame()) busy = true; // Patch8: the hands ride with the 3D camera
+  for (const k in piles3d) if (piles3d[k].h) placePile(piles3d[k]); // the piles ride with their zones
+  if (typeof View3D !== 'undefined' && View3D.preFrame()) busy = true; // the hands ride with the 3D camera
   for (const [id, m] of meshes) {
     if (ui.drag && ui.drag.card.iid === id) {
       busy = true;
       continue;
     } // follows the pointer
-    if (m.userData.cam3d) continue; // Patch8: placed in camera space by View3D.preFrame
+    if (m.userData.cam3d) continue; // placed in camera space by View3D.preFrame
     const u = m.userData,
       dx = u.tx - m.position.x,
       dz = u.tz - m.position.z,
@@ -1088,7 +1088,7 @@ function animate() {
     }
     m.position.y = u.by + (u.owner ? lift[u.owner] : 0);
   }
-  if (typeof View3D !== 'undefined' && View3D.postFrame()) busy = true; // Patch8: characters, card turn / scale, camera animation
-  if (typeof AvatarView !== 'undefined' && AvatarView.frame()) busy = true; // Patch12: the avatars
+  if (typeof View3D !== 'undefined' && View3D.postFrame()) busy = true; // characters, card turn / scale, camera animation
+  if (typeof AvatarView !== 'undefined' && AvatarView.frame()) busy = true; // the avatars
   return busy;
 }

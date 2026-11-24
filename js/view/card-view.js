@@ -320,7 +320,7 @@ function artCanvas(def) {
   return (artCache[def.id] = c);
 }
 const artURL = def => artURLs[def.id] || (artURLs[def.id] = artCanvas(def).toDataURL());
-// Patch9: the card's 3D art as the character of the 3D side view (feet on the card, `size` m at its largest, the front facing +z)
+// the card's 3D art as the character of the 3D side view (feet on the card, `size` m at its largest, the front facing +z)
 function artModel3D(def, size) {
   const key = def.id.replace(/^tok-(.+)-\d+$/, '$1'),
     inner = new THREE.Group();
@@ -350,7 +350,7 @@ DEFS.forEach(d => {
 artR.dispose();
 artR.forceContextLoss();
 artR = null;
-// ---- Patch6: the card back (face-down cards, the bottom face of every card, decks): a framed emblem of a small house under a sky of rays ----
+// ---- the card back (face-down cards, the bottom face of every card, decks): a framed emblem of a small house under a sky of rays ----
 function drawCardBack(g, w, h) {
   const css = (n, d) => getComputedStyle(document.documentElement).getPropertyValue(n).trim() || d,
     A = css('--card-back-a', '#1d2550'),
@@ -426,7 +426,7 @@ function drawCardBack(g, w, h) {
     });
   });
 }
-// ---- Patch7: the card face in the style of the card back: the type colour fades into navy, a gold double frame, a name banner,
+// ---- the card face in the style of the card back: the type colour fades into navy, a gold double frame, a name banner,
 // a framed art window and the type line. Colours: --card-back-* and --card-gold-text (theme.css); the type colour comes from cardColor()
 function drawCardFace(g, def, w, h) {
   const css = (n, d) => getComputedStyle(document.documentElement).getPropertyValue(n).trim() || d,
@@ -531,9 +531,9 @@ function cardMat(def, faceDown, rot, hp, atk) {
   c.height = 230;
   const g = c.getContext('2d');
   if (faceDown)
-    drawCardBack(g, c.width, c.height); // Patch6: a proper card back
+    drawCardBack(g, c.width, c.height); // a proper card back
   else {
-    c.width = 320; // Patch7: the card face matches the card back (navy, gold frame); drawn at 2x so the name stays sharp
+    c.width = 320; // the card face matches the card back (navy, gold frame); drawn at 2x so the name stays sharp
     c.height = 460;
     drawCardFace(g, def, c.width, c.height);
   }
@@ -672,7 +672,7 @@ const canUseNow = c =>
   (game.choice &&
     !foeChoice() &&
     ((game.choice.kind === 'pick' && !game.choice.labels) || boardPick(game.choice)) &&
-    Sim.choicePicks(game, game.choice.player).cards.includes(c.iid)) || // Patch10: the legal picks come from the Sim
+    Sim.choicePicks(game, game.choice.player).cards.includes(c.iid)) || // the legal picks come from the Sim
   (Sim.ctl(c) === ui.view &&
     (c.loc === 'hand'
       ? !Sim.canPlay(game, c) || (Sim.abDef(c).abilities || []).some((a, i) => !Sim.canActivate(game, c, i))

@@ -1,8 +1,8 @@
-// 23-patch11.js - Patch11: the animation templates (assets/templates/sample-card/, Docs/animationGuide.md) are valid as shipped.
-// Run only these: node tests/run.js --only p11-
+// 23-animation-templates.js - the animation templates (assets/templates/sample-card/, Docs/animationGuide.md) are valid as shipped.
+// Run only these: node tests/run.js --only anim-templates
 (function () {
   const { check, eq } = Tests.ctx;
-  Tests.add('p11-templates', () => {
+  Tests.add('anim-templates', () => {
     if (typeof readRepoFile !== 'function')
       return check('the template files are checked headless only (node tests/run.js)', true);
     const dir = 'assets/templates/sample-card/',

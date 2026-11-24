@@ -286,7 +286,7 @@ function boxInto(p, x, c) {
     });
   p.appendChild(b);
 }
-// Patch10: the written / generated switch (or the description database arriving) shows the open card again
+// the written / generated switch (or the description database arriving) shows the open card again
 CardText.onChange(() => {
   if (typeof inspect === 'undefined' || inspect.hidden || !ui.inspLast || !ui.inspLast.c) return;
   inspect.dataset.key = '';
@@ -322,7 +322,7 @@ function showCard(c, pin = true, hl = null) {
   deckPanel
     .querySelectorAll('.row')
     .forEach((r, i) => r.classList.toggle('sel', !!ui.openList && listCards(ui.openList)[i] === ui.selected));
-  // Patch5: one HP field = HP left after damage (the board badge's number), coloured like that badge: red below printed, blue equal, green above
+  // one HP field = HP left after damage (the board badge's number), coloured like that badge: red below printed, blue equal, green above
   const hpStat = () => {
       const v = effHp(c),
         [fill, line] = HP_PAL[v < d.hp ? 0 : v === d.hp ? 1 : 2];
@@ -531,7 +531,7 @@ function openMenu(c, x, y) {
   ui.menuKey = null;
   renderMenu();
 }
-// Patch5: the action menu is LIVE: every sync re-reads the actions, so a greyed button lights up as soon as it becomes usable
+// the action menu is LIVE: every sync re-reads the actions, so a greyed button lights up as soon as it becomes usable
 // (and the other way round). It is rebuilt only when an action or its reason changed, so a press in progress is not lost.
 const refreshMenu = () => {
   if (!menu.hidden && ui.menuAt) renderMenu();
@@ -606,7 +606,7 @@ document.addEventListener('click', e => {
   if (tg) {
     if (tg.dataset.toggle === 'mode') ui.inspLog = !ui.inspLog;
     else if (tg.dataset.toggle === 'text') {
-      CardText.setMode(CardText.mode === 'written' ? 'generated' : 'written'); // Patch10: display only, the card data never changes
+      CardText.setMode(CardText.mode === 'written' ? 'generated' : 'written'); // display only, the card data never changes
       Settings.set('cardText', CardText.mode);
     } else ui.showRemoved = !ui.showRemoved;
     inspect.dataset.key = '';

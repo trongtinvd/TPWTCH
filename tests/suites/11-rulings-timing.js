@@ -54,7 +54,7 @@
   });
 
   Tests.add('combat-ends-turn', () => {
-    // ================= Rule update 2026-11-24 (Patch5): ending combat goes back to the main phase; End turn during combat ends combat, then the turn =================
+    // ================= Rule update 2026-11-24: ending combat goes back to the main phase; End turn during combat ends combat, then the turn =================
     let s = start(1110);
     const w = take(s, 'Player', 'wolf', 'board', 'Player|front|0');
     D(s, { type: 'SetAttackPhase', player: 'Player', on: true });

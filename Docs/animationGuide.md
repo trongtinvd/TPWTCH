@@ -12,13 +12,13 @@ Working samples of everything below are in **`assets/templates/sample-card/`**:
 | `card-model.json`        | ready entries for `assets/3dModels/cards/index.json` (a GLB model and a script model)                  |
 | `card-model-template.js` | a card model made by code (copy, rename the builder, edit)                                             |
 
-`node tests/run.js --only p11-` checks that these templates are valid.
+`node tests/run.js --only anim-templates` checks that these templates are valid.
 
 There are **two places** a model shows:
 
 1. **The 3D card preview** (`index.html?anim3d`, standalone page): one model per card, plays a _selection_ animation. Config: `assets/3dModels/cards/index.json`.
 2. **The 3D side view of the game** (Side view button): a _character_ stands on every creature card and plays its animations (enter, idle, attack...). Config: `config/characters.json`. Camera animations play here, attached to an animation.
-3. **The player avatars** (Patch12): each player's chosen character stands behind their board in the side view, and in the character selection scene. Config: `config/avatars.json` (section 5; characters and outfits: `Docs/AVATARS.md`).
+3. **The player avatars**: each player's chosen character stands behind their board in the side view, and in the character selection scene. Config: `config/avatars.json` (section 5; characters and outfits: `Docs/AVATARS.md`).
 
 The same GLB can serve all three.
 
@@ -161,7 +161,7 @@ Every file falls back on its own: no model = cube / placeholder, no clip = a pro
 
 ---
 
-## 5. Player avatars (Patch12)
+## 5. Player avatars
 
 An avatar is the character a player controls in a duel (chosen in the character selection scene, see `Docs/AVATARS.md` for characters, outfits and models). Its animations use **the same architecture as the card characters**: the same entry format (section 2 table), random pick without an immediate repeat, `loop` / `then`, directional `transitions`, the same loader (`js/anim/asset-loader.js`) and the same controller class (`Character3D`, `js/anim/character.js`). Only the categories differ, and an avatar's controller is its own (one per seat, made when the duel starts, never duplicated by switching Top / Side view).
 

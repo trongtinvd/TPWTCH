@@ -1,4 +1,4 @@
-// card-models.js - Patch10: loads the 3D model of a card (assets/3dModels/cards/). One loader per model type, so a new kind of model
+// card-models.js - loads the 3D model of a card (assets/3dModels/cards/). One loader per model type, so a new kind of model
 // (another file format, a model made by code) is one CardModels.register call and an entry type in Anim3DLogic.MODEL_TYPES; the
 // gameplay code never reads any of this. Built in:
 //   gltf   a .glb / .gltf file (Assets3D: loaded once, cloned per use, its animation clips kept)

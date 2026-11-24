@@ -4,7 +4,7 @@
 // Card names carry a colour mark (the owner) in `rich`; `text` is the same line without marks.
 const Narrate = (function () {
   const NAMEP = { Player: 'Player 1', Opponent: 'Player 2' };
-  let shownNames = NAMEP; // Patch6: the names chosen in the start dialog (state.names)
+  let shownNames = NAMEP; // the names chosen in the start dialog (state.names)
   const P = p => shownNames[p] || NAMEP[p] || String(p),
     OWN = { Player: 'P', Opponent: 'O' },
     STOP = {
@@ -76,7 +76,7 @@ const Narrate = (function () {
         const m = masked(id);
         return m ? mark(card(id).owner, '', m) : C(id);
       },
-      // Patch10: what IDENTIFIES a hidden card goes with it, not only its name: where it stands (a zone under an enemy cloud), the name
+      // what IDENTIFIES a hidden card goes with it, not only its name: where it stands (a zone under an enemy cloud), the name
       // and text of its abilities. pos(id, key, st) = the zone of card id in state st, as V may know it; abOf(id, a) = the ability name /
       // text only when V may see the card it comes from (Sim.canSee / Sim.slotSeen are the rules; observe.js follows the same ones).
       pos = (id, key, st) => {
@@ -272,7 +272,7 @@ const Narrate = (function () {
           if (o.kind === 'spell') line(C(o.iid) + ' is put on the stack (stack HP ' + o.hp + ')' + tg);
           else {
             const src = post.cards[o.src],
-              a = src && (Sim.abDef(src)[o.list] || [])[o.ab]; // Patch6: the source may have lost that ability list since (Avatar)
+              a = src && (Sim.abDef(src)[o.list] || [])[o.ab]; // the source may have lost that ability list since (Avatar)
             const at = abOf(o.src, a && a.text),
               an = abOf(o.src, a && a.name);
             if (o.list === 'triggers')
@@ -370,7 +370,7 @@ const Narrate = (function () {
     const n0 = pre.lseq || 0,
       later = [],
       HIDE = ['entered', 'attacked', 'damage', 'attackCounter'],
-      // Patch6: a status text may name another card (Avatar of Rabies): a name only hidden cards have becomes "a card"
+      // a status text may name another card (Avatar of Rabies): a name only hidden cards have becomes "a card"
       shown = new Set(
         Object.keys(post.cards)
           .filter(seen)

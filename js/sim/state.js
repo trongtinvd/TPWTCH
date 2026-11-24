@@ -1,7 +1,7 @@
 // state.js - game state: creation, zones, clouds, recalc (state-based rules), leaving / entering the board
 Sim.def('state', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
-  let ctl; // added by Patch3
+  let ctl;
   let byId, mulberry32, other, slotRow; // util
   let lg, syncLogs; // logs
   let abDef, addStatus, clearStatuses, hasSt, hpOf, isRevealed, live, removeStatus, syncLife, totalDamage; // statuses
@@ -30,20 +30,20 @@ Sim.def('state', function (K) {
     const one = e =>
       e && ('opp' in e || 'own' in e)
         ? { opp: Object.assign({}, e.opp), own: Object.assign({}, e.own) }
-        : { opp: Object.assign({}, e), own: {} }; // Patch10: copies (a flat list used to be ONE object shared by both players)
+        : { opp: Object.assign({}, e), own: {} }; // copies (a flat list used to be ONE object shared by both players)
     return x.Player || x.Opponent
       ? { Player: one(x.Player), Opponent: one(x.Opponent) }
       : { Player: one(x), Opponent: one(x) };
   };
-  // game options (Patch6): the Vs Bot / Vs Self dialog sets them; older replays (no options recorded) pass {drawPhase: 0}
+  // game options: the Vs Bot / Vs Self dialog sets them; older replays (no options recorded) pass {drawPhase: 0}
   const GAME_DEFAULTS = { startHand: 5, drawPhase: 1, drawAction: 2, life: 20 };
   const gameCfg = o => {
     const c = Object.assign({}, GAME_DEFAULTS);
-    for (const k in GAME_DEFAULTS) if (o && o[k] != null && isFinite(o[k])) c[k] = Math.max(0, Math.floor(+o[k])); // Patch7: starting life may be 0 (life -1 or less loses)
-    if (o && o.strikeBack === true) c.strikeBack = true; // Patch10: the "Defender strike back" option (absent = off, the default rules)
+    for (const k in GAME_DEFAULTS) if (o && o[k] != null && isFinite(o[k])) c[k] = Math.max(0, Math.floor(+o[k])); // starting life may be 0 (life -1 or less loses)
+    if (o && o.strikeBack === true) c.strikeBack = true; // the "Defender strike back" option (absent = off, the default rules)
     return c;
   };
-  // Patch12: the avatars a duel was started with: plain ids only (the content lives in config/avatars.json, the Sim never reads it)
+  // the avatars a duel was started with: plain ids only (the content lives in config/avatars.json, the Sim never reads it)
   const avatarSeats = a => {
     const out = { Player: null, Opponent: null },
       ok = v => typeof v === 'string' && v.length > 0 && v.length <= 64;
@@ -62,7 +62,7 @@ Sim.def('state', function (K) {
       n,
       cfg, // {startHand, drawPhase, drawAction, life, strikeBack?}: cards in the opening hand, drawn in the draw phase, drawn by the Draw action; starting life
       names: { Player: 'Player 1', Opponent: 'Player 2', ...(opts.names || {}) }, // shown names (logs, panels)
-      avatars: avatarSeats(opts.avatars), // Patch12: {Player: {character, outfit} | null, Opponent: ...}, chosen before the duel; rules never read it
+      avatars: avatarSeats(opts.avatars), // {Player: {character, outfit} | null, Opponent: ...}, chosen before the duel; rules never read it
       step: 'start', // the turn order: start -> draw -> main -> combat (optional) -> main or end
       drawPending: false, // the draw phase happens once nothing is pending after the turn start
       phase: 'deck',
@@ -163,7 +163,7 @@ Sim.def('state', function (K) {
       srcName,
       ...(mods && mods.nonLethal ? { nonLethal: true } : null),
       ...(mods && mods.temporary ? { temporary: true, expires: 'turnEnd' } : null),
-    }); // Patch4: non-lethal / temporary zone damage, like card damage
+    }); // non-lethal / temporary zone damage, like card damage
     ev.push({ t: 'ZoneDamaged', slot: k, amount: n });
     recalc(s, ev);
     return true;
@@ -201,7 +201,7 @@ Sim.def('state', function (K) {
   };
   // INFORMATION: may player p know which card c is, right now? The board (unless covered by a cloud the owner controls), the graveyard, exile and the
   // stack are public; a hand or the extra deck is known to its owner and to whoever it was revealed to; a deck card is known only to whoever it was
-  // revealed to while it stays in the deck (Patch6: L4 looks at the top cards), otherwise to nobody (nobody knows the order).
+  // revealed to while it stays in the deck (L4 looks at the top cards), otherwise to nobody (nobody knows the order).
   // Logs, the table and every list ask THIS function, so a hidden card can never leak by accident.
   const canSee = (s, p, c) => {
     if (!c) return false;
@@ -211,7 +211,7 @@ Sim.def('state', function (K) {
     if (c.loc === 'deck') return isRevealed(c, p);
     return false;
   };
-  // Patch10: may player p know what stands on zone `key` (and so where a card they cannot see stands)? Not under a cloud whose King Eye
+  // may player p know what stands on zone `key` (and so where a card they cannot see stands)? Not under a cloud whose King Eye
   // another player controls. Logs and observed events ask this for a position, like canSee for a card.
   const slotSeen = (s, p, key) => {
     const m = key && cloudMap(s)[key];
@@ -265,7 +265,7 @@ Sim.def('state', function (K) {
         for (const k of Object.keys(s.zones)) {
           // a zone whose HP bar is used up: its contents are exiled (a rule, so even a blue card), the zone becomes unusable, the bar is gone
           const b = zoneBar(s, k);
-          if (!b || b.left > 0 || nonLethalHold(s.zones[k])) continue; // Patch4: newest HP status non-lethal = the bar holds
+          if (!b || b.left > 0 || nonLethalHold(s.zones[k])) continue; // newest HP status non-lethal = the bar holds
           if (s.slots[k]) exileFromBoard(s, s.cards[s.slots[k]], ev);
           markUnusable(s, k, 'zone HP');
           live(s.zones[k])
@@ -274,7 +274,7 @@ Sim.def('state', function (K) {
           ev.push({ t: 'ZoneUnusable', slot: k });
           zoneChanged = true;
         }
-        const dead = board.filter(c => c.loc === 'board' && totalDamage(c) > hpOf(c) && !nonLethalHold(c)); // Patch4: non-lethal holds. Only the final value decides: at -1 HP inside the columns a card lives, leave them and it dies
+        const dead = board.filter(c => c.loc === 'board' && totalDamage(c) > hpOf(c) && !nonLethalHold(c)); // non-lethal holds. Only the final value decides: at -1 HP inside the columns a card lives, leave them and it dies
         if (!dead.length && !zoneChanged) break;
         dead.forEach(c => destroy(s, c, ev, 'rule')); // state-based: damage exceeds HP
       }
@@ -404,7 +404,7 @@ Sim.def('state', function (K) {
       zoneBar,
     },
     needs: [
-      'nonLethalHold', // Patch4
+      'nonLethalHold',
       'ctl',
       'abDef',
       'addStatus',
@@ -426,7 +426,7 @@ Sim.def('state', function (K) {
       'totalDamage',
     ],
     link: () => {
-      ({ nonLethalHold } = K); // Patch4
+      ({ nonLethalHold } = K);
       ({ ctl } = K);
       ({
         abDef,

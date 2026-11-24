@@ -67,7 +67,7 @@ Sim.boot(K => {
     passives: K.PASSIVES,
     conds: K.COND,
     exConds: K.EXCOND,
-    hpKinds: K.HPKINDS, // Patch4: non-player things with HP
+    hpKinds: K.HPKINDS, // non-player things with HP
   };
   return {
     addStatus,
@@ -121,12 +121,12 @@ Sim.boot(K => {
     observe,
     observeEvents,
     historyBytes,
-    hasKw: K.hasKw, // Patch5: keyworded abilities
-    choicePicks: K.choicePicks, // Patch10: the legal selections of the pending choice (validation and highlighting)
-    stopOn: K.stopOn, // Patch10: is a stop on (defaults included)
-    slotSeen: K.slotSeen, // Patch10: may a player know what stands on a zone
-    strikesBack: K.strikesBack, // Patch10: the "Defender strike back" option
-    HPKINDS: K.HPKINDS, // Patch4
+    hasKw: K.hasKw, // keyworded abilities
+    choicePicks: K.choicePicks, // the legal selections of the pending choice (validation and highlighting)
+    stopOn: K.stopOn, // is a stop on (defaults included)
+    slotSeen: K.slotSeen, // may a player know what stands on a zone
+    strikesBack: K.strikesBack, // the "Defender strike back" option
+    HPKINDS: K.HPKINDS,
     hpRefs: K.hpRefs,
     hpResolve: K.hpResolve,
     damageHp: K.damageHp,

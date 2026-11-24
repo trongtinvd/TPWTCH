@@ -1,8 +1,8 @@
 // dispatch.js - the command interpreter and hasAction
 Sim.def('dispatch', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
-  let RULES, historyBytes; // added by Patch3
-  let ctl; // added by Patch3
+  let RULES, historyBytes;
+  let ctl;
   let canPayExtra, isPerm, other, slowish; // util
   let gainAP, hasAP, spendAP; // ap
   let lg; // logs
@@ -63,7 +63,7 @@ Sim.def('dispatch', function (K) {
     }
   }
   function checkDrawStep(s, ev) {
-    // Patch6: start -> DRAW -> main. The draw phase comes once the turn start (its triggers, its stop) is over
+    // start -> DRAW -> main. The draw phase comes once the turn start (its triggers, its stop) is over
     if (!s.drawPending || s.phase !== 'play' || s.stack.length || s.choice || s.respond || s.trg || s.resolving) return;
     s.drawPending = false;
     s.step = 'draw';
@@ -74,16 +74,16 @@ Sim.def('dispatch', function (K) {
     s.passes = 0;
     fire(s, ev, 'drawStep', null);
     if (s.cfg.drawPhase > 0) stopAt(s, ev, 'draw'); // stop: cards drawn
-    s.mainPending = true; // Patch7: the "main phase started" stop comes once the draw phase is over
+    s.mainPending = true; // the "main phase started" stop comes once the draw phase is over
     recalc(s, ev); // statuses tied to the deck end, the logs record the draws
   }
   function checkMainStart(s, ev) {
-    // Patch7: stop "main phase started": after the draw phase and after each combat, once nothing is pending (triggers, other stops)
+    // stop "main phase started": after the draw phase and after each combat, once nothing is pending (triggers, other stops)
     if (!s.mainPending || s.phase !== 'play' || s.stack.length || s.choice || s.respond || s.trg || s.resolving) return;
     s.mainPending = false;
     if (s.step === 'main' && !s.attackPhase && !s.turnEnding) stopAt(s, ev, 'mainStart');
   }
-  // Patch7: stop "main phase ended": Combat / End turn pressed in the main phase first opens this window; the command runs when it closes
+  // stop "main phase ended": Combat / End turn pressed in the main phase first opens this window; the command runs when it closes
   const mainEndFirst = (s, ev, cmd) => !s.mainEndDone && openRespond(s, ev, 'mainEnd', cmd);
   function dispatch(s, cmd) {
     // mutates s; returns {ok, why, events}
@@ -91,7 +91,7 @@ Sim.def('dispatch', function (K) {
       fail = why => ({ ok: false, why, events: [] });
     if (s.capped) return fail('The history limit was reached: the game is over');
     if (cmd.type === 'SetStop') {
-      // Patch6: a player turns one of their stops on or off (the stop icons in the game). Any time, recorded like any command
+      // a player turns one of their stops on or off (the stop icons in the game). Any time, recorded like any command
       const role = cmd.role === 'own' ? 'own' : 'opp',
         P = cmd.player;
       if (P !== 'Player' && P !== 'Opponent') return fail('Unknown player');
@@ -170,7 +170,7 @@ Sim.def('dispatch', function (K) {
         if (cmd.extra && !(c.def.extraCost && canPayExtra(s, c))) return fail('Cannot pay the additional cost');
         const h = s.piles[c.owner].hand;
         h.splice(h.indexOf(c), 1);
-        ev.push({ t: 'CardPlayed', iid: c.iid, player: c.owner }); // Patch12: a player played a card from their hand (avatar playing_card)
+        ev.push({ t: 'CardPlayed', iid: c.iid, player: c.owner }); // a player played a card from their hand (avatar playing_card)
         const paid = !!(cmd.extra && c.def.extraCost);
         if (paid) spendAP(s, c.owner, c.def.name + ' (additional cost)', ev);
         if (slowish(c)) spendAP(s, c.owner, (isPerm(c) ? 'Summon ' : 'Cast ') + c.def.name, ev);
@@ -224,7 +224,7 @@ Sim.def('dispatch', function (K) {
           else {
             s.priority = s.active;
             if (r.then) {
-              // Patch7: the Combat / End turn press that waited for "main phase ended" happens now (it may have become illegal meanwhile)
+              // the Combat / End turn press that waited for "main phase ended" happens now (it may have become illegal meanwhile)
               s.mainEndDone = true;
               const r2 = dispatch(s, r.then);
               s.mainEndDone = false;
@@ -268,21 +268,21 @@ Sim.def('dispatch', function (K) {
         }
         const was = s.attackPhase;
         s.attackPhase = !!cmd.on;
-        s.step = s.attackPhase ? 'combat' : 'main'; // Patch6
+        s.step = s.attackPhase ? 'combat' : 'main';
         ev.push({ t: 'AttackPhaseChanged', on: s.attackPhase });
         if (cmd.on && !was) {
           s.combats = (s.combats || 0) + 1;
-          placeAttackCounters(s, ev); // Patch4: one attack counter per creature the turn player controls
+          placeAttackCounters(s, ev); // one attack counter per creature the turn player controls
           fire(s, ev, 'combat', null);
           stopAt(s, ev, 'combatStart'); // stop: combat started
         }
         if (!cmd.on && was) {
-          endCombatStatuses(s); // Patch4: unspent attack counters end with the combat phase
-          // Patch5 (rule update 2026-11-24): ending combat does NOT end the turn: the turn player is back in the main phase and may spend
+          endCombatStatuses(s); // unspent attack counters end with the combat phase
+          // Rule update 2026-11-24: ending combat does NOT end the turn: the turn player is back in the main phase and may spend
           // another action point on another combat. Only End turn pressed during combat ends combat and then the turn (s.turnEnding below).
           fire(s, ev, 'combatEnd', null);
           stopAt(s, ev, 'combatEnd'); // stop: combat ended
-          s.mainPending = true; // Patch7: back in the main phase: "main phase started" follows
+          s.mainPending = true; // back in the main phase: "main phase started" follows
         }
         break;
       }
@@ -290,7 +290,7 @@ Sim.def('dispatch', function (K) {
         const c = s.cards[cmd.iid],
           why = canAttack(s, c);
         if (why) return fail(why);
-        spendAttackCounter(s, c, 'spent: attacked'); // Patch4
+        spendAttackCounter(s, c, 'spent: attacked');
         addStatus(s, c, { kind: 'attacked', expires: 'turnEnd' }); // the record of the attack (the counter is the gate)
         declareAttack(s, c, ev); // the Attack goes on the stack first, its triggers above it
         break;
@@ -325,7 +325,7 @@ Sim.def('dispatch', function (K) {
         recalc(s, ev);
         ev.push({ t: 'ChoiceMade', player: k.player });
         if (!s.choice && s.resolving) settle(s, ev);
-        if (!s.choice && s.trg) advanceTrg(s, ev); // Patch5: triggers that waited for a pending choice pick their targets now
+        if (!s.choice && s.trg) advanceTrg(s, ev); // triggers that waited for a pending choice pick their targets now
         break;
       }
       case 'Activate': {
@@ -335,7 +335,7 @@ Sim.def('dispatch', function (K) {
         const a = abDef(c).abilities[cmd.ab],
           G = a.targeting && TARGETINGS[a.targeting];
         if (G) {
-          // Patch4: a targeting ability: the target is picked before the costs are paid (cmd.pick, or a choice when there are several)
+          // a targeting ability: the target is picked before the costs are paid (cmd.pick, or a choice when there are several)
           const opts = G.options(s, c);
           if (cmd.pick != null) {
             if (!opts.includes(cmd.pick)) return fail('Illegal target');
@@ -355,14 +355,14 @@ Sim.def('dispatch', function (K) {
         if (s.respond) return fail('Waiting for the response window');
         if (s.attackPhase) {
           s.attackPhase = false;
-          endCombatStatuses(s); // Patch4
+          endCombatStatuses(s);
           ev.push({ t: 'AttackPhaseChanged', on: false });
           s.turnEnding = true;
           fire(s, ev, 'combatEnd', null);
           stopAt(s, ev, 'combatEnd');
           break; // the end step opens by itself once nothing is pending (checkTurnEnd)
         } // ending the turn ends combat first, so 'after combat' triggers (Shark) still happen
-        if (mainEndFirst(s, ev, cmd)) break; // Patch7
+        if (mainEndFirst(s, ev, cmd)) break;
         enterEndStep(s, ev);
         break; // the turn really ends when the end step window closes (at once when no player wants that stop)
       case 'DebugToHand': {
@@ -392,7 +392,7 @@ Sim.def('dispatch', function (K) {
     recalc(s, ev);
     checkTurnEnd(s, ev);
     checkDrawStep(s, ev);
-    checkMainStart(s, ev); // Patch7
+    checkMainStart(s, ev);
     if (!s.capped && historyBytes(s) > RULES.historyCap) {
       // Q43: the game ends (a draw, unless it was decided already; the first decision stands)
       s.capped = true;
@@ -440,7 +440,7 @@ Sim.def('dispatch', function (K) {
       'ask',
       'endCombatStatuses',
       'placeAttackCounters',
-      'spendAttackCounter', // Patch4
+      'spendAttackCounter',
       'RULES',
       'historyBytes',
       'ctl',
@@ -460,7 +460,7 @@ Sim.def('dispatch', function (K) {
       'declareWinner',
       'dmgs',
       'endTurn',
-      'enterEndStep', // Patch10
+      'enterEndStep',
       'findTarget',
       'fire',
       'freeSlots',
@@ -489,7 +489,7 @@ Sim.def('dispatch', function (K) {
       'targetZones',
     ],
     link: () => {
-      ({ TARGETINGS, activate, ask, endCombatStatuses, placeAttackCounters, spendAttackCounter } = K); // Patch4
+      ({ TARGETINGS, activate, ask, endCombatStatuses, placeAttackCounters, spendAttackCounter } = K);
       ({ RULES, historyBytes } = K);
       ({ ctl } = K);
       ({

@@ -1,9 +1,9 @@
-// card-preview.js - Patch10: the standalone 3D card preview (anim3d.html; index.html?anim3d opens it). Its own scene, camera,
+// card-preview.js - the standalone 3D card preview (anim3d.html; index.html?anim3d opens it). Its own scene, camera,
 // renderer and loop: nothing of the game is loaded (no Sim, no board, no game state). Pick a card in the list (or open
 // anim3d.html?anim3d=<card id>): its 3D model is fetched (assets/3dModels/cards/index.json, CardModels) and shown on a pedestal,
 // and the selection animation plays: the model's own "select" clip, else its scripted userData.select, else a procedural hop
 // and spin. A card without a model (no entry, missing file, broken script) shows a placeholder slab in the card's colour and says why.
-// Patch13: also the side view characters (config/characters.json, "Default cube" = the placeholder character) and the player
+// also the side view characters (config/characters.json, "Default cube" = the placeholder character) and the player
 // avatars (config/avatars.json, every outfit), played by the game's own Character3D with the same hooks as the duel; an Animation
 // list plays any category (random, as in the game) or one entry, and any clip of a card model. Ids: Anim3DLogic.parsePreviewId.
 const CardPreview = (function () {
@@ -121,7 +121,7 @@ const CardPreview = (function () {
     if (p.kind === 'avatar') return selectAvatar(p.id, p.outfit);
     return selectCard(p.id);
   }
-  // ---- a card's 3D model (Patch10)
+  // ---- a card's 3D model
   function selectCard(id) {
     const def = Cards.list.find(d => d.id === id) || null;
     if (!def) {
@@ -185,7 +185,7 @@ const CardPreview = (function () {
     if (cur.clipAction) cur.clipAction.reset().play();
     selT = 0; // the ring flash (and the procedural / scripted motion) runs in every case
   }
-  // ---- Patch13: an animated character, by the game's own controller (Character3D)
+  // ---- an animated character, by the game's own controller (Character3D)
   function showCharacter(key, ch, hooks, label) {
     const my = begin(key);
     clear();

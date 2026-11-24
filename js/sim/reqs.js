@@ -1,7 +1,7 @@
 // reqs.js - REGISTRY REQS: requirements (reason string, or null when satisfied)
 Sim.def('reqs', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
-  let ctl; // added by Patch3
+  let ctl;
   let other; // util
   let hurt; // statuses
   let cloudMap; // state

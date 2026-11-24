@@ -10,7 +10,7 @@ window.cardGame = {
     return sim;
   },
 }; // console/testing hook
-// Patch10: the card descriptions database (written texts) and the camera config load in the background; the game starts with the
+// the card descriptions database (written texts) and the camera config load in the background; the game starts with the
 // generated card texts and the default cameras, and shows the loaded ones as soon as they arrive
 CardText.setMode(Settings.get('cardText') === 'written' ? 'written' : 'generated');
 fetch(CardText.URL, { cache: 'no-cache' })
@@ -50,7 +50,7 @@ function frame() {
     busy = false;
     for (let i = 0; i < 70 && animate(); i++);
   } else busy = animate();
-  if (typeof View3D === 'undefined' || !View3D.ownsCamera()) controls.update(); // Patch8: a camera animation drives the camera
+  if (typeof View3D === 'undefined' || !View3D.ownsCamera()) controls.update(); // a camera animation drives the camera
   if (ui.hoverDirty && !ui.drag) {
     ui.hoverDirty = false;
     updateHover();
@@ -59,7 +59,7 @@ function frame() {
   if (!document.hidden && (busy || ui.dirty || (ui.pulse && now - ui.lastPulse > 33))) {
     ui.dirty = false;
     ui.lastPulse = now;
-    if (typeof View3D === 'undefined' || !View3D.render(renderer, scene, cam)) renderer.render(scene, cam); // Patch9: the 3D hands are drawn over the board
+    if (typeof View3D === 'undefined' || !View3D.render(renderer, scene, cam)) renderer.render(scene, cam); // the 3D hands are drawn over the board
   }
 }
 (function loop() {

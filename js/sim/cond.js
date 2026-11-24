@@ -1,7 +1,7 @@
 // cond.js - REGISTRIES COND (trigger conditions), TRIGGERS (which cards a trigger event concerns), PASSIVES (continuous effects read by the rules)
 Sim.def('cond', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
-  let ctl; // added by Patch3
+  let ctl;
   let colKeys, zoneDist; // util
   let hasSt; // statuses
   let cloudMap, recalc; // state
@@ -44,7 +44,7 @@ Sim.def('cond', function (K) {
       (t.by || []).includes('any'),
     turnStart: (s, c) => ctl(c) === s.active,
     damaged: (s, c, t, subject, evt) =>
-      c === subject && (t.types || ['combat']).includes((evt && evt.type) || 'combat'), // Patch10: which damage types (default combat)
+      c === subject && (t.types || ['combat']).includes((evt && evt.type) || 'combat'), // which damage types (default combat)
     combat: (s, c) => ctl(c) === s.active,
     combatEnd: (s, c) => ctl(c) === s.active,
   };

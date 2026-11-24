@@ -1,5 +1,5 @@
 {
-  "_doc": "TEMPLATE (Patch11): entries for assets/3dModels/cards/index.json (the 3D card preview, ?anim3d). Copy one line into its \"cards\", key = your card id. Docs/animationGuide.md, step 1.",
+  "_doc": "TEMPLATE: entries for assets/3dModels/cards/index.json (the 3D card preview, ?anim3d). Copy one line into its \"cards\", key = your card id. Docs/animationGuide.md, step 1.",
   "cards": {
     "<card id, GLB>": {
       "type": "gltf",

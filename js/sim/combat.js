@@ -1,8 +1,8 @@
 // combat.js - damage, defender strike back, riders, Attack objects and strikes (Retaliate is a trigger: ops.js Retaliate)
 Sim.def('combat', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
-  let ctl; // added by Patch3
-  let expireStatuses, live, nonLethalHold, removeStatus; // added by Patch4
+  let ctl;
+  let expireStatuses, live, nonLethalHold, removeStatus;
   let other; // util
   let abDef, addStatus, allowed, atkOf, bonusOf, has, hasSt, hpOf, hurt, totalDamage; // statuses
   let destroy, recalc; // state
@@ -16,7 +16,7 @@ Sim.def('combat', function (K) {
       }
     },
   }; // the rider adds an ability status linked to the damage status just dealt; the effect lives and dies with that status
-  // Patch10: the game option "Defender strike back" (s.cfg.strikeBack). A creature hit by an Attack deals damage equal to its power to
+  // the game option "Defender strike back" (s.cfg.strikeBack). A creature hit by an Attack deals damage equal to its power to
   // the attacking creature: combat damage (combat rules: blue shields do not stop it, 'damaged' triggers see it), from the defender,
   // to the attacker only (it never tramples), never answered by another strike back. Applied at once by the rule (no stack), BEFORE the
   // defender's own 'damaged' triggers (Shieldguard: the strike back first, then its Retaliate goes on the stack).
@@ -27,8 +27,8 @@ Sim.def('combat', function (K) {
     attacker.loc === 'board' &&
     attacker !== tgt;
   function dealDamage(s, src, tgt, amount, ev, type, targeted, mods) {
-    // mods (Patch4): {nonLethal, temporary}. Temporary damage expires at the end of the turn; non-lethal: see nonLethalHold
-    // mods.attack (Patch10): this is an Attack's damage (strike()), so the defender may strike back
+    // mods: {nonLethal, temporary}. Temporary damage expires at the end of the turn; non-lethal: see nonLethalHold
+    // mods.attack: this is an Attack's damage (strike()), so the defender may strike back
     if (hasSt(tgt, 'nodamage')) {
       ev.push({ t: 'DamageDenied', target: tgt.iid, amount });
       return;
@@ -63,7 +63,7 @@ Sim.def('combat', function (K) {
       ev.push({ t: 'StrikeBack', source: tgt.iid, target: src.iid, amount: pw });
       dealDamage(s, tgt, src, pw, ev, 'combat', false, { strikeBack: true }); // to the attacker only: no trample, no strike back of its own
     }
-    // Patch10: every damage type fires 'damaged' (a trigger says which types it wants: Fx.trigger.damaged = combat only, Retaliate = combat
+    // every damage type fires 'damaged' (a trigger says which types it wants: Fx.trigger.damaged = combat only, Retaliate = combat
     // or effect). The trigger sees the damage (source, amount, type, the victim's power now): a trigger reads it when it resolves.
     if (abDef(tgt).id === abBefore)
       fire(s, ev, 'damaged', tgt, {
@@ -85,7 +85,7 @@ Sim.def('combat', function (K) {
         ? 'Already attacked this turn'
         : ctl(c) !== s.active
           ? 'Not this player\u2019s turn'
-          : 'No attack counter (spent, or it entered after combat started)'; // Patch4: attacking spends an attack counter
+          : 'No attack counter (spent, or it entered after combat started)'; // attacking spends an attack counter
     if (ctl(c) !== s.active) return 'Not this player\u2019s turn';
     if (s.stack.length) return 'Stack is not empty';
     if (s.respond) return 'Waiting for the response window';
@@ -152,7 +152,7 @@ Sim.def('combat', function (K) {
     ev.push({ t: 'AttackCancelled', iid: o.iid });
   }
   const extraAttack = (s, c, ev) => declareAttack(s, c, ev, true);
-  // Patch4: attack counters. When a combat phase starts, each creature the turn player controls gets one; an Attack spends one;
+  // attack counters. When a combat phase starts, each creature the turn player controls gets one; an Attack spends one;
   // every counter ends with the combat phase (expires:'combatEnd'). Extra attacks granted by effects (Shark, Widow Maker) need none.
   function placeAttackCounters(s, ev) {
     let n = 0;
@@ -194,7 +194,7 @@ Sim.def('combat', function (K) {
       'expireStatuses',
       'live',
       'nonLethalHold',
-      'removeStatus', // Patch4
+      'removeStatus',
       'ctl',
       'allowed',
       'bonusOf',
@@ -212,7 +212,7 @@ Sim.def('combat', function (K) {
       'totalDamage',
     ],
     link: () => {
-      ({ expireStatuses, live, nonLethalHold, removeStatus } = K); // Patch4
+      ({ expireStatuses, live, nonLethalHold, removeStatus } = K);
       ({ ctl } = K);
       ({ allowed, bonusOf } = K);
       ({ abDef, addStatus, atkOf, destroy, fire, has, hasSt, hpOf, hurt, other, recalc, totalDamage } = K);

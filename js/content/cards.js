@@ -13,7 +13,7 @@ const cardColor = def =>
   def.extra ? EXTRA_COLOR : def.type === 'spell' && def.timing === 'Slow' ? SLOW_COLOR : TYPES[def.type].color;
 // ---- Card shapes: defaults for type / timing / speed, so a card states only what is special about it.
 const spellDef = (timing, id, name, hp, rest = {}) => Object.assign({ id, name, type: 'spell', timing, hp }, rest);
-// ---- Card text (Patch10). The text shown by default is GENERATED from the card's data: translate(abilities[]) turns the ability DATA
+// ---- Card text. The text shown by default is GENERATED from the card's data: translate(abilities[]) turns the ability DATA
 // (the JavaScript) into English, every stack ability with its Stack HP. The human-written descriptions live in ONE place,
 // js/content/cardDescription.json (CardText), keyed by card id and part key; the inspector can switch to them (CardText.setMode).
 // Switching never edits a card: def.text and o.text always hold the generated text, textParts(def, mode) picks per call.
@@ -313,7 +313,7 @@ const Translate = (function () {
     }
     return '';
   }
-  const shown = (o, kind, def) => translateOne(o, kind, def); // Patch10: always the generated text (the written one: CardText)
+  const shown = (o, kind, def) => translateOne(o, kind, def); // always the generated text (the written one: CardText)
   // the card's ability lists, in display order, as {list, i, o}
   const abilityList = def => [
     ...(def.passives || []).map((o, i) => ({ list: 'passives', i, o })),
@@ -329,7 +329,7 @@ const Translate = (function () {
   return { translate, translateOne, shown, abilityList };
 })();
 const translate = Translate.translate;
-// ---- CardText (Patch10): the written descriptions, one database (js/content/cardDescription.json), keyed by card id then part key
+// ---- CardText: the written descriptions, one database (js/content/cardDescription.json), keyed by card id then part key
 // (the keys of textParts: 'body' = a spell's own effect, 'passives:0', 'triggers:1', 'rider', 'abilities:0'). A card's identity is its
 // id; the stored name is only a check (CardText.problems reports ids, names or part keys the card data does not have).
 // mode 'generated' (default) | 'written'. A part without a written text shows its generated text in both modes.
@@ -424,7 +424,7 @@ const Fx = {
   gainLife: (amount, to) => ({ op: 'GainLife', amount, to }), // puts life counters on the controller (default) or on the target card
   draw: (n, who) => ({ op: 'Draw', n, who }),
   damageStack: amount => ({ op: 'DamageStack', amount }),
-  // Patch4: damage the picked non-player HP target (use with targeting: nonPlayerHp). mods: {nonLethal, temporary}
+  // damage the picked non-player HP target (use with targeting: nonPlayerHp). mods: {nonLethal, temporary}
   damageHp: (amount, mods) => ({
     op: 'DamageHp',
     amount,
@@ -475,7 +475,7 @@ const Fx = {
   zoneTarget: { anyPermanent: 'anyPermanent', anyCreature: 'anyCreature' }, // spell target: a zone with a card (or a cloud) on it, chosen when the spell is played
   playerTarget: true, // spell flag: a player can be targeted (click a life bar)
   keyword: kw => ({ op: 'Keyword', kw }), // passive: a keyworded passive (KEYWORDS: flash); an ordinary ability, so it can be disabled
-  // Patch10: Retaliate is a TRIGGER abbreviated by its keyword: whenever this card takes combat or effect damage it goes on the stack;
+  // Retaliate is a TRIGGER abbreviated by its keyword: whenever this card takes combat or effect damage it goes on the stack;
   // it resolves like any trigger (op Retaliate: damage equal to this card's power to the source). Retaliate damage never retaliates.
   retaliate: () => ({
     on: 'damaged',
@@ -552,7 +552,7 @@ const Cards = {
     this.list.push(d);
   },
   derive(d) {
-    // Patch10: every stack ability states its HP in the data (the default 1 is written in, so the text and the Sim read the same number)
+    // every stack ability states its HP in the data (the default 1 is written in, so the text and the Sim read the same number)
     for (const k of ['triggers', 'abilities']) (d[k] || []).forEach(o => (o.hp = stackHp(o)));
     // every ability shows its generated text; the written descriptions are in CardText
     Translate.abilityList(d).forEach(x => (x.o.text = Translate.shown(x.o, x.list, d)));
@@ -738,7 +738,7 @@ Cards.add(Fx =>
 );
 Cards.add(Fx =>
   Fx.creature('shieldguard', 'Shieldguard', 5, 15, {
-    triggers: [Fx.retaliate()], // Patch10: a keyworded TRIGGER (on the stack, answerable), not a passive
+    triggers: [Fx.retaliate()], // a keyworded TRIGGER (on the stack, answerable), not a passive
     abilities: [
       Fx.fastAbility('Swap In', {
         zone: 'hand',
@@ -893,7 +893,7 @@ Cards.add(Fx =>
 );
 Cards.add(Fx =>
   Fx.creature('vanguard', 'Vanguard', 2, 3, {
-    // Patch4. Stats and stack HP are placeholders (OPEN_QUESTIONS C6)
+    // Stats and stack HP are placeholders (OPEN_QUESTIONS C6)
     abilities: [
       Fx.fastAbility('Hold the Line', {
         cost: [Fx.spendAttackCounter()],

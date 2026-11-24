@@ -1,4 +1,4 @@
-// asset-loader.js - Patch8: 3D asset loading for the side view. One loader per file extension (GLB / glTF first; FBX and the
+// asset-loader.js - 3D asset loading for the side view. One loader per file extension (GLB / glTF first; FBX and the
 // JSON formats below when their loader exists). Every file is fetched once and cached (a promise per URL); a model is cloned per
 // card (SkeletonUtils keeps the skeleton of each clone separate), never loaded again. A failed file resolves to null: the caller
 // falls back (placeholder cube, procedural clip, untouched camera), nothing throws.

@@ -1,4 +1,4 @@
-// character-select.js - Patch12: the character selection scene, between the start dialog (Start) and the duel (Confirm).
+// character-select.js - the character selection scene, between the start dialog (Start) and the duel (Confirm).
 // Its own full-screen screen with its own three.js renderer and scenes (not a dialog over the menu): the selected character's name
 // at the top; a large 3D model with < > under its feet; on the right the outfit (a small 3D preview of the SAME model in that
 // outfit, with < >), the outfit's stats (icon + value, config/stats.json) and its abilities (none yet: its flavor text); Confirm.

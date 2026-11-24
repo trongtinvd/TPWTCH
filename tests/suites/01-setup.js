@@ -58,7 +58,7 @@
       );
       D(s, { type: 'Start', player: 'Opponent' });
       eq(
-        'both ready: play phase, opening hand = first five cards of the reordered deck, then the first turn’s draw phase draws the next one (Patch6)',
+        'both ready: play phase, opening hand = first five cards of the reordered deck, then the first turn’s draw phase draws the next one',
         [s.phase, s.piles.Player.hand.map(c => c.iid), s.piles.Player.deck.length, s.piles.Opponent.hand.length],
         ['play', [top[1], top[2], top[3], top[0], top[4], top[5]], n - 6, 5]
       );

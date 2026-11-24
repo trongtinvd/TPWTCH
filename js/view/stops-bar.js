@@ -1,7 +1,7 @@
-// stops-bar.js - Patch6: the stops as small icon buttons in the bottom right corner of the game (MTG Arena style).
+// stops-bar.js - the stops as small icon buttons in the bottom right corner of the game (MTG Arena style).
 // Two rows for the seat you play: the stops on the opponent's turn and on your own turn, in turn order. A click sends SetStop (a recorded
 // command, so replays stay exact) and keeps the choice as the default for the next game. "Permanent entered" and "End step" on the
-// opponent's turn are on by default; Patch10: they turn off like any other stop (they were locked here AND forced on in the Sim).
+// opponent's turn are on by default; they turn off like any other stop (they were locked here AND forced on in the Sim).
 // Whether a stop is on is the Sim's answer (Sim.stopOn), defaults included: one source of truth.
 const StopsBar = (function () {
   const ICON = {
@@ -15,14 +15,14 @@ const StopsBar = (function () {
     enter: '<rect x="4" y="12" width="16" height="9" rx="1.5"/><path d="M12 2v9M8.5 7.5L12 11l3.5-3.5"/>',
     end: '<path d="M7 3h10M7 21h10M8 3c0 5 8 5 8 9s-8 4-8 9M16 3c0 5-8 5-8 9s8 4 8 9"/>',
   };
-  const ORDER = ['turnStart', 'draw', 'mainStart', 'mainEnd', 'combatStart', 'combatEnd', 'stack', 'enter', 'end'], // Patch7: + main started / ended
+  const ORDER = ['turnStart', 'draw', 'mainStart', 'mainEnd', 'combatStart', 'combatEnd', 'stack', 'enter', 'end'], // + main started / ended
     ROLES = [
       ['opp', 'Their turn'],
       ['own', 'Your turn'],
     ];
   let el = null;
   const seat = () => (ui.mode === 'bot' ? other(ui.botSeat) : ui.view); // Vs Bot: always your seat; Vs Self: the seat you look from
-  const isOn = (p, role, k) => Sim.stopOn(sim, p, role, k); // Patch7: the real state, not the (older) animated one
+  const isOn = (p, role, k) => Sim.stopOn(sim, p, role, k); // the real state, not the (older) animated one
   function build() {
     el = document.createElement('div');
     el.id = 'stops';
@@ -56,10 +56,10 @@ const StopsBar = (function () {
   function toggle(role, k) {
     if (rp.on) return;
     const p = seat(),
-      r = sendStop({ type: 'SetStop', player: p, role, kind: k, on: !isOn(p, role, k) }); // Patch7: never refused while an animation plays
+      r = sendStop({ type: 'SetStop', player: p, role, kind: k, on: !isOn(p, role, k) }); // never refused while an animation plays
     if (r.ok && sim.stops) Settings.set('stops', JSON.parse(JSON.stringify(sim.stops))); // the default for the next game
   }
-  // Patch13: portrait (phone): the stops take room, so a button (Stops: shown / hidden, #dbg) folds them; landscape always shows them.
+  // portrait (phone): the stops take room, so a button (Stops: shown / hidden, #dbg) folds them; landscape always shows them.
   // Hidden by default; the choice is kept for the next game.
   const PORTRAIT_KEY = 'stopsPortrait';
   const portraitShown = () => Settings.get(PORTRAIT_KEY) === true;

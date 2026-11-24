@@ -18,7 +18,7 @@ const STOP_NAMES = {
   mainEnd: 'main phase ended',
   stack: 'stack emptied',
 };
-const STEP_NAMES = { start: 'Start', draw: 'Draw phase', main: 'Main phase', combat: 'Combat phase', end: 'End phase' }; // Patch6
+const STEP_NAMES = { start: 'Start', draw: 'Draw phase', main: 'Main phase', combat: 'Combat phase', end: 'End phase' };
 const STOPS_ON = {
   turnStart: true,
   draw: true,
@@ -228,11 +228,11 @@ async function attackJob(pre, ev) {
   const cue3d =
     typeof View3D !== 'undefined'
       ? View3D.onAttack(ev, sim, ao && ao.kind === 'attack' ? ao.iid : comb[0].source)
-      : null; // Patch8: the attacker's animation // the strike takes over from the sword that stood on the attacker
+      : null; // the attacker's animation // the strike takes over from the sword that stood on the attacker
   const sword = makeSword(),
     undo = [];
   let cur = from0;
-  const sy = typeof View3D !== 'undefined' ? View3D.styleSword(sword) : 0.9; // Patch9: bigger, higher and flashing in the side view
+  const sy = typeof View3D !== 'undefined' ? View3D.styleSword(sword) : 0.9; // bigger, higher and flashing in the side view
   sword.position.set(cur.x, sy, cur.z);
   scene.add(sword);
   for (const e of comb) {
@@ -248,7 +248,7 @@ async function attackJob(pre, ev) {
     sword.rotation.y = to.z >= from.z ? 0 : Math.PI;
     await tween(280, t => sword.position.set(from.x + (to.x - from.x) * t, sy, from.z + (to.z - from.z) * t));
     cur = to;
-    if (cue3d && m) View3D.onHit(e.target); // Patch8: the creature hit plays get_hit as the sword arrives
+    if (cue3d && m) View3D.onHit(e.target); // the creature hit plays get_hit as the sword arrives
     undo.push(e.t === 'DamageDenied' ? () => {} : m ? splat3D(m) : splatBar(e.player));
     ui.dirty = true;
   }
@@ -257,7 +257,7 @@ async function attackJob(pre, ev) {
   undo.forEach(f => f());
   ui.dirty = true;
 }
-// Patch7: a stop icon click. It never waits for an animation (send() refuses input while one plays, so clicks used to get lost) and
+// a stop icon click. It never waits for an animation (send() refuses input while one plays, so clicks used to get lost) and
 // it is not an undo step; it is still recorded (replays stay exact) and logged. The screen state follows at once.
 function sendStop(cmd) {
   if (rp.on) return { ok: false, why: 'Replay: watching only', events: [] };
@@ -305,7 +305,7 @@ function send(cmd, src) {
     if (undoStack.length > 200) undoStack.shift();
     if (!rp.on) cmdLog.push(JSON.parse(JSON.stringify(cmd)));
     eventLog.push(...r.events);
-    if (typeof AvatarView !== 'undefined') AvatarView.onEvents(r.events); // Patch12: playing_card
+    if (typeof AvatarView !== 'undefined') AvatarView.onEvents(r.events); // playing_card
     GameLog.add(pre, cmd, r.events, src); // src: auto | bot | replay (a click is 'player')
     if (eventLog.length > 200) eventLog.splice(0, eventLog.length - 200);
     ui.placing = null;
@@ -485,7 +485,7 @@ const camArrive = () =>
     })();
   }); // resolves once the seat camera has finished turning
 // ---- top-down orthographic view (toggle, bottom left) ----
-const ortho = new THREE.OrthographicCamera(-1, 1, 1, -1, CameraCfg.get().top.near, CameraCfg.get().top.far), // Patch10: config/camera.json
+const ortho = new THREE.OrthographicCamera(-1, 1, 1, -1, CameraCfg.get().top.near, CameraCfg.get().top.far), // config/camera.json
   tv = { on: false, cx: 0, cz: 0, zoom: 1 };
 let cam = camera,
   panFrom = null;
@@ -516,8 +516,8 @@ function setTopView(on) {
   tv.on = on;
   cam = on ? ortho : camera;
   controls.enabled = !on;
-  if (typeof View3D !== 'undefined') View3D.setEnabled(!on); // Patch8: the side view is the 3D view (layout, characters, camera)
-  if (typeof AvatarView !== 'undefined') AvatarView.setSide(!on); // Patch12: the avatar models show in the side view only
+  if (typeof View3D !== 'undefined') View3D.setEnabled(!on); // the side view is the 3D view (layout, characters, camera)
+  if (typeof AvatarView !== 'undefined') AvatarView.setSide(!on); // the avatar models show in the side view only
   if (on) {
     tv.zoom = 1;
     tv.cx = tv.cz = 0;
@@ -549,7 +549,7 @@ renderer.domElement.addEventListener(
 renderer.domElement.addEventListener('contextmenu', e => e.preventDefault());
 function setView(p) {
   ui.view = p;
-  ui.camGoal = CameraCfg.seatAngle(p); // Patch10: config/camera.json seat.opponentYawDeg
+  ui.camGoal = CameraCfg.seatAngle(p); // config/camera.json seat.opponentYawDeg
   ui.placing = null;
   closeMenu();
   if (game.phase === 'deck') {
@@ -568,12 +568,12 @@ function switchPlayer() {
   setView(other(ui.view));
   sync();
 } // debug: seat only
-// Patch6: the options of the start dialog. A replay recorded before the draw phase existed has no `rules`: LEGACY_RULES keeps it exact
+// the options of the start dialog. A replay recorded before the draw phase existed has no `rules`: LEGACY_RULES keeps it exact
 const LEGACY_RULES = { drawPhase: 0 };
 const gameRules = c => {
   const r = {};
   for (const k of ['startHand', 'drawPhase', 'drawAction', 'life']) if (c[k] != null) r[k] = c[k];
-  if (c.strikeBack) r.strikeBack = true; // Patch10: "Defender strike back" (recorded with the replay, like the other options)
+  if (c.strikeBack) r.strikeBack = true; // "Defender strike back" (recorded with the replay, like the other options)
   return r;
 };
 const gameNames = c =>
@@ -587,7 +587,7 @@ function setNames(s) {
     const el = document.querySelector('#hp [data-p="' + p + '"] span');
     if (el) el.textContent = NAME[p];
   }
-  if (typeof AvatarView !== 'undefined') AvatarView.newDuel(s); // Patch12: a new duel: its avatars (icons, 3D models, animations)
+  if (typeof AvatarView !== 'undefined') AvatarView.newDuel(s); // a new duel: its avatars (icons, 3D models, animations)
 }
 function newGame(cfg) {
   ui.lastCfg = cfg;
@@ -619,7 +619,7 @@ function resetGame() {
     orderTriggers: true, // real games: a player with several triggers at once orders them
     rules,
     names,
-    avatars: c.avatars, // Patch12: chosen in the character selection scene
+    avatars: c.avatars, // chosen in the character selection scene
   });
   setNames(sim);
   game = sim;
@@ -642,9 +642,9 @@ function resetGame() {
     sh: !!c.shuffle,
     stops: Settings.get('stops') || STOPS_ON,
     ot: true, // the replay needs the same options (the trigger order choices are part of the recorded commands)
-    rules, // Patch6: the game options and the names
+    rules, // the game options and the names
     names,
-    avatars: sim.avatars, // Patch12: the avatars (a replay shows them too)
+    avatars: sim.avatars, // the avatars (a replay shows them too)
     mode: c.mode,
     a: c.p1,
     b: c.p2,
@@ -709,7 +709,7 @@ const FN = [
   {
     id: 'battle',
     cls: 'c-atk',
-    label: () => (game.attackPhase ? 'End combat' : 'Attack: off'), // ending combat goes back to the main phase (Patch5)
+    label: () => (game.attackPhase ? 'End combat' : 'Attack: off'), // ending combat goes back to the main phase
     run: toggleAttack,
     on: () =>
       myPriority() &&
@@ -750,7 +750,7 @@ const FN = [
     cls: 'c-atk',
     label: () => 'Surrender',
     run: () => {
-      // Patch5 bug fix: the seat is fixed when the button is pressed (auto view may switch seats while the dialog is open), and a
+      // The seat is fixed when the button is pressed (auto view may switch seats while the dialog is open), and a
       // confirmed surrender is never dropped: while an animation runs (the bot kept playing) it waits for it instead of being refused
       const who = ui.mode === 'bot' ? other(ui.botSeat) : ui.view; // Vs bot: always the human seat (auto view may be on the bot's)
       confirmBox('Surrender? ' + NAME[who] + ' loses the game.', 'Surrender', 'Cancel').then(ok => {
@@ -792,7 +792,7 @@ const DBTN = [
     show: () => !rp.on,
   },
   {
-    id: 'stops', // Patch13: portrait only (css .pOnly): shows / folds the stops under these buttons
+    id: 'stops', // portrait only (css .pOnly): shows / folds the stops under these buttons
     cls: 'pOnly',
     label: () => 'Stops: ' + (typeof StopsBar !== 'undefined' && StopsBar.portraitShown() ? 'shown' : 'hidden'),
     run: () => {
@@ -870,7 +870,7 @@ document.body.appendChild(dbg);
   })
 );
 function updateDbg() {
-  if (typeof StopsBar !== 'undefined') StopsBar.update(); // Patch6: the stop icons (bottom right)
+  if (typeof StopsBar !== 'undefined') StopsBar.update(); // the stop icons (bottom right)
   [...FN, ...DBTN].forEach(b => {
     b.el.textContent = b.label();
     b.el.disabled = !b.on();

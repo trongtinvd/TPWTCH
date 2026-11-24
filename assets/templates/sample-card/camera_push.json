@@ -1,6 +1,6 @@
 {
   "format": "tpw-camera",
-  "_doc": "TEMPLATE (Patch11): a camera animation as keys. Character space: origin = the character's feet, +Z = where it faces, +Y = up (metres). Each key: t (seconds), position, target (looked at), fov (degrees, optional). Between keys the pose is interpolated. Docs/animationGuide.md, step 3.",
+  "_doc": "TEMPLATE: a camera animation as keys. Character space: origin = the character's feet, +Z = where it faces, +Y = up (metres). Each key: t (seconds), position, target (looked at), fov (degrees, optional). Between keys the pose is interpolated. Docs/animationGuide.md, step 3.",
   "duration": 1.0,
   "keys": [
     { "t": 0.0, "position": [-1.8, 2.0, -2.6], "target": [0, 0.7, 1.5], "fov": 45 },

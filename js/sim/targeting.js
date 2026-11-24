@@ -1,7 +1,7 @@
 // targeting.js - REGISTRIES TARGETS / COLTARGETS / ZONETARGETS and the target finders
 Sim.def('targeting', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
-  let ctl; // added by Patch3
+  let ctl;
   let colKeys, other; // util
   let has; // statuses
   let cloudMap, isUnusable; // state
@@ -58,7 +58,7 @@ Sim.def('targeting', function (K) {
       label: (s, c, o) => pairLabel(s, ctl(c), o),
       prompt: c => c.def.name + ': target two adjacent cards your opponent controls.',
     },
-    // Patch4: anything with active HP except a player (hp.js HPKINDS: board cards, zones with HP or a cloud, spells / abilities on the stack)
+    // anything with active HP except a player (hp.js HPKINDS: board cards, zones with HP or a cloud, spells / abilities on the stack)
     nonPlayerHp: {
       options: s => hpRefs(s),
       label: (s, c, o) => hpLabel(s, o),
@@ -72,7 +72,7 @@ Sim.def('targeting', function (K) {
     needs: [
       'hpLabel',
       'hpRefs',
-      'hpResolve', // Patch4
+      'hpResolve',
       'ctl',
       'cloudMap',
       'colKeys',
@@ -83,7 +83,7 @@ Sim.def('targeting', function (K) {
       'pairOptions',
     ],
     link: () => {
-      ({ hpLabel, hpRefs, hpResolve } = K); // Patch4
+      ({ hpLabel, hpRefs, hpResolve } = K);
       ({ ctl } = K);
       ({ cloudMap, colKeys, has, isUnusable, other, pairLabel, pairOptions } = K);
     },
