@@ -3,7 +3,7 @@
 // statuses or logs. This is the anti-cheat layer: a host sends a client its Observation, never the state. Sim.observeEvents does the same for the events of a command.
 Sim.def('observe', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
-  let canSee, cloudMap; // state
+  let canSee, cloudMap, slotSeen; // state
   let atkOf, hpOf, totalDamage, apOpen; // statuses, ap
   // an opaque id for a hidden card: a hash of the game seed (never sent), the viewer and the real id, so the real id (its position in the deck list) cannot be read back
   const hash = str => {
@@ -166,11 +166,17 @@ Sim.def('observe', function (K) {
       result: s.result,
     };
   }
+  // where a card now stands may be told to p when p sees it there, or the zone is not under a cloud another player controls
+  const slotKnown = (pre, post, p, iid, key) =>
+    (!!post.cards[iid] && canSee(post, p, post.cards[iid])) || slotSeen(post, p, key);
   function observeEvents(pre, post, ev, p) {
     // the events of one command as p may see them: the id of a card p never knew is opaque, names inside texts are masked
     const sc = scope([pre, post], p);
     return ev.map(e => {
       const o = Object.assign({}, e);
+      // Patch10: where a card p cannot see stands is hidden too (a card played or moved under an enemy cloud): the zone goes
+      if (typeof o.slot === 'string' && typeof e.iid === 'string' && !slotKnown(pre, post, p, e.iid, o.slot))
+        o.slot = null;
       for (const k of ['iid', 'source', 'target']) if (typeof o[k] === 'string') o[k] = sc.alias(o[k]);
       if (typeof o.why === 'string') o.why = sc.maskText(o.why);
       return o;
@@ -178,9 +184,9 @@ Sim.def('observe', function (K) {
   }
   return {
     exports: { observe, observeEvents },
-    needs: ['apOpen', 'atkOf', 'canSee', 'cloudMap', 'hpOf', 'totalDamage'],
+    needs: ['apOpen', 'atkOf', 'canSee', 'cloudMap', 'hpOf', 'slotSeen', 'totalDamage'],
     link: () => {
-      ({ apOpen, atkOf, canSee, cloudMap, hpOf, totalDamage } = K);
+      ({ apOpen, atkOf, canSee, cloudMap, hpOf, slotSeen, totalDamage } = K);
     },
   };
 });

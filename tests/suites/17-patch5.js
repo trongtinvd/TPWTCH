@@ -9,15 +9,16 @@
     const sgd = byId('shieldguard'),
       pd = byId('parasite');
     check(
-      'Retaliate and Flash are passives of the card (op Keyword), no ad-hoc def flags',
-      sgd.passives.some(p => p.op === 'Keyword' && p.kw === 'retaliate') &&
+      'Patch10: Retaliate is a keyworded TRIGGER of the card, Flash a keyworded passive (op Keyword); no ad-hoc def flags',
+      sgd.triggers.some(t => t.kw === 'retaliate' && t.on === 'damaged') &&
+        !(sgd.passives || []).some(p => p.kw === 'retaliate') &&
         pd.passives.some(p => p.op === 'Keyword' && p.kw === 'flash') &&
         sgd.retaliate === undefined &&
         pd.flash === undefined
     );
     check(
       '...and their text is derived like any ability',
-      /^Retaliate \(/.test(sgd.passives[0].text) && /Flash \(/.test(pd.text)
+      /^Retaliate \(/.test(sgd.triggers[0].text) && /Flash \(/.test(pd.text)
     );
     let s = start(1700);
     const sg = take(s, 'Opponent', 'shieldguard', 'board', 'Opponent|front|1'),
@@ -58,13 +59,17 @@
       ab.text,
       'Slow. This card is in the front row: pay 1 life; deal 2 damage to your opponent. (Stack HP 1)'
     );
-    check('the old text is kept as overrideText, off by default', !!ab.overrideText && !ab.useOverrideText);
+    check(
+      'Patch10: the card data holds no written text (overrideText / useOverrideText moved to cardDescription.json)',
+      DEFS.every(
+        d =>
+          Translate.abilityList(d).every(x => !('overrideText' in x.o) && !('useOverrideText' in x.o)) &&
+          !('overrideText' in d)
+      )
+    );
     eq('translate(abilities[]) is the card text of an ability-only card', translate(ar), ar.text);
     const ke = byId('kingeye').passives[0];
-    check(
-      'useOverrideText: true shows the human rewrite instead',
-      ke.useOverrideText === true && ke.text === ke.overrideText
-    );
+    check('Patch10: King Eye shows its generated text by default too', ke.text.startsWith('Passive: a black cloud'));
     check(
       '...and the machine text is still there (Translate.translateOne)',
       Translate.translateOne(ke, 'passives', byId('kingeye')).startsWith('Passive: a black cloud')

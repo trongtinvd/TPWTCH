@@ -65,11 +65,13 @@ addEventListener('pointermove', e => {
     const k = (2 * ortho.top) / VH(),
       dx = e.clientX - panFrom.x,
       dy = e.clientY - panFrom.y,
-      s = Math.sin(ui.camAngle),
-      c = Math.cos(ui.camAngle);
+      r = ui.camAngle + (CameraCfg.get().top.rotationDeg * Math.PI) / 180, // the screen axes of the top view (Patch10: it may be rotated)
+      s = Math.sin(r),
+      c = Math.cos(r);
     panFrom = { x: e.clientX, y: e.clientY };
-    tv.cx = Math.max(-14, Math.min(14, tv.cx + (-c * dx - s * dy) * k));
-    tv.cz = Math.max(-14, Math.min(14, tv.cz + (s * dx - c * dy) * k));
+    const lim = CameraCfg.get().top.panLimit; // Patch10: config/camera.json
+    tv.cx = Math.max(-lim, Math.min(lim, tv.cx + (-c * dx - s * dy) * k));
+    tv.cz = Math.max(-lim, Math.min(lim, tv.cz + (s * dx - c * dy) * k));
     placeTop();
     ui.dirty = true;
   }

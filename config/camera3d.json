@@ -1,7 +1,7 @@
 {
   "_doc": "3D side view camera, written for the Player seat (the Opponent seat is the same turned half way round). Use either target or rotationDeg [x, y, z] (degrees, order YXZ). See Docs/ANIMATION_3D.md",
-  "position": [0, 12, 16],
-  "target": [0, 0, 1.2],
+  "position": [20.5, 15.5, 19.5],
+  "target": [-0.539695, 0.502977, 0.335840],
   "rotationDeg": null,
   "targetDistance": 12,
   "fov": 45,

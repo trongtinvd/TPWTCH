@@ -2,6 +2,7 @@
 Sim.def('fx', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
   let ctl; // added by Patch3
+  let canSee; // state (Patch10: choicePicks)
   let cname; // util
   let dmgs, removeStatus; // statuses
   let cloudMap, freeSlots; // state
@@ -148,10 +149,31 @@ Sim.def('fx', function (K) {
       }
     }
   }
+  // Patch10: the legal selections of the pending choice, for player p: ONE source of truth. Choose accepts exactly `options`; `cards` are the
+  // options that are cards, `buttons` the others ('done', 'no'...). `click`: every card option is a card p can click where it stands
+  // (in p's own hand, or on the board where p can see it), so the UI highlights `cards` and answers by a click on them, never with a
+  // list (Ambush of the Night: put creatures from your hand into play). Decided from the rules, never from what the view drew.
+  function choicePicks(s, p) {
+    const k = s.choice;
+    if (!k || k.player !== p) return { kind: null, cards: [], buttons: [], click: false };
+    const cards = k.options.filter(o => s.cards[o]),
+      buttons = k.options.filter(o => !s.cards[o]),
+      at = id => {
+        const c = s.cards[id];
+        return (c.loc === 'hand' && c.owner === p) || (c.loc === 'board' && canSee(s, p, c));
+      };
+    return {
+      kind: k.kind,
+      cards,
+      buttons,
+      click: cards.length > 0 && cards.every(at) && buttons.every(o => !/^[ZP]:/.test(o)), // zones / players are not card clicks
+    };
+  }
   return {
-    exports: { ask, askCounters, askDeck, foeCreatures, resume, runFx, suspend, upToAsk },
-    needs: ['ctl', 'OPS', 'cloudMap', 'cname', 'dmgs', 'freeSlots', 'removeStatus'],
+    exports: { ask, askCounters, askDeck, choicePicks, foeCreatures, resume, runFx, suspend, upToAsk },
+    needs: ['canSee', 'ctl', 'OPS', 'cloudMap', 'cname', 'dmgs', 'freeSlots', 'removeStatus'],
     link: () => {
+      ({ canSee } = K);
       ({ ctl } = K);
       ({ OPS, cloudMap, cname, dmgs, freeSlots, removeStatus } = K);
     },

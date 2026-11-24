@@ -484,15 +484,16 @@ const camArrive = () =>
     })();
   }); // resolves once the seat camera has finished turning
 // ---- top-down orthographic view (toggle, bottom left) ----
-const ortho = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 200),
+const ortho = new THREE.OrthographicCamera(-1, 1, 1, -1, CameraCfg.get().top.near, CameraCfg.get().top.far), // Patch10: config/camera.json
   tv = { on: false, cx: 0, cz: 0, zoom: 1 };
 let cam = camera,
   panFrom = null;
 const HELP_SIDE = 'Drag: orbit \u00b7 Wheel: zoom \u00b7 Right-drag: pan',
   HELP_TOP = 'Drag: pan \u00b7 Wheel: zoom';
 function fitOrtho() {
-  const a = VW() / VH(),
-    H = Math.max(13.8, 11.4 / a) / tv.zoom;
+  const T = CameraCfg.get().top,
+    a = VW() / VH(),
+    H = Math.max(T.minHalfHeight, T.halfHeightAspect / a) / tv.zoom;
   ortho.left = -H * a;
   ortho.right = H * a;
   ortho.top = H;
@@ -501,10 +502,12 @@ function fitOrtho() {
 }
 function placeTop() {
   // screen-up points away from the seat being viewed
-  const s = Math.sin(ui.camAngle),
-    c = Math.cos(ui.camAngle);
+  const T = CameraCfg.get().top,
+    r = ui.camAngle + (T.rotationDeg * Math.PI) / 180,
+    s = Math.sin(r),
+    c = Math.cos(r);
   ortho.up.set(-s, 0, -c);
-  ortho.position.set(tv.cx, 60, tv.cz);
+  ortho.position.set(tv.cx, T.height, tv.cz);
   ortho.lookAt(tv.cx, 0, tv.cz);
   ortho.updateMatrixWorld();
 }
@@ -533,7 +536,8 @@ renderer.domElement.addEventListener(
   e => {
     if (!tv.on) return;
     e.preventDefault();
-    tv.zoom = Math.min(4, Math.max(0.6, tv.zoom * Math.exp(-e.deltaY * 0.001)));
+    const T = CameraCfg.get().top;
+    tv.zoom = Math.min(T.zoomMax, Math.max(T.zoomMin, tv.zoom * Math.exp(-e.deltaY * T.zoomSpeed)));
     fitOrtho();
     ui.dirty = true;
     ui.hoverDirty = true;
@@ -543,7 +547,7 @@ renderer.domElement.addEventListener(
 renderer.domElement.addEventListener('contextmenu', e => e.preventDefault());
 function setView(p) {
   ui.view = p;
-  ui.camGoal = p === 'Opponent' ? Math.PI : 0;
+  ui.camGoal = CameraCfg.seatAngle(p); // Patch10: config/camera.json seat.opponentYawDeg
   ui.placing = null;
   closeMenu();
   if (game.phase === 'deck') {
@@ -567,6 +571,7 @@ const LEGACY_RULES = { drawPhase: 0 };
 const gameRules = c => {
   const r = {};
   for (const k of ['startHand', 'drawPhase', 'drawAction', 'life']) if (c[k] != null) r[k] = c[k];
+  if (c.strikeBack) r.strikeBack = true; // Patch10: "Defender strike back" (recorded with the replay, like the other options)
   return r;
 };
 const gameNames = c =>

@@ -81,8 +81,16 @@ Sim.def('statuses', function (K) {
       .pop();
     return d ? byId[d.to] : c.def;
   }; // ability layer: the newest active 'ability' status decides; c.def is never edited
-  // keyworded abilities (Flash, Retaliate) are passives of the EFFECTIVE ability set, so losing abilities (Avatar of Rabies) loses them too
-  const hasKw = (c, kw) => !!c && (abDef(c).passives || []).some(p => p.op === 'Keyword' && p.kw === kw);
+  // keyworded abilities belong to the EFFECTIVE ability set, so losing abilities (Avatar of Rabies) loses them too: a keyworded passive
+  // (Flash: op Keyword) or a keyworded trigger / ability (Retaliate: kw on a trigger, Patch10)
+  const hasKw = (c, kw) => {
+    if (!c) return false;
+    const d = abDef(c);
+    return (
+      (d.passives || []).some(p => p.op === 'Keyword' && p.kw === kw) ||
+      [...(d.triggers || []), ...(d.abilities || [])].some(a => a.kw === kw)
+    );
+  };
   const isRevealed = (c, p) => hasSt(c, 'revealed', x => x.to === p);
   const PL = (s, p) => s.players[p];
   const lifeOf = (s, p) =>

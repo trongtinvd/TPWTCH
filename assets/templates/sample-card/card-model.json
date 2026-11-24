@@ -1,0 +1,19 @@
+{
+  "_doc": "TEMPLATE (Patch11): entries for assets/3dModels/cards/index.json (the 3D card preview, ?anim3d). Copy one line into its \"cards\", key = your card id. Docs/animationGuide.md, step 1.",
+  "cards": {
+    "<card id, GLB>": {
+      "type": "gltf",
+      "path": "assets/templates/sample-card/sample-card.glb",
+      "scale": 1,
+      "offset": [0, 0, 0],
+      "rotationDeg": [0, 0, 0],
+      "select": "Select"
+    },
+    "<card id, script>": {
+      "type": "script",
+      "path": "assets/templates/sample-card/card-model-template.js",
+      "builder": "templateModel",
+      "params": { "color": "#3f7fd8" }
+    }
+  }
+}

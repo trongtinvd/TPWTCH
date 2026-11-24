@@ -374,6 +374,58 @@ const Anim3DLogic = (function () {
   // a creature that left the board: die when it went to the graveyard (or a token ceased to exist), else it just leaves
   const leaveCategory = c => (!c || c.loc === 'gy' || c.loc === 'gone' ? 'die' : null);
 
+  // ---- Patch10: 3D card models (assets/3dModels/cards/index.json), used by the standalone preview (?anim3d) -------------------------
+  // index = { dir, byConvention, cards: { <card id>: entry } }. An entry: { type: 'gltf', path } (a .glb / .gltf file) or
+  // { type: 'script', path, builder, params } (a script that registers CardModelScripts[builder](THREE, params) -> Object3D).
+  // A path is relative to dir unless it starts with "assets/" (anywhere in the repo), "/" or a scheme (https:).
+  // Optional on both: scale, offset [x, y, z], rotationDeg [x, y, z], select (the name of the clip played when the card is selected).
+  // A card without an entry: <dir>/<id>.glb when byConvention is true, else no model (the preview shows a placeholder).
+  // New model types: add the type here and a loader in js/anim/card-models.js (CardModels.register); gameplay never reads this.
+  const MODEL_TYPES = ['gltf', 'script'];
+  const MODEL_DIR = 'assets/3dModels/cards/';
+  function cardModelEntry(index, id) {
+    const ix = isObj(index) ? index : {},
+      dir = typeof ix.dir === 'string' && ix.dir ? ix.dir.replace(/\/?$/, '/') : MODEL_DIR,
+      cards = isObj(ix.cards) ? ix.cards : {},
+      problems = [];
+    let e = cards[id],
+      from = 'index';
+    if (e === undefined) {
+      if (ix.byConvention !== true) return { id, type: 'none', from: 'none', problems };
+      e = { type: 'gltf', path: dir + id + '.glb' };
+      from = 'convention';
+    }
+    if (!isObj(e)) return { id, type: 'none', from, problems: ['entry is not an object'] };
+    let type = e.type;
+    if (type === undefined && typeof e.path === 'string') type = /\.js$/i.test(e.path) ? 'script' : 'gltf';
+    if (!MODEL_TYPES.includes(type)) return { id, type: 'none', from, problems: ['unknown model type "' + type + '"'] };
+    const path =
+      typeof e.path === 'string' && e.path ? (/^(\w+:|\/|assets\/)/.test(e.path) ? e.path : dir + e.path) : '';
+    if (!path) problems.push('no path');
+    if (type === 'script' && (typeof e.builder !== 'string' || !e.builder))
+      problems.push('a script model needs a builder name');
+    if (problems.length) return { id, type: 'none', from, problems };
+    return {
+      id,
+      type,
+      from,
+      path,
+      builder: type === 'script' ? e.builder : null,
+      params: isObj(e.params) ? e.params : {},
+      scale: num(e.scale, 1) > 0 ? num(e.scale, 1) : 1,
+      offset: vec(e.offset, [0, 0, 0]),
+      rotationDeg: vec(e.rotationDeg, [0, 0, 0]),
+      select: typeof e.select === 'string' ? e.select : null,
+      problems,
+    };
+  }
+  // which clip plays when the card is selected: the entry's `select`, else a clip whose name contains "select", else none (procedural)
+  const selectClipName = (entry, names) => {
+    const L = names || [];
+    if (entry && entry.select && L.includes(entry.select)) return entry.select;
+    return L.find(n => /select/i.test(n)) || null;
+  };
+
   return {
     CATEGORIES,
     LOOPING,
@@ -393,6 +445,10 @@ const Anim3DLogic = (function () {
     findTransition,
     attackCue,
     leaveCategory,
+    MODEL_TYPES, // Patch10
+    MODEL_DIR,
+    cardModelEntry,
+    selectClipName,
   };
 })();
 if (typeof module !== 'undefined') module.exports = Anim3DLogic;

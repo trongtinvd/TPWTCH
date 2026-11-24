@@ -1,0 +1,10 @@
+{
+  "_doc": "3D models of the cards (Patch10), shown by the standalone preview (index.html?anim3d). cards: card id -> model. type gltf: path to a .glb / .gltf file. type script: path to a .js file and the name of the builder it registers (CardModelScripts[builder] = (THREE, params) => Object3D). A path is relative to this folder unless it starts with assets/. Optional: scale, offset [x,y,z], rotationDeg [x,y,z], select (the animation clip played when the card is selected; else a clip whose name contains 'select'; else a procedural one). byConvention: true = a card with no entry tries <id>.glb in this folder. A card without a model shows a placeholder. See Docs/ANIMATION_3D.md",
+  "dir": "assets/3dModels/cards/",
+  "byConvention": false,
+  "cards": {
+    "kingeye": { "type": "script", "path": "procedural/eye.js", "builder": "eye", "params": { "color": "#c9a24a" } },
+    "archer": { "type": "gltf", "path": "assets/samples/test-rig/model.glb", "scale": 0.8 },
+    "hummingbird": { "type": "gltf", "path": "hummingbird.glb" }
+  }
+}

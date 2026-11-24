@@ -149,6 +149,9 @@ const Tests = (function () {
         .filter(Boolean);
       out.length = 0;
       let n = 0;
+      // Patch10: the tests read the default card text (generated), whatever the inspector's Text button shows in the browser
+      const textMode = typeof CardText !== 'undefined' ? CardText.mode : null;
+      if (textMode === 'written') CardText.setMode('generated');
       for (const s of suites) {
         if (!wanted(s.name, want)) continue;
         n++;
@@ -158,6 +161,7 @@ const Tests = (function () {
           out.push('FAIL suite "' + s.name + '" threw  | ' + ((e && e.stack) || e)); // one broken suite never hides the others
         }
       }
+      if (textMode === 'written') CardText.setMode('written');
       if (!n)
         out.push('FAIL no suite matches "' + want.join(',') + '"  | suites: ' + suites.map(s => s.name).join(', '));
       out.push(

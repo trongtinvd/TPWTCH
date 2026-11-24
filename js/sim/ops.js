@@ -23,6 +23,7 @@ Sim.def('ops', function (K) {
   let CH; // ch
   let dealDamage; // combat
   let fire, hitStack; // stack
+  let atkOf; // statuses (Patch10: Retaliate)
   // Board picks for the player x.who. A card under an enemy cloud is never offered by itself: its ZONE is ('Z:slot'), empty or not,
   // so the picker learns nothing about what is underneath. Elsewhere a card is offered unless it has a red shield.
   const boardPicks = (x, foeOnly) => {
@@ -60,6 +61,21 @@ Sim.def('ops', function (K) {
     );
   const OPS = {
     // effect handlers: (ctx, effect). ctx = {s, ev, src, t, who, foe}
+    // Patch10: Retaliate (the effect of the keyworded trigger, Fx.retaliate). The trigger kept the damage it saw (o.evt). Damage equal to
+    // this card's power (now, if it is still on the board; else its power when it was damaged) goes to the source: the creature that dealt
+    // it while it is on the board, or the player behind a spell. Its type is 'retaliate', which never triggers Retaliate.
+    Retaliate: x => {
+      const d = x.o && x.o.evt;
+      if (!d) return;
+      const me = x.src,
+        pw = me.loc === 'board' ? atkOf(me) : d.power,
+        from = x.s.cards[d.source];
+      if (!(pw > 0)) return;
+      if (d.spell) {
+        hurt(x.s, d.spell, pw, me.def.name, 'retaliate');
+        x.ev.push({ t: 'PlayerDamaged', player: d.spell, amount: pw });
+      } else if (from && from.loc === 'board') dealDamage(x.s, me, from, pw, x.ev, 'retaliate');
+    },
     DealDamage: (x, e) => {
       if (e.to === 'target' && !x.tp) dealDamage(x.s, x.src, x.t, e.amount, x.ev, 'effect', true);
       else {
@@ -522,6 +538,7 @@ Sim.def('ops', function (K) {
       'upToAsk',
       'zoneDist',
       'allowed',
+      'atkOf', // Patch10
       'damageZone',
       'giveZoneHp',
       'isUnusable',
@@ -571,6 +588,7 @@ Sim.def('ops', function (K) {
         zoneDist,
       } = K);
       ({ allowed, damageZone, giveZoneHp, isUnusable, markUnusable } = K);
+      ({ atkOf } = K); // Patch10
     },
   };
 });

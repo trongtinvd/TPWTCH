@@ -672,7 +672,7 @@ const canUseNow = c =>
   (game.choice &&
     !foeChoice() &&
     ((game.choice.kind === 'pick' && !game.choice.labels) || boardPick(game.choice)) &&
-    game.choice.options.includes(c.iid)) ||
+    Sim.choicePicks(game, game.choice.player).cards.includes(c.iid)) || // Patch10: the legal picks come from the Sim
   (Sim.ctl(c) === ui.view &&
     (c.loc === 'hand'
       ? !Sim.canPlay(game, c) || (Sim.abDef(c).abilities || []).some((a, i) => !Sim.canActivate(game, c, i))

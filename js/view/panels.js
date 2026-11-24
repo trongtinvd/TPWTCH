@@ -51,8 +51,14 @@ function renderStatuses(dl, o, extra) {
   });
   dl.appendChild(document.createElement('br'));
 }
-const phead = () =>
-  '<div class="phead"><b>Inspect</b><span><button class="xbtn" data-toggle="mode" style="font-size:11px" aria-label="Switch between statuses and log">View: ' +
+const phead = forCard =>
+  '<div class="phead"><b>Inspect</b><span>' +
+  (forCard
+    ? '<button class="xbtn" data-toggle="text" style="font-size:11px" aria-label="Switch the card text between the generated and the written description" title="Generated: the text derived from the card data (default). Written: the original description.">Text: ' +
+      (CardText.mode === 'written' ? 'Written' : 'Generated') +
+      '</button>'
+    : '') +
+  '<button class="xbtn" data-toggle="mode" style="font-size:11px" aria-label="Switch between statuses and log">View: ' +
   (ui.inspLog ? 'Log' : 'Statuses') +
   '</button>' +
   (ui.inspLog
@@ -222,7 +228,7 @@ function cardParts(c, H) {
       const hit = !!H && def.id === H.from && p.list === H.list && p.i === H.i,
         cls = hit ? 'hl' : H ? 'dim' : off && ab ? 'off' : partOn(sc, p, def) ? '' : 'dim';
       if (p.list === 'conditions' || p.list === 'materials') out.push({ box: p.list, def, cls, text: p.text });
-      else out.push({ text: p.text, cls });
+      else out.push({ text: p.text, cls, written: !!p.written });
     }
     return out;
   };
@@ -280,6 +286,12 @@ function boxInto(p, x, c) {
     });
   p.appendChild(b);
 }
+// Patch10: the written / generated switch (or the description database arriving) shows the open card again
+CardText.onChange(() => {
+  if (typeof inspect === 'undefined' || inspect.hidden || !ui.inspLast || !ui.inspLast.c) return;
+  inspect.dataset.key = '';
+  showCard(ui.inspLast.c, false);
+});
 function partsInto(p, parts, c) {
   p.textContent = '';
   parts.forEach((x, i) => {
@@ -288,6 +300,7 @@ function partsInto(p, parts, c) {
     s.className = 'seg' + (x.cls ? ' ' + x.cls : '');
     s.textContent = x.text;
     s.title = { off: 'Disabled (crossed out)', dim: 'Not usable right now (greyed out)' }[x.cls] || '';
+    if (x.written) s.classList.add('written'); // the original description (Text: Written)
     p.appendChild(s);
     if (i < parts.length - 1) p.appendChild(document.createTextNode(' '));
   });
@@ -370,7 +383,7 @@ function showCard(c, pin = true, hl = null) {
   if (inspect.hidden || inspect.dataset.key !== key) {
     inspect.dataset.key = key;
     inspect.innerHTML =
-      phead() +
+      phead(true) +
       '<div class="art"></div><div class="pbody"><h3></h3><div class="meta"></div><div class="stats"></div><p></p><div class="where"></div><div class="dmg"></div></div>';
     inspect.style.setProperty('--tc', cardColor(d));
     const im = new Image();
@@ -592,7 +605,10 @@ document.addEventListener('click', e => {
   const tg = e.target.closest && e.target.closest('[data-toggle]');
   if (tg) {
     if (tg.dataset.toggle === 'mode') ui.inspLog = !ui.inspLog;
-    else ui.showRemoved = !ui.showRemoved;
+    else if (tg.dataset.toggle === 'text') {
+      CardText.setMode(CardText.mode === 'written' ? 'generated' : 'written'); // Patch10: display only, the card data never changes
+      Settings.set('cardText', CardText.mode);
+    } else ui.showRemoved = !ui.showRemoved;
     inspect.dataset.key = '';
     if (ui.inspLast && ui.inspLast.c) showCard(ui.inspLast.c, false);
     else if (ui.inspLast && ui.inspLast.p) showPlayer(ui.inspLast.p, false);

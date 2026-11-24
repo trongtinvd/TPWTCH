@@ -1,0 +1,34 @@
+{
+  "_doc": "TEMPLATE (Patch11): a character for the 3D side view whose clips are INSIDE its model (no file per animation: `clip` names the clip). Copy the \"characters\" entry into config/characters.json, and the \"cards\" line too, with your card id instead of <card id>. Docs/animationGuide.md, step 2.",
+  "cards": { "<card id>": "sample-card" },
+  "characters": {
+    "sample-card": {
+      "model": {
+        "path": "assets/templates/sample-card/sample-card.glb",
+        "scale": 1,
+        "offset": [0, 0, 0],
+        "rotationDeg": [0, 0, 0],
+        "heightOffset": 0
+      },
+      "defaults": { "speed": 1, "interpolation": { "method": "crossfade", "duration": 0.25 } },
+      "animations": {
+        "enter": [{ "id": "sc_enter", "clip": "Select" }],
+        "idle": [{ "id": "sc_idle", "clip": "Idle" }],
+        "attack": [
+          {
+            "id": "sc_attack",
+            "clip": "Attack",
+            "camera": [
+              { "id": "sc_cam_orbit", "file": "assets/templates/sample-card/camera_orbit.glb", "space": "character" },
+              { "id": "sc_cam_push", "file": "assets/templates/sample-card/camera_push.json", "space": "character" }
+            ],
+            "cameraChance": 1
+          }
+        ],
+        "get_hit": [],
+        "die": []
+      },
+      "transitions": [{ "from": "sc_attack", "to": "sc_idle", "interpolation": { "method": "ease", "duration": 0.4 } }]
+    }
+  }
+}

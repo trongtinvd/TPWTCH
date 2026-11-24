@@ -5,16 +5,18 @@ const VW = () => renderer.domElement.clientWidth || innerWidth,
   VH = () => renderer.domElement.clientHeight || innerHeight,
   VX = () => renderer.domElement.getBoundingClientRect().left,
   VY = () => renderer.domElement.getBoundingClientRect().top; // the canvas may be a sub-rectangle of the window (portrait)
-const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 200);
-camera.position.set(3, 29, 22);
+// Patch10: the camera numbers come from config/camera.json (CameraCfg, js/core/camera-config.js); the defaults are the same values
+const camCfg0 = CameraCfg.get().classic;
+const camera = new THREE.PerspectiveCamera(camCfg0.fov, innerWidth / innerHeight, camCfg0.near, camCfg0.far);
+camera.position.fromArray(camCfg0.position);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight, false); // CSS sizes the canvas
 document.body.appendChild(renderer.domElement);
 
 const controls = new THREE.OrbitControls(camera, renderer.domElement);
-controls.target.set(0, 0, 0);
-controls.maxPolarAngle = Math.PI / 2 - 0.05;
+controls.target.fromArray(camCfg0.target);
+controls.maxPolarAngle = (camCfg0.maxPolarDeg * Math.PI) / 180;
 controls.update();
 
 scene.add(new THREE.AmbientLight(0xffffff, cssNum('--light-ambient', 0.75)));

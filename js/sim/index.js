@@ -122,6 +122,10 @@ Sim.boot(K => {
     observeEvents,
     historyBytes,
     hasKw: K.hasKw, // Patch5: keyworded abilities
+    choicePicks: K.choicePicks, // Patch10: the legal selections of the pending choice (validation and highlighting)
+    stopOn: K.stopOn, // Patch10: is a stop on (defaults included)
+    slotSeen: K.slotSeen, // Patch10: may a player know what stands on a zone
+    strikesBack: K.strikesBack, // Patch10: the "Defender strike back" option
     HPKINDS: K.HPKINDS, // Patch4
     hpRefs: K.hpRefs,
     hpResolve: K.hpResolve,

@@ -28,7 +28,9 @@ Sim.def('state', function (K) {
   const normStops = x => {
     if (!x) return null;
     const one = e =>
-      e && ('opp' in e || 'own' in e) ? { opp: e.opp || {}, own: e.own || {} } : { opp: e || {}, own: {} };
+      e && ('opp' in e || 'own' in e)
+        ? { opp: Object.assign({}, e.opp), own: Object.assign({}, e.own) }
+        : { opp: Object.assign({}, e), own: {} }; // Patch10: copies (a flat list used to be ONE object shared by both players)
     return x.Player || x.Opponent
       ? { Player: one(x.Player), Opponent: one(x.Opponent) }
       : { Player: one(x), Opponent: one(x) };
@@ -38,6 +40,7 @@ Sim.def('state', function (K) {
   const gameCfg = o => {
     const c = Object.assign({}, GAME_DEFAULTS);
     for (const k in GAME_DEFAULTS) if (o && o[k] != null && isFinite(o[k])) c[k] = Math.max(0, Math.floor(+o[k])); // Patch7: starting life may be 0 (life -1 or less loses)
+    if (o && o.strikeBack === true) c.strikeBack = true; // Patch10: the "Defender strike back" option (absent = off, the default rules)
     return c;
   };
   function create(n, defs, opts = {}) {
@@ -47,7 +50,7 @@ Sim.def('state', function (K) {
     const cfg = gameCfg(opts.rules);
     const s = {
       n,
-      cfg, // {startHand, drawPhase, drawAction, life}: cards in the opening hand, drawn in the draw phase, drawn by the Draw action; starting life
+      cfg, // {startHand, drawPhase, drawAction, life, strikeBack?}: cards in the opening hand, drawn in the draw phase, drawn by the Draw action; starting life
       names: { Player: 'Player 1', Opponent: 'Player 2', ...(opts.names || {}) }, // shown names (logs, panels)
       step: 'start', // the turn order: start -> draw -> main -> combat (optional) -> main or end
       drawPending: false, // the draw phase happens once nothing is pending after the turn start
@@ -196,6 +199,12 @@ Sim.def('state', function (K) {
     if (c.loc === 'hand' || c.loc === 'extra') return c.owner === p || isRevealed(c, p);
     if (c.loc === 'deck') return isRevealed(c, p);
     return false;
+  };
+  // Patch10: may player p know what stands on zone `key` (and so where a card they cannot see stands)? Not under a cloud whose King Eye
+  // another player controls. Logs and observed events ask this for a position, like canSee for a card.
+  const slotSeen = (s, p, key) => {
+    const m = key && cloudMap(s)[key];
+    return !m || !s.cards[m] || ctl(s.cards[m]) === p;
   };
   const AURAREQ = (s, c, st) => {
     const a = s.cards[st.src],
@@ -363,6 +372,7 @@ Sim.def('state', function (K) {
       GAME_DEFAULTS,
       buildDeck,
       canSee,
+      slotSeen,
       cloudMap,
       create,
       createGame,

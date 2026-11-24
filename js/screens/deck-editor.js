@@ -120,7 +120,9 @@ const DeckEditor = (function () {
       .split(' \u00b7 ')
       .map(x => '<span class="stat">' + x + '</span>')
       .join('');
-    insp.querySelector('p').textContent = d.text;
+    insp.querySelector('p').textContent = textParts(d)
+      .map(x => x.text)
+      .join(' '); // Patch10: generated or written (CardText.mode), never d.text edited
     insp.querySelector('.where').textContent =
       k >= 0
         ? 'In the deck: position ' + (k + 1) + ' of ' + S.cards.length + (k === 0 ? ' (top)' : '')

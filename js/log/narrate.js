@@ -38,10 +38,10 @@ const Narrate = (function () {
       const m = /^(\w+)\|(\w+)\|(\d)$/.exec(k);
       return m ? P(m[1]) + ' ' + m[2] + ' ' + (+m[3] + 1) : String(k);
     },
-    where = w => {
+    where = (w, at) => {
       if (!w) return 'nowhere';
       const m = /^board (.+)$/.exec(w);
-      if (m) return 'board (' + zoneTxt(m[1]) + ')';
+      if (m) return 'board (' + (at ? at(m[1]) : zoneTxt(m[1])) + ')';
       return { gy: 'GY', extra: 'extra deck' }[w] || w;
     };
   function story(pre, post, cmd, ev, V) {
@@ -76,6 +76,14 @@ const Narrate = (function () {
         const m = masked(id);
         return m ? mark(card(id).owner, '', m) : C(id);
       },
+      // Patch10: what IDENTIFIES a hidden card goes with it, not only its name: where it stands (a zone under an enemy cloud), the name
+      // and text of its abilities. pos(id, key, st) = the zone of card id in state st, as V may know it; abOf(id, a) = the ability name /
+      // text only when V may see the card it comes from (Sim.canSee / Sim.slotSeen are the rules; observe.js follows the same ones).
+      pos = (id, key, st) => {
+        const c = st.cards[id];
+        return (c && Sim.canSee(st, V, c)) || Sim.slotSeen(st, V, key) ? zoneTxt(key) : 'a covered zone';
+      },
+      abOf = (id, txt) => (txt && !masked(id) ? txt : ''),
       zoneWho = (key, st) => {
         st = st || pre;
         const z = zoneTxt(key);
@@ -116,7 +124,7 @@ const Narrate = (function () {
         const c = pre.cards[cmd.iid],
           perm = c && Sim.isPerm(c);
         let t = P(own) + ' plays ' + C(cmd.iid);
-        if (perm && cmd.slot) t += ' to ' + zoneTxt(cmd.slot);
+        if (perm && cmd.slot) t += ' to ' + pos(cmd.iid, cmd.slot, post);
         if (!perm && cmd.tplayer) t += ', targeting ' + P(cmd.tplayer);
         else if (!perm && cmd.zone) t += ', targeting ' + zoneWho(cmd.zone, pre);
         else if (!perm && cmd.tsid != null) {
@@ -137,7 +145,8 @@ const Narrate = (function () {
       case 'Activate': {
         const c = pre.cards[cmd.iid],
           a = c && Sim.abDef(c).abilities && Sim.abDef(c).abilities[cmd.ab];
-        line(P(own) + ' activates ' + C(cmd.iid) + (a ? ': ' + a.name : '') + apTxt);
+        const an = abOf(cmd.iid, a && a.name);
+        line(P(own) + ' activates ' + CS(cmd.iid) + (an ? ': ' + an : '') + apTxt);
         skipSpent = !!spent;
         break;
       }
@@ -192,9 +201,23 @@ const Narrate = (function () {
         else if (k.kind === 'libplay') line(who + ' chooses to ' + d);
         else if (!k.kind && cmd.option === 'stay') line(who + ' keeps ' + C(k.iid) + ' where it is');
         else if (!k.kind)
-          line(who + ' shifts ' + C(k.iid) + ' from ' + zoneTxt(pre.cards[k.iid].slot) + ' to ' + zoneTxt(cmd.option));
+          line(
+            who +
+              ' shifts ' +
+              C(k.iid) +
+              ' from ' +
+              pos(k.iid, pre.cards[k.iid].slot, pre) +
+              ' to ' +
+              pos(k.iid, cmd.option, post)
+          );
         else if (k.kind === 'place')
-          line(who + ' puts ' + (k.token ? 'a token' : C(k.card)) + ' on ' + zoneTxt(cmd.option));
+          line(
+            who +
+              ' puts ' +
+              (k.token ? 'a token' : C(k.card)) +
+              ' on ' +
+              (k.token ? zoneTxt(cmd.option) : pos(k.card, cmd.option, post))
+          );
         else line(who + ' chooses ' + d);
         break;
       }
@@ -250,19 +273,12 @@ const Narrate = (function () {
           else {
             const src = post.cards[o.src],
               a = src && (Sim.abDef(src)[o.list] || [])[o.ab]; // Patch6: the source may have lost that ability list since (Avatar)
+            const at = abOf(o.src, a && a.text),
+              an = abOf(o.src, a && a.name);
             if (o.list === 'triggers')
-              line(CS(o.src) + ' triggers' + (a && a.text ? ': ' + a.text : '') + tg + ' (stack HP ' + o.hp + ')');
+              line(CS(o.src) + ' triggers' + (at ? ': ' + at : '') + tg + ' (stack HP ' + o.hp + ')');
             else
-              line(
-                CS(o.src) +
-                  ' ability' +
-                  (a && a.name ? ' ' + a.name : '') +
-                  ' is put on the stack' +
-                  tg +
-                  ' (stack HP ' +
-                  o.hp +
-                  ')'
-              );
+              line(CS(o.src) + (an ? ' ability ' + an : '') + ' is put on the stack' + tg + ' (stack HP ' + o.hp + ')');
           }
           break;
         }
@@ -295,6 +311,9 @@ const Narrate = (function () {
         case 'CombatSkipped':
           line(P(e.player) + '\u2019s combat is skipped (End turn instead)');
           break;
+        case 'StrikeBack':
+          line(C(e.source) + ' strikes back at ' + C(e.target) + ' (defender strike back)');
+          break;
         case 'DamageDealt':
           line(C(e.source) + ' deals ' + e.amount + ' ' + e.type + ' damage to ' + C(e.target));
           break;
@@ -321,7 +340,7 @@ const Narrate = (function () {
           break;
         case 'PermanentMoved': {
           const was = pre.cards[e.iid] && pre.cards[e.iid].slot;
-          line(C(e.iid) + ' shifts' + (was ? ' from ' + zoneTxt(was) : '') + ' to ' + zoneTxt(e.slot));
+          line(C(e.iid) + ' shifts' + (was ? ' from ' + pos(e.iid, was, pre) : '') + ' to ' + pos(e.iid, e.slot, post));
           break;
         }
         case 'CardRevealed':
@@ -372,7 +391,18 @@ const Narrate = (function () {
         if (l.n <= n0) continue;
         if (l.kind === 'zone') {
           if (l.how !== 'shifted')
-            later.push({ n: l.n, t: C(c.iid) + ': ' + where(l.from) + ' \u2192 ' + where(l.to) + ' (' + l.how + ')' });
+            later.push({
+              n: l.n,
+              t:
+                C(c.iid) +
+                ': ' +
+                where(l.from, k => pos(c.iid, k, pre)) +
+                ' \u2192 ' +
+                where(l.to, k => pos(c.iid, k, post)) +
+                ' (' +
+                l.how +
+                ')',
+            });
         } else if ((l.kind === 'status+' || l.kind === 'status-') && !HIDE.includes(l.sk) && seen(c.iid)) {
           if (l.kind === 'status-' && /^left the|^linked status/.test(l.why)) continue; // clean-up noise
           later.push({

@@ -12,31 +12,24 @@ const EXTRA_COLOR = themed('--type-extra', '#a63fd0'); // extra deck creatures a
 const cardColor = def =>
   def.extra ? EXTRA_COLOR : def.type === 'spell' && def.timing === 'Slow' ? SLOW_COLOR : TYPES[def.type].color;
 // ---- Card shapes: defaults for type / timing / speed, so a card states only what is special about it.
-// A spell may give `say` instead of `overrideText`: the override becomes "<Timing>. <say> (Stack HP n)" (the "(Stack HP n)" part is left out at 0 HP).
-const spellDef = (timing, id, name, hp, rest = {}) => {
-  const { say, ...def } = rest;
-  return Object.assign(
-    { id, name, type: 'spell', timing, hp },
-    say == null ? {} : { overrideText: timing + '. ' + say + (hp ? ' (Stack HP ' + hp + ')' : '') },
-    def
-  );
-};
-// ---- Card text is DERIVED from the card's abilities: translate(abilities[]) turns the ability DATA (the JavaScript) into English.
-// Every trigger, activated ability, passive (keywords are passives), rider and spell may carry `overrideText`: a human rewrite used
-// instead of the machine text when `useOverrideText` is true (for abilities whose machine text is too clumsy). The machine text is
-// always available as translateOne(o); o.text is filled with whichever is shown. textParts(def) lists the parts in display order;
-// def.text is those parts joined. The inspector greys / crosses out / highlights single parts.
-const ovr = (overrideText, o, useOverrideText = false) => Object.assign(o, { overrideText, useOverrideText });
+const spellDef = (timing, id, name, hp, rest = {}) => Object.assign({ id, name, type: 'spell', timing, hp }, rest);
+// ---- Card text (Patch10). The text shown by default is GENERATED from the card's data: translate(abilities[]) turns the ability DATA
+// (the JavaScript) into English, every stack ability with its Stack HP. The human-written descriptions live in ONE place,
+// js/content/cardDescription.json (CardText), keyed by card id and part key; the inspector can switch to them (CardText.setMode).
+// Switching never edits a card: def.text and o.text always hold the generated text, textParts(def, mode) picks per call.
 // Keyworded abilities are ordinary abilities with a short name, so they can be reused and referenced (and disabled, like any other ability).
+// Flash is a passive (it changes how the card is played); Retaliate is a TRIGGER abbreviated by its keyword (Fx.retaliate): it goes on
+// the stack and resolves like every other trigger.
 const KEYWORDS = {
   flash: { name: 'Flash', zone: 'hand', reminder: 'play it as a Quick spell; it does not spend an action point' },
   retaliate: {
     name: 'Retaliate',
     zone: 'board',
     reminder:
-      'whenever this takes damage it deals damage equal to its power to the source: the damaging creature, or the controller of the spell',
+      'whenever this takes combat or effect damage, it deals damage equal to its power to the source: the damaging creature, or the controller of the spell',
   },
 };
+const stackHp = a => (a.hp == null ? 1 : a.hp); // a trigger / activated ability without an explicit HP has Stack HP 1 (Cards.add writes it into the data)
 const Translate = (function () {
   const cap = t => (t ? t[0].toUpperCase() + t.slice(1) : t),
     num = (n, one, many) => (n === 1 ? one : n + ' ' + (many || one + 's')),
@@ -140,7 +133,15 @@ const Translate = (function () {
     GiveZoneHp: e => 'that zone gets ' + e.n + ' zone HP',
     DamageZone: e => 'deal ' + e.n + ' damage to that zone',
     ReturnToHand: () => 'return this card to your hand',
-    ChooseMode: e => 'choose one: ' + e.modes.map(m => m.name).join(', or '),
+    ChooseMode: (e, c) => {
+      // each mode by its effects; modes unlocked by the number of creatures the opponent controls say so (Fx.mode min / max)
+      const ranged = e.modes.some(m => m.min > 0 || m.max < 99),
+        range = m => (m.max >= 99 ? m.min + '+' : m.min === m.max ? String(m.min) : m.min + '-' + m.max),
+        L = e.modes.map(m => (ranged ? range(m) + ': ' : '') + (effectsText(m.effects, c) || 'nothing happens'));
+      return ranged
+        ? 'choose one effect unlocked by the number of creatures your opponent controls (' + L.join('; ') + ')'
+        : 'choose one: ' + L.join('; or ');
+    },
     PickCard: (e, c) => {
       const t = PICK_THEN[e.then];
       return (PICK_FROM[e.from] || 'choose a card') + ' and ' + (typeof t === 'function' ? t(e) : t || e.then); // chosen as it resolves: not a target (no ';')
@@ -208,7 +209,8 @@ const Translate = (function () {
       ' deck and put them back on top in any order',
     DeclareName: () =>
       'declare a card name, then look at the top card of your opponent’s deck; if it has that name you may play it, and repeat this effect',
-    Obscure: () => 'a black cloud covers each of your other zones',
+    Obscure: () =>
+      'a black cloud covers each of your other zones: your opponent cannot see those zones or the cards on them, and abilities from under a cloud appear to come from this card',
     InheritAbilities: (e, c) =>
       'that creature loses all its original abilities and gains the abilities of ' + c.def.name,
     Keyword: e => {
@@ -240,8 +242,10 @@ const Translate = (function () {
         return 'At the beginning of your combat step';
       case 'combatEnd':
         return t.cond === 'firstCombat' ? 'After your first combat phase ends' : 'After your combat phase ends';
-      case 'damaged':
-        return 'Whenever this card takes combat damage';
+      case 'damaged': {
+        const ty = t.types || ['combat'];
+        return 'Whenever this card takes ' + (ty.length === 1 ? ty[0] + ' damage' : ty.join(' or ') + ' damage');
+      }
       case 'turnStart':
         return 'At the start of your turn';
       case 'attack':
@@ -263,6 +267,8 @@ const Translate = (function () {
   function translateOne(o, kind, def) {
     const c = { def };
     if (kind === 'triggers') {
+      if (o.kw && KEYWORDS[o.kw])
+        return KEYWORDS[o.kw].name + ' (' + KEYWORDS[o.kw].reminder + ').' + hpNote(stackHp(o)); // a keyworded trigger: its keyword and reminder
       const head = WHEN(o, c) + (IF[o.cond] ? IF[o.cond](o) : '');
       return (
         head +
@@ -270,7 +276,7 @@ const Translate = (function () {
         (o.targeting ? TARGETING[o.targeting] + '; ' : '') +
         effectsText(o.effects, c) +
         '.' +
-        hpNote(o.hp)
+        hpNote(stackHp(o))
       );
     }
     if (kind === 'abilities') {
@@ -281,7 +287,7 @@ const Translate = (function () {
         .map(e => clause(e, c))
         .concat(o.targeting ? [TARGETING[o.targeting]] : [])
         .join(' and ');
-      return head + ' ' + body(conds(o.req), cost, effectsText(o.effects, c)) + hpNote(o.hp);
+      return head + ' ' + body(conds(o.req), cost, effectsText(o.effects, c)) + hpNote(stackHp(o));
     }
     if (kind === 'passives') return o.op === 'Keyword' ? clause(o, c) + '.' : 'Passive: ' + clause(o, c) + '.';
     if (kind === 'rider') return 'Damage dealt by this card: ' + clause(o, c) + '.';
@@ -303,11 +309,11 @@ const Translate = (function () {
       c.tgt = d.colTarget ? 'it' : tg ? 'it' : null;
       let eff = effectsText(d.effects, c);
       if (d.colTarget) eff = eff.replace('exile every card on that column', 'exile every card on it');
-      return d.timing + '. ' + body(conds(d.req), tg, eff) + (d.hp ? hpNote(d.hp) : '');
+      return d.timing + '. ' + body(conds(d.req), tg, eff) + hpNote(d.hp || 0);
     }
     return '';
   }
-  const shown = (o, kind, def) => (o.useOverrideText && o.overrideText ? o.overrideText : translateOne(o, kind, def));
+  const shown = (o, kind, def) => translateOne(o, kind, def); // Patch10: always the generated text (the written one: CardText)
   // the card's ability lists, in display order, as {list, i, o}
   const abilityList = def => [
     ...(def.passives || []).map((o, i) => ({ list: 'passives', i, o })),
@@ -323,7 +329,60 @@ const Translate = (function () {
   return { translate, translateOne, shown, abilityList };
 })();
 const translate = Translate.translate;
-function textParts(def) {
+// ---- CardText (Patch10): the written descriptions, one database (js/content/cardDescription.json), keyed by card id then part key
+// (the keys of textParts: 'body' = a spell's own effect, 'passives:0', 'triggers:1', 'rider', 'abilities:0'). A card's identity is its
+// id; the stored name is only a check (CardText.problems reports ids, names or part keys the card data does not have).
+// mode 'generated' (default) | 'written'. A part without a written text shows its generated text in both modes.
+const CardText = (function () {
+  let db = null,
+    mode = 'generated';
+  const listeners = [];
+  return {
+    URL: 'js/content/cardDescription.json',
+    load(json) {
+      db = json && json.cards ? json : { cards: {} };
+      listeners.forEach(f => f());
+      return db;
+    },
+    loaded: () => !!db,
+    get mode() {
+      return mode;
+    },
+    setMode(m) {
+      mode = m === 'written' ? 'written' : 'generated';
+      listeners.forEach(f => f());
+    },
+    onChange: f => listeners.push(f),
+    written: (def, key) => {
+      const e = db && db.cards[def.id];
+      return e && e.text && typeof e.text[key] === 'string' ? e.text[key] : null;
+    },
+    entry: id => (db && db.cards[id]) || null,
+    // every database entry must name a real card (or token), by its id, with the same name, and only part keys that card has
+    problems(defs) {
+      const out = [],
+        all = new Map();
+      const add = d => {
+        all.set(d.id, d);
+        Object.values(d.tokens || {}).forEach(add);
+      };
+      defs.forEach(add);
+      for (const [id, e] of Object.entries((db && db.cards) || {})) {
+        const d = all.get(id);
+        if (!d) {
+          out.push(id + ': no card with this id');
+          continue;
+        }
+        if (e.name !== d.name) out.push(id + ': name "' + e.name + '" is not the card name "' + d.name + '"');
+        const keys = new Set(textParts(d, 'generated').map(p => p.key));
+        for (const k of Object.keys(e.text || {})) if (!keys.has(k)) out.push(id + ': the card has no part ' + k);
+      }
+      return out;
+    },
+  };
+})();
+// the card text as parts (one per trigger / ability / passive / rider). mode: CardText.mode unless given; the card is never changed
+function textParts(def, mode) {
   const P = [],
     add = (list, i, o) => o && o.text && P.push({ key: list + ':' + i, list, i, text: o.text });
   if (def.body) P.push({ key: 'body', list: 'body', i: 0, text: def.body });
@@ -347,7 +406,12 @@ function textParts(def) {
   (def.triggers || []).forEach((o, i) => add('triggers', i, o));
   if (def.rider && def.rider.text) P.push({ key: 'rider', list: 'rider', i: 0, text: def.rider.text });
   (def.abilities || []).forEach((o, i) => add('abilities', i, o));
-  if (!P.length && def.text) P.push({ key: 'body', list: 'body', i: 0, text: def.text }); // fixtures and tokens: plain text only
+  if (!P.length && def.text) P.push({ key: 'body', list: 'body', i: 0, text: def.text }); // fixtures: plain text only
+  if ((mode || CardText.mode) === 'written')
+    return P.map(p => {
+      const w = CardText.written(def, p.key);
+      return w == null ? p : Object.assign({}, p, { text: w, written: true });
+    });
   return P;
 }
 // =====================================================================
@@ -390,7 +454,7 @@ const Fx = {
     enter: (...effects) => ({ on: 'enter', effects }), // when this card enters the field
     combat: (...effects) => ({ on: 'combat', effects }), // beginning of its controller's combat step
     combatEnd: (...effects) => ({ on: 'combatEnd', effects }), // after its controller's FIRST combat phase of the turn ends (use cond:'firstCombat')
-    damaged: (...effects) => ({ on: 'damaged', effects }), // this card takes combat damage
+    damaged: (...effects) => ({ on: 'damaged', effects }), // this card takes combat damage (types: ['combat', 'effect'] widens it)
     turnStart: (...effects) => ({ on: 'turnStart', effects }), // start of its controller's turn
     attack: (by, ...effects) => ({ on: 'attack', by, effects }), // by: 'self' and/or 'foe' (creature controlled by this card's opponent)
     foeEnter: (...effects) => ({ on: 'enter', by: ['foe'], effects }), // when a card the opponent controls enters (add cond:'foeAdjacent' to ask for a neighbour)
@@ -410,7 +474,16 @@ const Fx = {
   targeting: { adjacentPair: 'adjacentPair', nonPlayerHp: 'nonPlayerHp' }, // trigger field: what it targets when it is put on the stack (the cost / targeting part: condition : cost / targeting ; effect)
   zoneTarget: { anyPermanent: 'anyPermanent', anyCreature: 'anyCreature' }, // spell target: a zone with a card (or a cloud) on it, chosen when the spell is played
   playerTarget: true, // spell flag: a player can be targeted (click a life bar)
-  keyword: kw => ({ op: 'Keyword', kw }), // passive: a keyworded ability (KEYWORDS: flash | retaliate); an ordinary ability, so it can be disabled
+  keyword: kw => ({ op: 'Keyword', kw }), // passive: a keyworded passive (KEYWORDS: flash); an ordinary ability, so it can be disabled
+  // Patch10: Retaliate is a TRIGGER abbreviated by its keyword: whenever this card takes combat or effect damage it goes on the stack;
+  // it resolves like any trigger (op Retaliate: damage equal to this card's power to the source). Retaliate damage never retaliates.
+  retaliate: () => ({
+    on: 'damaged',
+    kw: 'retaliate',
+    name: 'Retaliate',
+    types: ['combat', 'effect'],
+    effects: [{ op: 'Retaliate' }],
+  }),
   rider: { inheritAbilities: () => ({ op: 'InheritAbilities' }) }, // damage this card deals: the victim loses its abilities and gains this card's.
   colTarget: { full: 'fullColumn' }, // spell target: a column (chosen when the spell is played)
   obscure: () => ({ op: 'Obscure' }), // passive: a black cloud covers each of the controller's other zones
@@ -474,13 +547,19 @@ const Cards = {
   list: [],
   add(factory) {
     const d = factory(Fx);
-    // every ability shows its machine text (translate) unless useOverrideText asks for the human rewrite
+    this.derive(d);
+    Object.values(d.tokens || {}).forEach(t => this.derive(t)); // tokens get their generated text too
+    this.list.push(d);
+  },
+  derive(d) {
+    // Patch10: every stack ability states its HP in the data (the default 1 is written in, so the text and the Sim read the same number)
+    for (const k of ['triggers', 'abilities']) (d[k] || []).forEach(o => (o.hp = stackHp(o)));
+    // every ability shows its generated text; the written descriptions are in CardText
     Translate.abilityList(d).forEach(x => (x.o.text = Translate.shown(x.o, x.list, d)));
     if (d.type === 'spell') d.body = Translate.shown(d, 'spell', d); // the spell's own effect is an ability of the card too
-    d.text = textParts(d)
+    d.text = textParts(d, 'generated')
       .map(x => x.text)
       .join(' '); // the card text is DERIVED from its abilities
-    this.list.push(d);
   },
 };
 const FIXTURES = []; // ability-less cards kept ONLY for headless tests; not part of the game's card pool
@@ -513,7 +592,6 @@ Cards.add(Fx =>
   Fx.enchantment('ward', 'Ward', 4, {
     abilities: [
       Fx.fastAbility('Restore', {
-        overrideText: 'Fast. You have lost life: sacrifice this card, then gain 3 life. (Stack HP 2)',
         req: [Fx.req.hurt],
         hp: 2,
         effects: [Fx.gainLife(3), Fx.sacrificeSelf()],
@@ -521,10 +599,9 @@ Cards.add(Fx =>
     ],
   })
 );
-Cards.add(Fx => Fx.quick('heal', 'Heal', 3, { overrideText: 'Quick. Gain 3 life.', effects: [Fx.gainLife(3)] }));
+Cards.add(Fx => Fx.quick('heal', 'Heal', 3, { effects: [Fx.gainLife(3)] }));
 Cards.add(Fx =>
   Fx.quick('zap', 'Zap', 0, {
-    overrideText: 'Quick, 0 HP (still resolves). Deal 1 damage to the opponent.',
     effects: [Fx.dealDamage('player', 1)],
   })
 );
@@ -532,7 +609,6 @@ Cards.add(Fx =>
   Fx.creature('archer', 'Archer', 3, 2, {
     abilities: [
       Fx.slowAbility('Volley', {
-        overrideText: 'Slow. Front row: pay 1 life; deal 2 damage to the opponent. (Stack HP 1)',
         req: [Fx.req.front],
         cost: [Fx.payLife(1)],
         hp: 1,
@@ -545,7 +621,6 @@ Cards.add(Fx =>
   Fx.creature('scout', 'Scout', 1, 1, {
     abilities: [
       Fx.fastAbility('Ambush', {
-        overrideText: 'Fast. A creature faces this: sacrifice this card; deal 3 damage to that creature. (Stack HP 0)',
         req: [Fx.req.target],
         cost: [Fx.sacrificeSelf()],
         target: Fx.target.opposingFront,
@@ -559,7 +634,6 @@ Cards.add(Fx =>
   Fx.enchantment('charm', 'Charm', 5, {
     abilities: [
       Fx.slowAbility('Recall', {
-        overrideText: 'Slow. Exile your oldest GY card; draw 1. (Stack HP 1)',
         cost: [Fx.exileFromGY(1)],
         hp: 1,
         effects: [Fx.draw(1)],
@@ -570,29 +644,20 @@ Cards.add(Fx =>
 Cards.add(Fx =>
   Fx.quick('infinitywall', 'Infinity Wall', 6, {
     colTarget: Fx.colTarget.full,
-    say: 'Target a fully filled column: exile every card on it. That column becomes unusable for the rest of the game. Return this card to your hand.',
     effects: [Fx.exileColumn(), Fx.makeColumnUnusable(), Fx.returnToHand()],
   })
 );
 Cards.add(Fx =>
   Fx.quick('bolt', 'Bolt', 2, {
     req: [Fx.req.stack],
-    overrideText: 'Quick. Deal 3 damage to the stack object beneath it (countered at HP -1 or lower).',
     effects: [Fx.damageStack(3)],
   })
 );
 Cards.add(Fx =>
   Fx.creature('hummingbird', 'Red Hummingbird', 2, 1, {
-    triggers: [
-      ovr('When this enters: draw a card.', Fx.trigger.enter(Fx.draw(1))),
-      ovr(
-        'When this card or an opponent\u2019s creature attacks: you may shift this card to an adjacent empty column.',
-        Fx.trigger.attack(['self', 'foe'], Fx.shiftAdjacent())
-      ),
-    ],
+    triggers: [Fx.trigger.enter(Fx.draw(1)), Fx.trigger.attack(['self', 'foe'], Fx.shiftAdjacent())],
     abilities: [
       Fx.fastAbility('Feather Balm', {
-        overrideText: 'Fast, from your GY: exile this card; gain 3 life. (Stack HP 1)',
         zone: 'gy',
         req: [Fx.req.hurt],
         cost: [Fx.exileSelf()],
@@ -604,50 +669,25 @@ Cards.add(Fx =>
 );
 Cards.add(Fx =>
   Fx.creature('kingeye', 'King Eye', 6, 10, {
-    passives: [
-      ovr(
-        'Passive. A black cloud covers each of your other zones: your opponent cannot see those zones or the cards on them. Abilities of cards under a cloud appear to come from King Eye. A cloud is a legal target for anything that targets a card or zone there; the effect passes to what is underneath, and with nothing legal underneath it fizzles (nothing is revealed).',
-        Fx.obscure(),
-        true
-      ),
-    ],
+    passives: [Fx.obscure()],
   })
 );
 Cards.add(Fx => {
   const spread = Fx.repeat(4, Fx.nearestZone(['self', 'vine-token']), Fx.destroyOnZone(), Fx.createToken('vine'));
   return Fx.creature('vine', 'The Vine', 1, 1, {
     tokens: { vine: Fx.creature('vine-token', 'Vine', 1, 1, { text: 'Token. Vanilla 1/1.' }) },
-    triggers: [
-      ovr(
-        'When this enters: 4 times, pick the closest zone (any row, back-row zones included) not occupied by this card or a Vine token, destroy the card there, and create a Vine token (1/1) on it, even in a zone a creature cannot normally enter.',
-        Fx.trigger.enter(spread)
-      ),
-      ovr('At the start of your turn: do the same.', Fx.trigger.turnStart(spread), true),
-    ],
+    triggers: [Fx.trigger.enter(spread), Fx.trigger.turnStart(spread)],
   });
 });
 Cards.add(Fx =>
   Fx.creature('avatar', 'Avatar of Rabies', 3, 7, {
-    triggers: [
-      ovr(
-        'Whenever a creature attacks: you may shift this card to an adjacent empty column.',
-        Fx.trigger.attack(['any'], Fx.shiftAdjacent())
-      ),
-      ovr(
-        'Whenever this card takes combat damage: deal 1 damage to another creature.',
-        Fx.trigger.damaged(Fx.damageAnother(1))
-      ),
-    ],
-    rider: ovr(
-      'Damage dealt by this card: that creature loses all its original abilities and gains the abilities of Avatar of Rabies.',
-      Fx.rider.inheritAbilities()
-    ),
+    triggers: [Fx.trigger.attack(['any'], Fx.shiftAdjacent()), Fx.trigger.damaged(Fx.damageAnother(1))],
+    rider: Fx.rider.inheritAbilities(),
   })
 );
 Cards.add(Fx =>
   Fx.quick('bandages', 'Throwing Bandages', 10, {
     zoneTarget: Fx.zoneTarget.anyPermanent,
-    say: 'Target a permanent: remove 7 damage counters from it (7 points, split across its damage instances as you choose).',
     effects: [Fx.removeDamage(7)],
   })
 );
@@ -655,76 +695,52 @@ Cards.add(Fx =>
   Fx.slow('superbolt', 'Superbolt', 3, {
     zoneTarget: Fx.zoneTarget.anyPermanent,
     playerTarget: Fx.playerTarget,
-    say: 'Deal 20 damage to any target (a permanent or a player).',
     effects: [Fx.dealDamage('target', 20)],
   })
 );
 Cards.add(Fx =>
   Fx.slow('grainfall', 'GrainFall', 2, {
     playerTarget: Fx.playerTarget,
-    say: 'Target player mills ten cards.',
     effects: [Fx.mill(10)],
   })
 );
 Cards.add(Fx =>
   Fx.creature('blackhawk', 'Black Hawk', 1, 0, {
-    triggers: [
-      ovr(
-        'At the beginning of your combat step: double this card\u2019s power 5 times.',
-        Fx.trigger.combat(Fx.repeat(5, Fx.doublePower()))
-      ),
-    ],
+    triggers: [Fx.trigger.combat(Fx.repeat(5, Fx.doublePower()))],
   })
 );
 Cards.add(Fx =>
   Fx.creature('boltmaster', 'Bolt Master', 2, 3, {
-    triggers: [
-      ovr('When this enters: add a Superbolt from your deck to your hand.', Fx.trigger.enter(Fx.fetch('superbolt'))),
-    ],
+    triggers: [Fx.trigger.enter(Fx.fetch('superbolt'))],
   })
 );
 Cards.add(Fx =>
   Fx.enchantment('heavensun', 'Heaven and Sun', 5, {
-    triggers: [
-      ovr(
-        'When this enters: choose 5 cards from your deck and exile them (stack HP 7).',
-        Object.assign(Fx.trigger.enter(Fx.vaultFromDeck(5)), { hp: 7 })
-      ),
-      ovr(
-        'At the start of your turn: your opponent picks one of those exiled cards; put it into your hand.',
-        Fx.trigger.turnStart(Fx.revealVault())
-      ),
-    ],
+    triggers: [Object.assign(Fx.trigger.enter(Fx.vaultFromDeck(5)), { hp: 7 }), Fx.trigger.turnStart(Fx.revealVault())],
   })
 );
 Cards.add(Fx =>
   Fx.creature('parasite', 'Creeping Parasite', 0, 0, {
     passives: [Fx.keyword('flash')],
     triggers: [
-      ovr(
-        'When this enters, choose one effect unlocked by the number of creatures your opponent controls. 0: look at their hand and send a card to the GY. 1+: 4 damage to any target. 2+: return a card they control to hand. 3+: put a creature from your hand, GY or exile into play. 4+: draw cards equal to their creature count. 5: destroy all cards on the board.',
-        Fx.trigger.enter(
-          Fx.modes(
-            Fx.mode('0: look at their hand, send a card to the GY', 0, 99, Fx.pickCard('foeHand', 'toGY')),
-            Fx.mode('1+: 4 damage to any target', 1, 99, Fx.pickCard('anyTarget', 'damage', 4)),
-            Fx.mode('2+: return a card they control to hand', 2, 99, Fx.pickCard('foeBoard', 'toHand')),
-            Fx.mode('3+: put a creature from hand, GY or exile into play', 3, 99, Fx.pickCard('myCreatures', 'summon')),
-            Fx.mode('4+: draw cards equal to their creature count', 4, 99, Fx.drawPerFoeCreature()),
-            Fx.mode('5: destroy all cards on the board', 5, 99, Fx.destroyAll())
-          )
-        ),
-        true
+      Fx.trigger.enter(
+        Fx.modes(
+          Fx.mode('0: look at their hand, send a card to the GY', 0, 99, Fx.pickCard('foeHand', 'toGY')),
+          Fx.mode('1+: 4 damage to any target', 1, 99, Fx.pickCard('anyTarget', 'damage', 4)),
+          Fx.mode('2+: return a card they control to hand', 2, 99, Fx.pickCard('foeBoard', 'toHand')),
+          Fx.mode('3+: put a creature from hand, GY or exile into play', 3, 99, Fx.pickCard('myCreatures', 'summon')),
+          Fx.mode('4+: draw cards equal to their creature count', 4, 99, Fx.drawPerFoeCreature()),
+          Fx.mode('5: destroy all cards on the board', 5, 99, Fx.destroyAll())
+        )
       ),
     ],
   })
 );
 Cards.add(Fx =>
   Fx.creature('shieldguard', 'Shieldguard', 5, 15, {
-    passives: [Fx.keyword('retaliate')],
+    triggers: [Fx.retaliate()], // Patch10: a keyworded TRIGGER (on the stack, answerable), not a passive
     abilities: [
       Fx.fastAbility('Swap In', {
-        overrideText:
-          'Fast, from your hand: after an opposing creature attacks, if you control a creature in that column, return that creature to your hand and put this card into its zone. (Stack HP 1)',
         zone: 'hand',
         req: ['attackedCol'],
         hp: 1,
@@ -735,9 +751,6 @@ Cards.add(Fx =>
 );
 Cards.add(Fx =>
   Fx.quick('spirit', 'Spirit of the Sand', 0, {
-    useOverrideText: true,
-    overrideText:
-      'Quick, 0 HP. Choose one: each card you control gets a red shield counter (cannot be targeted), or each gets a blue shield counter (unaffected by spells and abilities that do not target it; attacks still hit it). You cannot gain life for the rest of the game.',
     effects: [
       Fx.modes(
         Fx.mode('Red shield on each card you control', 0, 99, Fx.shieldAll('red')),
@@ -753,53 +766,32 @@ Cards.add(Fx =>
     tokens: {
       drummer: Fx.creature('drummer-token', 'Drummer', 3, 3, {
         passives: [Fx.aura('own', 1, 1)],
-        overrideText: 'Token. Cards you control in this column and the adjacent columns get +1/+1.',
       }),
     },
-    passives: [
-      Fx.keyword('flash'),
-      ovr(
-        'Passive: cards your opponent controls in this column and the adjacent columns get -1/-1.',
-        Fx.aura('foe', -1, -1)
-      ),
-    ],
+    passives: [Fx.keyword('flash'), Fx.aura('foe', -1, -1)],
     triggers: [
-      ovr(
-        'When this enters, if the additional cost was paid: put a creature from your GY into play; it attacks immediately.',
-        Object.assign(Fx.trigger.enter(Fx.pickCard('myGYCreatures', 'summonAttack')), { cond: 'extraPaid' })
-      ),
-      ovr(
-        'When this enters: create a Drummer token (3/3; cards you control in its column and the adjacent ones get +1/+1).',
-        Fx.trigger.enter(Fx.placeToken('drummer'))
-      ),
+      Object.assign(Fx.trigger.enter(Fx.pickCard('myGYCreatures', 'summonAttack')), { cond: 'extraPaid' }),
+      Fx.trigger.enter(Fx.placeToken('drummer')),
     ], // later in the array = higher on the stack = resolves first: the Drummer exists before the creature attacks
   })
 );
 Cards.add(Fx =>
   Fx.creature('shark', 'Deep Sea Shark', 6, 4, {
     triggers: [
-      ovr(
-        'When this enters: you may pay 3 life; skip your opponent next combat phase (pressing combat becomes End turn instead).',
-        Fx.trigger.enter(
+      Fx.trigger.enter(
+        Fx.modes(
+          Fx.mode('Pay 3 life: skip opponent next combat', 0, 99, Fx.skipFoeCombat(3)),
+          Fx.mode('Do nothing', 0, 99)
+        )
+      ),
+      Object.assign(
+        Fx.trigger.combatEnd(
           Fx.modes(
-            Fx.mode('Pay 3 life: skip opponent next combat', 0, 99, Fx.skipFoeCombat(3)),
+            Fx.mode('Opponent draws 5: second combat phase', 0, 99, Fx.secondCombat()),
             Fx.mode('Do nothing', 0, 99)
           )
         ),
-        true
-      ),
-      ovr(
-        'After your first combat phase ends: you may have your opponent draw 5 cards (cost; does nothing if they cannot); enter a second combat phase, where creatures can attack again.',
-        Object.assign(
-          Fx.trigger.combatEnd(
-            Fx.modes(
-              Fx.mode('Opponent draws 5: second combat phase', 0, 99, Fx.secondCombat()),
-              Fx.mode('Do nothing', 0, 99)
-            )
-          ),
-          { cond: 'firstCombat' }
-        ),
-        true
+        { cond: 'firstCombat' }
       ),
     ],
   })
@@ -809,13 +801,9 @@ Cards.add(Fx =>
     zoneTarget: Fx.zoneTarget.anyCreature,
     optionalTarget: true,
     stackTarget: true,
-    overrideText:
-      'Quick. Draw until you have 7 cards in hand. You may target a creature or a spell: damage to it is denied until the end of this turn. (Stack HP 4)',
     effects: [Fx.drawUntil(7), Fx.noDamage()],
     abilities: [
       Fx.fastAbility('Cancel Attack', {
-        overrideText:
-          'From your GY, Fast, when your opponent attacks: exile this card; cancel that attack. (Stack HP 1)',
         zone: 'gy',
         req: [Fx.req.foeAttacking],
         cost: [Fx.exileSelf()],
@@ -828,8 +816,6 @@ Cards.add(Fx =>
 );
 Cards.add(Fx =>
   Fx.slow('ambush', 'Ambush of the Night', 0, {
-    overrideText:
-      'Slow, 0 HP. In order: you draw 2; return up to 2 cards from your GY to your hand; put up to 2 creatures/enchantments from your hand into play. Then your opponent returns up to 2 cards from their GY to their hand, puts up to 2 creatures/enchantments from their GY into play, and draws 2.',
     effects: [
       Fx.draw(2),
       Fx.upTo('me', 'gy', 'toHand', 2),
@@ -843,13 +829,9 @@ Cards.add(Fx =>
 Cards.add(Fx =>
   Fx.quick('underworldfusion', 'Underworld Fusion', 10, {
     req: [Fx.req.fusionOK],
-    useOverrideText: true,
-    say: 'Reveal an extra deck creature whose conditions are met and exile its materials from your GY; summon that creature.',
     effects: [Fx.fusion({ from: ['gy'], pay: 'exile', summon: true, pick: 'conditions', cond: 'must' })],
     abilities: [
       Fx.fastAbility('Undo Fusion', {
-        overrideText:
-          'Fast, from your GY: exile this card; return an extra deck creature from your GY to the extra deck, and return the materials used to summon it from exile to your hand. (Stack HP 1)',
         zone: 'gy',
         req: [Fx.req.exInGY],
         cost: [Fx.exileSelf()],
@@ -862,14 +844,11 @@ Cards.add(Fx =>
 Cards.add(Fx =>
   Fx.quick('depthfusion', 'Depth Sea Fusion', 7, {
     req: [Fx.req.fusionOK],
-    useOverrideText: true,
-    say: 'Reveal an extra deck creature and send its materials from your field, hand or deck to the GY; summon it if its conditions are met (ignored if the materials come only from your hand and field).',
     effects: [
       Fx.fusion({ from: ['board', 'hand', 'deck'], pay: 'gy', summon: true, pick: 'fusable', cond: 'ignoreHB' }),
     ],
     abilities: [
       Fx.fastAbility('Recover', {
-        overrideText: 'Fast, from your deck or GY: spend an action point; add this card to your hand. (Stack HP 1)',
         zone: ['deck', 'gy'],
         cost: [Fx.spendAP()],
         hp: 1,
@@ -881,13 +860,9 @@ Cards.add(Fx =>
 Cards.add(Fx =>
   Fx.creature('cultivator', 'Biology Cultivator', 4, 9, {
     triggers: [
-      ovr(
-        'When this enters: reveal an extra deck creature; if its conditions are met, put its materials from your deck into your hand.',
-        Object.assign(
-          Fx.trigger.enter(Fx.fusion({ from: ['deck'], pay: 'hand', summon: false, pick: 'any', cond: 'must' })),
-          { hp: 1 }
-        ),
-        true
+      Object.assign(
+        Fx.trigger.enter(Fx.fusion({ from: ['deck'], pay: 'hand', summon: false, pick: 'any', cond: 'must' })),
+        { hp: 1 }
       ),
     ],
   })
@@ -899,18 +874,9 @@ Cards.add(Fx => {
     conditions: [Fx.exCond.lostLife()],
     materials: [Fx.mat('creature', 2, ['atk', 'hp'])],
     triggers: [
-      ovr(
-        'When this enters: target two adjacent cards your opponent controls; they send one of them to the GY.',
-        Object.assign(Fx.trigger.enter(strike), { hp: 1, targeting: Fx.targeting.adjacentPair })
-      ),
-      ovr(
-        'When this attacks: target two adjacent cards your opponent controls; they send one of them to the GY.',
-        Object.assign(Fx.trigger.attack(['self'], strike), { hp: 1, targeting: Fx.targeting.adjacentPair })
-      ),
-      ovr(
-        'When a card your opponent controls enters adjacent to another card they control: target a creature you control; it attacks.',
-        Object.assign(Fx.trigger.foeEnter(Fx.pickCard('myBoardCreatures', 'attack')), { cond: 'foeAdjacent', hp: 0 })
-      ),
+      Object.assign(Fx.trigger.enter(strike), { hp: 1, targeting: Fx.targeting.adjacentPair }),
+      Object.assign(Fx.trigger.attack(['self'], strike), { hp: 1, targeting: Fx.targeting.adjacentPair }),
+      Object.assign(Fx.trigger.foeEnter(Fx.pickCard('myBoardCreatures', 'attack')), { cond: 'foeAdjacent', hp: 0 }),
     ],
   });
 });
@@ -919,15 +885,9 @@ Cards.add(Fx =>
     conditions: [Fx.exCond.bothDrew(7)],
     materials: [Fx.mat('creature', 1), Fx.mat('enchantment', 1)],
     triggers: [
-      ovr(
-        'When this enters, if it was summoned using Heaven and Sun: look at the top 3 cards of your opponent\u2019s deck and put them back on top in any order.',
-        Object.assign(Fx.trigger.enter(Fx.reorderTop('foe', 3)), { cond: 'usedMat', card: 'heavensun', hp: 5 })
-      ),
-      ovr(
-        'When this enters: declare a card name, then look at the top card of your opponent\u2019s deck; if it has that name you may play it, and repeat this effect.',
-        Object.assign(Fx.trigger.enter(Fx.declareName()), { hp: 10 })
-      ),
-      ovr('At the start of your turn: draw a card.', Fx.trigger.turnStart(Fx.draw(1))),
+      Object.assign(Fx.trigger.enter(Fx.reorderTop('foe', 3)), { cond: 'usedMat', card: 'heavensun', hp: 5 }),
+      Object.assign(Fx.trigger.enter(Fx.declareName()), { hp: 10 }),
+      Fx.trigger.turnStart(Fx.draw(1)),
     ],
   })
 );
@@ -936,8 +896,6 @@ Cards.add(Fx =>
     // Patch4. Stats and stack HP are placeholders (OPEN_QUESTIONS C6)
     abilities: [
       Fx.fastAbility('Hold the Line', {
-        overrideText:
-          'Fast. Spend an attack counter on this card, target something with HP that is not a player: deal 3 temporary non-lethal damage to it. (Stack HP 1)',
         cost: [Fx.spendAttackCounter()],
         targeting: Fx.targeting.nonPlayerHp,
         hp: 1,

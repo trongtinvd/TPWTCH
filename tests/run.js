@@ -34,6 +34,7 @@ if (!simFiles.length) throw new Error('no js/sim/*.js scripts found in index.htm
 const testFiles = testFile ? ['tests/harness.js', testFile] : listed(/<script src="(tests\/[^"]+)">/g);
 if (!testFiles.length) throw new Error('no tests/*.js scripts found in index.html');
 const scripts = [
+  'js/core/camera-config.js', // Patch10: the camera config (pure normalize)
   'js/content/cards.js',
   ...simFiles,
   ...listed(/<script src="(js\/anim\/anim-logic\.js)">/g), // Patch8: the pure 3D side view logic

@@ -283,6 +283,15 @@ function startDialog(mode) {
     cb.checked = MenuUI.last.shuffle;
     cw.append(cb, document.createTextNode(' Shuffle the decks at the start'));
     box.appendChild(cw);
+    // Patch10: game option "Defender strike back" (off = the default rules)
+    const kw = mkEl('label', 'mcheck'),
+      kb = mkEl('input');
+    kb.type = 'checkbox';
+    kb.checked = !!MenuUI.last.strikeBack;
+    kw.title =
+      'When an attack hits a creature, that creature deals damage equal to its power to the attacking creature (combat damage, it never tramples).';
+    kw.append(kb, document.createTextNode(' Defender strike back'));
+    box.appendChild(kw);
     let sb = null; // Vs Bot: what the bot does when the game ends
     if (mode === 'bot') {
       const bw = mkEl('label', 'mfield');
@@ -319,6 +328,7 @@ function startDialog(mode) {
             drawPhase: int(gd, 1, 0, 10),
             drawAction: int(ga, 2, 0, 10),
             life: int(gl, 20, 0, 999),
+            strikeBack: kb.checked, // Patch10
           };
           Settings.set('lastGame', MenuUI.last); // the dialog remembers the last choices
           close();

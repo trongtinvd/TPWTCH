@@ -1,0 +1,24 @@
+{
+  "_doc": "Camera settings (Patch10), written for the Player seat. top = the top view (orthographic, looking straight down): height above the table, rotationDeg turns the picture on screen, minHalfHeight / halfHeightAspect = how much of the table fits (half height in metres, at least halfHeightAspect / aspect), zoom limits and wheel speed, panLimit = how far the drag may pan (metres). classic = the side camera used when the 3D view is not available: position, target (it looks at it), fov, near, far, maxPolarDeg (the orbit cannot go lower). seat = the camera for the Opponent seat is this one turned by opponentYawDeg round the table centre; turnSpeed = how fast it turns (0..1 per frame). The 3D side view has its own file: config/camera3d.json (position + target, or rotationDeg [x, y, z]). See Docs/CAMERA.md",
+  "seat": { "opponentYawDeg": 180, "turnSpeed": 0.12 },
+  "top": {
+    "height": 60,
+    "rotationDeg": 0,
+    "near": 0.1,
+    "far": 200,
+    "minHalfHeight": 13.8,
+    "halfHeightAspect": 11.4,
+    "zoomMin": 0.6,
+    "zoomMax": 4,
+    "zoomSpeed": 0.001,
+    "panLimit": 14
+  },
+  "classic": {
+    "position": [3, 29, 22],
+    "target": [0, 0, 0],
+    "fov": 45,
+    "near": 0.1,
+    "far": 200,
+    "maxPolarDeg": 87.135
+  }
+}

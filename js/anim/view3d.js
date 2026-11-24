@@ -4,8 +4,8 @@
 // untouched: leaving the side view disposes every character, stops the camera animation and puts the original layout back.
 // Hooks (one line each): setTopView -> setEnabled, sync -> sync(T), animate -> preFrame / postFrame, attackJob -> onAttack / onHit,
 // input picking -> pickProxies + userData.pickAs, main loop -> ownsCamera.
-// Debug: open the page with ?anim3d for a button row (plays a category on the selected card, else on every character);
-// console: View3D.debug.play('stun'), View3D.stats().
+// Debug (console): View3D.demo(), View3D.debug.play('stun'), View3D.stats(). Patch10: ?anim3d is now the standalone card preview
+// (anim3d.html, js/anim/card-preview.js), independent of this scene.
 const View3D = (function () {
   const L = Anim3DLogic,
     CFG = { board: 'config/board3d.json', camera: 'config/camera3d.json', characters: 'config/characters.json' };
@@ -556,8 +556,7 @@ const View3D = (function () {
       return list.map(i => i.play(cat));
     },
   };
-  // Patch9: ?anim3d row: the config status, "3D demo" (a Vs self game with characters on both sides, side view on) and, in the
-  // side view only, one button per animation category (on the selected card, else on every character)
+  // Patch9: "3D demo" (a Vs self game with characters on both sides, side view on); console only since Patch10
   function demo() {
     if (typeof MenuUI === 'undefined' || typeof Tests === 'undefined') return;
     const de = document.getElementById('deckEditor');
@@ -576,40 +575,6 @@ const View3D = (function () {
     game = sim;
     sync();
     if (!on) setTopView(false);
-  }
-  if (/[?&]anim3d\b/.test(location.search)) {
-    const bar = document.createElement('div'),
-      info = document.createElement('span'),
-      mk9 = (t, f) => {
-        const b = document.createElement('button');
-        b.className = 'abtn';
-        b.textContent = t;
-        b.onclick = f;
-        return b;
-      },
-      demoB = mk9('3D demo', demo);
-    bar.id = 'anim3dDebug';
-    bar.style.cssText =
-      'position:fixed;left:236px;top:56px;z-index:50;display:flex;flex-wrap:wrap;gap:3px;max-width:60vw;font:11px sans-serif;align-items:center';
-    info.style.cssText = 'color:#f0e2b6;background:rgba(0,0,0,.6);padding:3px 6px;border-radius:4px';
-    bar.append(info, demoB);
-    for (const cat of L.CATEGORIES) {
-      const b = mk9(cat, () => debug.play(cat, ui.selected && insts.has(ui.selected.iid) ? ui.selected.iid : null));
-      b.dataset.cat = cat;
-      bar.appendChild(b);
-    }
-    document.body.appendChild(bar);
-    setInterval(() => {
-      const in3d = on && applied;
-      info.textContent =
-        '3D config: ' +
-        Object.keys(cfgState)
-          .map(k => k + ' ' + (cfgState[k] === 'loaded' ? '✓' : cfgState[k]))
-          .join(', ') +
-        (in3d ? ' · ' + insts.size + ' characters' : ' · animations: side view only');
-      for (const b of bar.querySelectorAll('[data-cat]')) b.hidden = !in3d;
-      demoB.hidden = in3d;
-    }, 300);
   }
   function stats() {
     let mixers = 0;

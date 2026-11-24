@@ -1,0 +1,214 @@
+{
+  "_doc": "Written (human) card descriptions. cards: card id -> {name, text: {part key -> text}}. Part keys are those of textParts() in js/content/cards.js: body (a spell's own effect), passives:N, triggers:N, rider, abilities:N. The id is the card's identity; name must equal the card's name (the tests check every entry). Shown when the inspector's Text button is on Written; a part with no entry shows its generated text.",
+  "version": 1,
+  "cards": {
+    "ward": {
+      "name": "Ward",
+      "text": {
+        "abilities:0": "Fast. You have lost life: sacrifice this card, then gain 3 life. (Stack HP 2)"
+      }
+    },
+    "heal": {
+      "name": "Heal",
+      "text": {
+        "body": "Quick. Gain 3 life."
+      }
+    },
+    "zap": {
+      "name": "Zap",
+      "text": {
+        "body": "Quick, 0 HP (still resolves). Deal 1 damage to the opponent."
+      }
+    },
+    "archer": {
+      "name": "Archer",
+      "text": {
+        "abilities:0": "Slow. Front row: pay 1 life; deal 2 damage to the opponent. (Stack HP 1)"
+      }
+    },
+    "scout": {
+      "name": "Scout",
+      "text": {
+        "abilities:0": "Fast. A creature faces this: sacrifice this card; deal 3 damage to that creature. (Stack HP 0)"
+      }
+    },
+    "charm": {
+      "name": "Charm",
+      "text": {
+        "abilities:0": "Slow. Exile your oldest GY card; draw 1. (Stack HP 1)"
+      }
+    },
+    "infinitywall": {
+      "name": "Infinity Wall",
+      "text": {
+        "body": "Quick. Target a fully filled column: exile every card on it. That column becomes unusable for the rest of the game. Return this card to your hand. (Stack HP 6)"
+      }
+    },
+    "bolt": {
+      "name": "Bolt",
+      "text": {
+        "body": "Quick. Deal 3 damage to the stack object beneath it (countered at HP -1 or lower)."
+      }
+    },
+    "hummingbird": {
+      "name": "Red Hummingbird",
+      "text": {
+        "triggers:0": "When this enters: draw a card.",
+        "triggers:1": "When this card or an opponent’s creature attacks: you may shift this card to an adjacent empty column.",
+        "abilities:0": "Fast, from your GY: exile this card; gain 3 life. (Stack HP 1)"
+      }
+    },
+    "kingeye": {
+      "name": "King Eye",
+      "text": {
+        "passives:0": "Passive. A black cloud covers each of your other zones: your opponent cannot see those zones or the cards on them. Abilities of cards under a cloud appear to come from King Eye. A cloud is a legal target for anything that targets a card or zone there; the effect passes to what is underneath, and with nothing legal underneath it fizzles (nothing is revealed)."
+      }
+    },
+    "vine": {
+      "name": "The Vine",
+      "text": {
+        "triggers:0": "When this enters: 4 times, pick the closest zone (any row, back-row zones included) not occupied by this card or a Vine token, destroy the card there, and create a Vine token (1/1) on it, even in a zone a creature cannot normally enter.",
+        "triggers:1": "At the start of your turn: do the same."
+      }
+    },
+    "avatar": {
+      "name": "Avatar of Rabies",
+      "text": {
+        "triggers:0": "Whenever a creature attacks: you may shift this card to an adjacent empty column.",
+        "triggers:1": "Whenever this card takes combat damage: deal 1 damage to another creature.",
+        "rider": "Damage dealt by this card: that creature loses all its original abilities and gains the abilities of Avatar of Rabies."
+      }
+    },
+    "bandages": {
+      "name": "Throwing Bandages",
+      "text": {
+        "body": "Quick. Target a permanent: remove 7 damage counters from it (7 points, split across its damage instances as you choose). (Stack HP 10)"
+      }
+    },
+    "superbolt": {
+      "name": "Superbolt",
+      "text": {
+        "body": "Slow. Deal 20 damage to any target (a permanent or a player). (Stack HP 3)"
+      }
+    },
+    "grainfall": {
+      "name": "GrainFall",
+      "text": {
+        "body": "Slow. Target player mills ten cards. (Stack HP 2)"
+      }
+    },
+    "blackhawk": {
+      "name": "Black Hawk",
+      "text": {
+        "triggers:0": "At the beginning of your combat step: double this card’s power 5 times."
+      }
+    },
+    "boltmaster": {
+      "name": "Bolt Master",
+      "text": {
+        "triggers:0": "When this enters: add a Superbolt from your deck to your hand."
+      }
+    },
+    "heavensun": {
+      "name": "Heaven and Sun",
+      "text": {
+        "triggers:0": "When this enters: choose 5 cards from your deck and exile them (stack HP 7).",
+        "triggers:1": "At the start of your turn: your opponent picks one of those exiled cards; put it into your hand."
+      }
+    },
+    "parasite": {
+      "name": "Creeping Parasite",
+      "text": {
+        "triggers:0": "When this enters, choose one effect unlocked by the number of creatures your opponent controls. 0: look at their hand and send a card to the GY. 1+: 4 damage to any target. 2+: return a card they control to hand. 3+: put a creature from your hand, GY or exile into play. 4+: draw cards equal to their creature count. 5: destroy all cards on the board."
+      }
+    },
+    "shieldguard": {
+      "name": "Shieldguard",
+      "text": {
+        "abilities:0": "Fast, from your hand: after an opposing creature attacks, if you control a creature in that column, return that creature to your hand and put this card into its zone. (Stack HP 1)"
+      }
+    },
+    "spirit": {
+      "name": "Spirit of the Sand",
+      "text": {
+        "body": "Quick, 0 HP. Choose one: each card you control gets a red shield counter (cannot be targeted), or each gets a blue shield counter (unaffected by spells and abilities that do not target it; attacks still hit it). You cannot gain life for the rest of the game."
+      }
+    },
+    "wardrum": {
+      "name": "War Drum",
+      "text": {
+        "passives:1": "Passive: cards your opponent controls in this column and the adjacent columns get -1/-1.",
+        "triggers:0": "When this enters, if the additional cost was paid: put a creature from your GY into play; it attacks immediately.",
+        "triggers:1": "When this enters: create a Drummer token (3/3; cards you control in its column and the adjacent ones get +1/+1)."
+      }
+    },
+    "drummer-token": {
+      "name": "Drummer",
+      "text": {
+        "passives:0": "Token. Cards you control in this column and the adjacent columns get +1/+1."
+      }
+    },
+    "shark": {
+      "name": "Deep Sea Shark",
+      "text": {
+        "triggers:0": "When this enters: you may pay 3 life; skip your opponent next combat phase (pressing combat becomes End turn instead).",
+        "triggers:1": "After your first combat phase ends: you may have your opponent draw 5 cards (cost; does nothing if they cannot); enter a second combat phase, where creatures can attack again."
+      }
+    },
+    "intuition": {
+      "name": "Quick Intuition",
+      "text": {
+        "body": "Quick. Draw until you have 7 cards in hand. You may target a creature or a spell: damage to it is denied until the end of this turn. (Stack HP 4)",
+        "abilities:0": "From your GY, Fast, when your opponent attacks: exile this card; cancel that attack. (Stack HP 1)"
+      }
+    },
+    "ambush": {
+      "name": "Ambush of the Night",
+      "text": {
+        "body": "Slow, 0 HP. In order: you draw 2; return up to 2 cards from your GY to your hand; put up to 2 creatures/enchantments from your hand into play. Then your opponent returns up to 2 cards from their GY to their hand, puts up to 2 creatures/enchantments from their GY into play, and draws 2."
+      }
+    },
+    "underworldfusion": {
+      "name": "Underworld Fusion",
+      "text": {
+        "body": "Quick. Reveal an extra deck creature whose conditions are met and exile its materials from your GY; summon that creature. (Stack HP 10)",
+        "abilities:0": "Fast, from your GY: exile this card; return an extra deck creature from your GY to the extra deck, and return the materials used to summon it from exile to your hand. (Stack HP 1)"
+      }
+    },
+    "depthfusion": {
+      "name": "Depth Sea Fusion",
+      "text": {
+        "body": "Quick. Reveal an extra deck creature and send its materials from your field, hand or deck to the GY; summon it if its conditions are met (ignored if the materials come only from your hand and field). (Stack HP 7)",
+        "abilities:0": "Fast, from your deck or GY: spend an action point; add this card to your hand. (Stack HP 1)"
+      }
+    },
+    "cultivator": {
+      "name": "Biology Cultivator",
+      "text": {
+        "triggers:0": "When this enters: reveal an extra deck creature; if its conditions are met, put its materials from your deck into your hand."
+      }
+    },
+    "widowmaker": {
+      "name": "Widow Maker",
+      "text": {
+        "triggers:0": "When this enters: target two adjacent cards your opponent controls; they send one of them to the GY.",
+        "triggers:1": "When this attacks: target two adjacent cards your opponent controls; they send one of them to the GY.",
+        "triggers:2": "When a card your opponent controls enters adjacent to another card they control: target a creature you control; it attacks."
+      }
+    },
+    "librarian": {
+      "name": "L4: The Librarian",
+      "text": {
+        "triggers:0": "When this enters, if it was summoned using Heaven and Sun: look at the top 3 cards of your opponent’s deck and put them back on top in any order.",
+        "triggers:1": "When this enters: declare a card name, then look at the top card of your opponent’s deck; if it has that name you may play it, and repeat this effect.",
+        "triggers:2": "At the start of your turn: draw a card."
+      }
+    },
+    "vanguard": {
+      "name": "Vanguard",
+      "text": {
+        "abilities:0": "Fast. Spend an attack counter on this card, target something with HP that is not a player: deal 3 temporary non-lethal damage to it. (Stack HP 1)"
+      }
+    }
+  }
+}

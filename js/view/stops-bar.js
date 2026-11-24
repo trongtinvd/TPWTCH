@@ -1,7 +1,8 @@
 // stops-bar.js - Patch6: the stops as small icon buttons in the bottom right corner of the game (MTG Arena style).
 // Two rows for the seat you play: the stops on the opponent's turn and on your own turn, in turn order. A click sends SetStop (a recorded
 // command, so replays stay exact) and keeps the choice as the default for the next game. "Permanent entered" and "End step" on the
-// opponent's turn are always on (the rules), shown lit and locked.
+// opponent's turn are on by default; Patch10: they turn off like any other stop (they were locked here AND forced on in the Sim).
+// Whether a stop is on is the Sim's answer (Sim.stopOn), defaults included: one source of truth.
 const StopsBar = (function () {
   const ICON = {
     turnStart: '<circle cx="12" cy="14" r="4"/><path d="M12 4v3M4.5 7.5l2 2M19.5 7.5l-2 2M2 14h3M19 14h3M2 20h20"/>',
@@ -18,11 +19,10 @@ const StopsBar = (function () {
     ROLES = [
       ['opp', 'Their turn'],
       ['own', 'Your turn'],
-    ],
-    locked = (role, k) => role === 'opp' && (k === 'enter' || k === 'end'); // always on for the non-turn player
+    ];
   let el = null;
   const seat = () => (ui.mode === 'bot' ? other(ui.botSeat) : ui.view); // Vs Bot: always your seat; Vs Self: the seat you look from
-  const isOn = (p, role, k) => locked(role, k) || !!(sim.stops && sim.stops[p] && sim.stops[p][role][k]); // Patch7: the real state, not the (older) animated one
+  const isOn = (p, role, k) => Sim.stopOn(sim, p, role, k); // Patch7: the real state, not the (older) animated one
   function build() {
     el = document.createElement('div');
     el.id = 'stops';
@@ -54,7 +54,7 @@ const StopsBar = (function () {
     (document.getElementById('dbg') || document.body).appendChild(el);
   }
   function toggle(role, k) {
-    if (locked(role, k) || rp.on) return;
+    if (rp.on) return;
     const p = seat(),
       r = sendStop({ type: 'SetStop', player: p, role, kind: k, on: !isOn(p, role, k) }); // Patch7: never refused while an animation plays
     if (r.ok && sim.stops) Settings.set('stops', JSON.parse(JSON.stringify(sim.stops))); // the default for the next game
@@ -69,7 +69,6 @@ const StopsBar = (function () {
         k = b.dataset.kind,
         on = isOn(p, role, k);
       b.classList.toggle('on', on);
-      b.classList.toggle('lock', locked(role, k));
       b.title =
         'Stop: ' +
         (STOP_NAMES[k] || k) +
@@ -79,7 +78,8 @@ const StopsBar = (function () {
         NAME[p] +
         '): ' +
         (on ? 'on' : 'off') +
-        (locked(role, k) ? ' (always on)' : ' · click to turn it ' + (on ? 'off' : 'on'));
+        ' · click to turn it ' +
+        (on ? 'off' : 'on');
       b.setAttribute('aria-pressed', on ? 'true' : 'false');
     });
   }

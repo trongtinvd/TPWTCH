@@ -482,21 +482,14 @@ const isPairChoice = k =>
       .filter(p => p.includes(z))
       .map(p => (p[0] === z ? p[1] : p[0]));
 // Engine rule (Patch5): a choice whose CARD options are all cards the player can see and click (on the board, not under a cloud,
-// or in a visible hand) is answered by clicking them, never with a list. Options that are not cards ('done', 'no'...) stay as buttons.
+// or in their own hand) is answered by clicking them, never with a list. Options that are not cards ('done', 'no'...) stay as buttons.
+// Patch10: the Sim decides it (Sim.choicePicks: the same options Choose accepts). It used to be read from the meshes, mid-sync: a card
+// drawn or returned by the same effect had no mesh yet, so the other cards of the hand lost their highlight (Ambush of the Night).
 const choiceCards = k => k.options.filter(o => game.cards[o]),
   choiceButtons = k => k.options.filter(o => !game.cards[o]);
 function boardPick(k) {
   if (!k || !k.labels || k.kind === 'trigorder' || k.kind === 'declare' || isPairChoice(k)) return false;
-  const cs = choiceCards(k),
-    rest = choiceButtons(k);
-  return (
-    cs.length > 0 &&
-    rest.every(o => !/^[ZP]:/.test(o)) && // zones / players are not card clicks: keep the list
-    cs.every(o => {
-      const m = meshes.get(o);
-      return !!(m && m.userData.card && m.visible);
-    })
-  );
+  return Sim.choicePicks(game, k.player).click;
 }
 function trigOrderUI(pk, k) {
   const key = k.player + '|' + k.options[0];
@@ -1039,13 +1032,12 @@ function animate() {
     glowMat.opacity = 0.3 + 0.7 * Math.pow(0.5 + 0.5 * Math.sin((performance.now() / 1000) * 2.6), 2);
   } // pulse only: rendered at ~30 fps below   // periodic pulse
   if (ui.camAngle !== ui.camGoal) {
-    ui.camAngle += (ui.camGoal - ui.camAngle) * 0.12;
+    ui.camAngle += (ui.camGoal - ui.camAngle) * CameraCfg.get().seat.turnSpeed;
     if (Math.abs(ui.camGoal - ui.camAngle) < 0.002) ui.camAngle = ui.camGoal;
-    const c = Math.cos(ui.camAngle),
-      s = Math.sin(ui.camAngle);
     if (typeof View3D === 'undefined' || !View3D.placeSeatCamera(ui.camAngle)) {
-      camera.position.set(3 * c + 22 * s, 29, -3 * s + 22 * c);
-      controls.target.set(0, 0, 0);
+      const pose = CameraCfg.classicPose(CameraCfg.get(), ui.camAngle); // Patch10: config/camera.json classic
+      camera.position.fromArray(pose.position);
+      controls.target.fromArray(pose.target);
     } // Patch8: the 3D side view places its camera from config/camera3d.json
     busy = true;
     if (tv.on) placeTop();

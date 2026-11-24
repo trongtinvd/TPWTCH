@@ -1,10 +1,10 @@
-// combat.js - damage, retaliate, riders, Attack objects and strikes
+// combat.js - damage, defender strike back, riders, Attack objects and strikes (Retaliate is a trigger: ops.js Retaliate)
 Sim.def('combat', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
   let ctl; // added by Patch3
   let expireStatuses, live, nonLethalHold, removeStatus; // added by Patch4
   let other; // util
-  let abDef, addStatus, allowed, atkOf, bonusOf, has, hasKw, hasSt, hpOf, hurt, totalDamage; // statuses
+  let abDef, addStatus, allowed, atkOf, bonusOf, has, hasSt, hpOf, hurt, totalDamage; // statuses
   let destroy, recalc; // state
   let fire; // stack
   const RIDERS = {
@@ -16,15 +16,19 @@ Sim.def('combat', function (K) {
       }
     },
   }; // the rider adds an ability status linked to the damage status just dealt; the effect lives and dies with that status
-  function retaliate(s, from, pw, src, ev) {
-    if (pw <= 0) return;
-    if (src.def.type === 'spell') {
-      hurt(s, ctl(src), pw, from.def.name, 'retaliate');
-      ev.push({ t: 'PlayerDamaged', player: ctl(src), amount: pw });
-    } else if (src.loc === 'board') dealDamage(s, from, src, pw, ev, 'retaliate');
-  } // Retaliate: the source (creature, or the spell's controller) takes damage equal to the retaliator's power; retaliation never retaliates
+  // Patch10: the game option "Defender strike back" (s.cfg.strikeBack). A creature hit by an Attack deals damage equal to its power to
+  // the attacking creature: combat damage (combat rules: blue shields do not stop it, 'damaged' triggers see it), from the defender,
+  // to the attacker only (it never tramples), never answered by another strike back. Applied at once by the rule (no stack), BEFORE the
+  // defender's own 'damaged' triggers (Shieldguard: the strike back first, then its Retaliate goes on the stack).
+  const strikesBack = (s, tgt, attacker) =>
+    !!(s.cfg && s.cfg.strikeBack) &&
+    tgt.def.type === 'creature' &&
+    !!attacker &&
+    attacker.loc === 'board' &&
+    attacker !== tgt;
   function dealDamage(s, src, tgt, amount, ev, type, targeted, mods) {
     // mods (Patch4): {nonLethal, temporary}. Temporary damage expires at the end of the turn; non-lethal: see nonLethalHold
+    // mods.attack (Patch10): this is an Attack's damage (strike()), so the defender may strike back
     if (hasSt(tgt, 'nodamage')) {
       ev.push({ t: 'DamageDenied', target: tgt.iid, amount });
       return;
@@ -39,20 +43,37 @@ Sim.def('combat', function (K) {
       srcName: src.def.name,
       ...(mods && mods.nonLethal ? { nonLethal: true } : null),
       ...(mods && mods.temporary ? { temporary: true, expires: 'turnEnd' } : null),
+      ...(mods && mods.strikeBack ? { strikeBack: true } : null),
     }); // damage is a status
     ev.push(
       Object.assign(
         { t: 'DamageDealt', source: src.iid, target: tgt.iid, amount, type: type || 'combat' },
         mods && mods.nonLethal ? { nonLethal: true } : null,
-        mods && mods.temporary ? { temporary: true } : null
+        mods && mods.temporary ? { temporary: true } : null,
+        mods && mods.strikeBack ? { strikeBack: true } : null
       )
     );
-    if ((type || 'combat') === 'combat') fire(s, ev, 'damaged', tgt); // triggers see the victim before it is destroyed
-    const rd = abDef(src).rider;
+    const rd = abDef(src).rider,
+      abBefore = abDef(tgt).id;
     if (rd && RIDERS[rd.op]) RIDERS[rd.op](s, src, tgt, ev, d);
-    const pw = atkOf(tgt);
+    // the damage and its rider are one event: a victim whose abilities this event replaced (Avatar of Rabies) triggers neither the
+    // 'damaged' abilities it lost (Shieldguard's Retaliate) nor the ones it gained
+    const pw = atkOf(tgt); // power before the victim may be destroyed
+    if (mods && mods.attack && strikesBack(s, tgt, src) && pw > 0) {
+      ev.push({ t: 'StrikeBack', source: tgt.iid, target: src.iid, amount: pw });
+      dealDamage(s, tgt, src, pw, ev, 'combat', false, { strikeBack: true }); // to the attacker only: no trample, no strike back of its own
+    }
+    // Patch10: every damage type fires 'damaged' (a trigger says which types it wants: Fx.trigger.damaged = combat only, Retaliate = combat
+    // or effect). The trigger sees the damage (source, amount, type, the victim's power now): a trigger reads it when it resolves.
+    if (abDef(tgt).id === abBefore)
+      fire(s, ev, 'damaged', tgt, {
+        type: type || 'combat',
+        source: src.iid,
+        amount,
+        power: pw,
+        spell: src.def.type === 'spell' ? ctl(src) : null, // the player behind a spell (Retaliate hits that player)
+      }); // triggers see the victim before it is destroyed
     if (totalDamage(tgt) > hpOf(tgt) && !nonLethalHold(tgt)) destroy(s, tgt, ev, 'rule'); // lethal damage is a rule (Q45); non-lethal damage never kills
-    if (hasKw(tgt, 'retaliate') && type !== 'retaliate') retaliate(s, tgt, pw, src, ev);
   }
   function canAttack(s, c) {
     // reason string, or null if legal
@@ -75,7 +96,7 @@ Sim.def('combat', function (K) {
     const at = (o && o.slotAt && c.loc !== 'board' ? o.slotAt : c.slot).split('|'),
       col = at[2],
       foe = other(ctl(c));
-    /* at: where it stood when it struck (it may die mid-strike, e.g. to Retaliate) */ let left =
+    /* at: where it stood when it struck (it may die mid-strike, e.g. to a defender's strike back) */ let left =
       (c.loc === 'board' ? atkOf(c) : 0) + (o ? bonusOf(o) : 0); // the attacker's power counts only while it is on the board; damage added to the Attack itself always counts. Damage goes toward the controller's opponent; a card standing on the foe's side skips itself
 
     for (const row of ['front', 'back']) {
@@ -85,7 +106,7 @@ Sim.def('combat', function (K) {
       if (id === c.iid) continue; // every card on the foe's side of the column absorbs damage, whoever controls it   // never absorbed by the attacker's own cards (e.g. your own Vines standing in that column)
       const t = s.cards[id],
         remaining = Math.max(0, hpOf(t) - totalDamage(t)); // a card already at 0 or below (held by non-lethal damage) absorbs nothing
-      dealDamage(s, c, t, left, ev);
+      dealDamage(s, c, t, left, ev, 'combat', false, { attack: true });
       left = Math.max(0, left - remaining);
     }
     if (left > 0) {
@@ -165,7 +186,7 @@ Sim.def('combat', function (K) {
       extraAttack,
       placeAttackCounters,
       resolveAttack,
-      retaliate,
+      strikesBack,
       spendAttackCounter,
       strike,
     },
@@ -183,7 +204,6 @@ Sim.def('combat', function (K) {
       'destroy',
       'fire',
       'has',
-      'hasKw',
       'hasSt',
       'hpOf',
       'hurt',
@@ -194,7 +214,7 @@ Sim.def('combat', function (K) {
     link: () => {
       ({ expireStatuses, live, nonLethalHold, removeStatus } = K); // Patch4
       ({ ctl } = K);
-      ({ allowed, bonusOf, hasKw } = K);
+      ({ allowed, bonusOf } = K);
       ({ abDef, addStatus, atkOf, destroy, fire, has, hasSt, hpOf, hurt, other, recalc, totalDamage } = K);
     },
   };

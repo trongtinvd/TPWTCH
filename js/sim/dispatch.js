@@ -18,6 +18,7 @@ Sim.def('dispatch', function (K) {
     canPlay,
     checkTurnEnd,
     endTurn,
+    enterEndStep,
     fire,
     openRespond,
     pushObj,
@@ -258,8 +259,7 @@ Sim.def('dispatch', function (K) {
             if (sk) {
               removeStatus(s, sk, 'used');
               ev.push({ t: 'CombatSkipped', player: cmd.player });
-              openRespond(s, ev, 'end');
-              ev.push({ t: 'EndStepEntered' });
+              enterEndStep(s, ev);
               break;
             }
           } // Deep Sea Shark: pressing combat becomes End turn
@@ -362,9 +362,8 @@ Sim.def('dispatch', function (K) {
           break; // the end step opens by itself once nothing is pending (checkTurnEnd)
         } // ending the turn ends combat first, so 'after combat' triggers (Shark) still happen
         if (mainEndFirst(s, ev, cmd)) break; // Patch7
-        openRespond(s, ev, 'end');
-        ev.push({ t: 'EndStepEntered' });
-        break; // the turn really ends when the opponent passes
+        enterEndStep(s, ev);
+        break; // the turn really ends when the end step window closes (at once when no player wants that stop)
       case 'DebugToHand': {
         // debug tool (Vs Self / Vs Bot): a card of a deck goes to its owner's hand. No rules, no action point. Recorded like any command, so replays keep it
         const c = s.cards[cmd.iid];
@@ -460,6 +459,7 @@ Sim.def('dispatch', function (K) {
       'declareWinner',
       'dmgs',
       'endTurn',
+      'enterEndStep', // Patch10
       'findTarget',
       'fire',
       'freeSlots',
@@ -508,6 +508,7 @@ Sim.def('dispatch', function (K) {
         declareWinner,
         dmgs,
         endTurn,
+        enterEndStep,
         findTarget,
         fire,
         freeSlots,

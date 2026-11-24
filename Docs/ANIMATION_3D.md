@@ -1,5 +1,7 @@
 # 3D side view (Patch8)
 
+> Step-by-step with templates (GLB models, animations, camera animations): **`Docs/animationGuide.md`** (Patch11).
+
 The **Side view** button now shows the board in 3D with an animated character on every creature. The **Top view** is unchanged: leaving the side view removes every character, stops the camera animation and puts the original layout back.
 
 ## Files
@@ -91,7 +93,7 @@ Each file on its own: no / broken model = cube; no / broken / non-fitting clip =
 
 ## Debug
 
-Open the page with `?anim3d`: a button row plays a category on the selected card, else on every character. Console: `View3D.debug.play('stun')`, `View3D.debug.play('attack', iid)`, `View3D.stats()` (characters, mixers, cached files, scene children).
+**Patch10:** `?anim3d` opens the standalone 3D card preview (`anim3d.html`, `js/anim/card-preview.js`): its own scene, none of the game. Pick a card (or `anim3d.html?anim3d=<card id>`): its model is fetched from `assets/3dModels/cards/index.json` (`type: gltf` = a .glb / .gltf file, `type: script` = a .js file registering `CardModelScripts[builder](THREE, params)`; see the `_doc` there), shown, and the selection animation plays (the entry's `select` clip, else a clip named like select, else the script's `userData.select`, else a procedural hop and spin). No model / a missing file / a broken script: a placeholder in the card's colour and the reason. A new model type = `CardModels.register(type, load)` + `Anim3DLogic.MODEL_TYPES`. Side view console: `View3D.debug.play('stun')`, `View3D.debug.play('attack', iid)`, `View3D.stats()` (characters, mixers, cached files, scene children).
 
 ## Limits / next
 
@@ -108,4 +110,4 @@ Open the page with `?anim3d`: a button row plays a category on the selected card
 - **Sword** (`board3d.json`, optional): `"sword": { "scale": 2, "height": 1.6, "flash": true }`: size factor, metres above the card, flashing flying sword.
 - **Configs** load again each time the side view opens: edit a file, switch Top view / Side view to see it. They need the game served over http(s) (GitHub Pages, `python -m http.server`): a `file://` page cannot read them and uses the defaults (console warning; `?anim3d` shows the status). GitHub Pages may serve an old copy for a few minutes.
 - **Hands** are drawn in a second pass over the board (layer 1), so a board card near the camera never cuts them; the wheel over a hand scrolls it when it does not fit (never zooms).
-- **Debug** `?anim3d`: config status, "3D demo" (Vs self game, characters on both sides, side view on); the category buttons show in the side view only.
+- **Debug** (Patch10: console only) `View3D.demo()` (Vs self game, characters on both sides, side view on), `View3D.debug.play(cat)`.

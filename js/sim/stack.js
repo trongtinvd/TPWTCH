@@ -15,6 +15,7 @@ Sim.def('stack', function (K) {
   function canPlay(s, c) {
     // reason string, or null if legal
     if (s.phase !== 'play') return 'The game has not started';
+    if (s.choice) return 'Waiting for ' + s.choice.player + ' to choose'; // Patch10: like dispatch (a pending choice blocks every play)
     if (c.loc !== 'hand') return 'Not in hand';
     if (c.owner !== s.priority) return 'Not this player\u2019s priority';
     if (s.attackPhase && !hasKw(c, 'flash') && (isPerm(c) || c.def.timing !== 'Quick'))
@@ -41,6 +42,7 @@ Sim.def('stack', function (K) {
     // reason string, or null. Order: 1 requirements, 2 timing, 3 costs
     const a = c && abDef(c).abilities && abDef(c).abilities[i];
     if (!a) return 'No such ability';
+    if (s.choice) return 'Waiting for ' + s.choice.player + ' to choose'; // Patch10: like dispatch
     const zones = [].concat(a.zone || 'board'); // one zone or a list (Depth Sea Fusion: deck or GY)
     if (!zones.includes(c.loc))
       return (
@@ -131,22 +133,25 @@ Sim.def('stack', function (K) {
     s.passes = 0;
     ev.push({ t: 'StackObjectCreated', iid: c.iid });
   }
-  function fire(s, ev, on, subject) {
+  function fire(s, ev, on, subject, evt) {
     // event -> ALL matching triggers go onto the stack together, then priority passes (non-turn player first)
+    // evt (Patch10): what happened, for the triggers that need it ('damaged': {type, source, amount, power, spell}); the stack object keeps it
     const hits = []; // 1) collect every trigger that matches this event
     for (const c of Object.values(s.cards)) {
       if (c.loc === 'stack' || c.loc === 'gone') continue;
       (abDef(c).triggers || []).forEach((t, i) => {
         if (t.on !== on || (t.zone || 'board') !== c.loc) return;
         if (t.cond && !(COND[t.cond] && COND[t.cond](s, c, subject, t))) return; // an unknown condition fails closed (validate.js reports it at load)
-        if (TRIGGERS[on] && !TRIGGERS[on](s, c, t, subject)) return;
+        if (TRIGGERS[on] && !TRIGGERS[on](s, c, t, subject, evt)) return;
         hits.push({ c, i, optional: !!t.optional });
       });
     }
     if (!hits.length) return;
     // 2) the triggers wait in s.trg: each player with several of them may order them (a choice, non-turn player first; only when the host turned
     //    it on), every trigger with a targeting picks its targets, then they go on the stack: turn player's first, so the other player's resolve first.
-    const items = hits.map(h => ({ iid: h.c.iid, i: h.i, owner: ctl(h.c), optional: h.optional }));
+    const items = hits.map(h =>
+      Object.assign({ iid: h.c.iid, i: h.i, owner: ctl(h.c), optional: h.optional }, evt ? { evt } : null)
+    );
     if (s.trg) {
       // Patch5: triggers are still waiting (a choice is pending): the new ones join them; their owners order again
       items.forEach(it => {
@@ -221,7 +226,15 @@ Sim.def('stack', function (K) {
     for (const k of pushOrder) {
       const it = T.items[k];
       if (it.tgt === false) continue;
-      pushObj(s, s.cards[it.iid], 'triggers', it.i, ev, null, it.tgt ? { pick: it.tgt } : null);
+      pushObj(
+        s,
+        s.cards[it.iid],
+        'triggers',
+        it.i,
+        ev,
+        null,
+        Object.assign({}, it.tgt ? { pick: it.tgt } : null, it.evt ? { evt: it.evt } : null)
+      );
       pushed = true;
     }
     s.trg = null;
@@ -261,13 +274,16 @@ Sim.def('stack', function (K) {
     runFx({ s, ev, src, t, who: o.controller, foe: other(o.controller), col: o.col, o, tp: o.tplayer }, def.effects);
   }
   // Q49 / Q50: s.stops = null | {Player:{opp:{kind:true}, own:{kind:true}}, Opponent:{...}}. `opp` = the windows a player gets as the NON-turn player
-  // (enter and end are always on), `own` = as the turn player. A window is {kind, stage:'foe'|'turn'}: the non-turn player first, then the turn player.
-  const stopWants = (s, p, kind) => {
-    const foe = p !== s.active;
-    if (foe && (kind === 'enter' || kind === 'end')) return true;
-    const st = s.stops && s.stops[p];
-    return !!(st && st[foe ? 'opp' : 'own'][kind]);
+  // (enter and end are on unless turned off), `own` = as the turn player. A window is {kind, stage:'foe'|'turn'}: the non-turn player first, then the turn player.
+  // Patch10: "permanent entered" and "end step" on the opponent's turn are ON BY DEFAULT, not forced: a player turns them off like any
+  // stop (SetStop ... on:false). Only a stop never set falls back to the default. The stop icons read stopOn too (one source of truth).
+  const STOP_DEFAULTS = { opp: { enter: true, end: true }, own: {} };
+  const stopOn = (s, p, role, kind) => {
+    const set = s.stops && s.stops[p] && s.stops[p][role],
+      v = set ? set[kind] : undefined;
+    return v === undefined || v === null ? !!STOP_DEFAULTS[role][kind] : !!v;
   };
+  const stopWants = (s, p, kind) => stopOn(s, p, p !== s.active ? 'opp' : 'own', kind);
   const respPri = s => (s.respond && s.respond.stage === 'turn' ? s.active : other(s.active)); // who holds priority in the open window
   function openRespond(s, ev, kind, then) {
     // an empty-stack priority window (triggers on the stack resolve first); nothing opens when neither player wants this stop.
@@ -280,6 +296,13 @@ Sim.def('stack', function (K) {
     s.priority = stage === 'foe' ? foe : s.active;
     ev.push({ t: 'ResponseWindowOpened', kind, player: s.priority }); // the non-turn player ALWAYS responds first, even with enter triggers already on the stack
     return true;
+  }
+  // the end step: its window opens when a player wants it; when nobody does (both stops off) the turn ends at once (Patch10: with the
+  // opponent's end step stop off the turn used to wait for a window that never opened)
+  function enterEndStep(s, ev) {
+    const opened = openRespond(s, ev, 'end');
+    ev.push({ t: 'EndStepEntered' });
+    if (!opened) endTurn(s, ev);
   }
   function checkTurnEnd(s, ev) {
     // Q21: combat ended, so the turn ends: as soon as nothing is pending, the end step window opens
@@ -295,8 +318,7 @@ Sim.def('stack', function (K) {
     )
       return;
     s.turnEnding = false;
-    openRespond(s, ev, 'end');
-    ev.push({ t: 'EndStepEntered' });
+    enterEndStep(s, ev);
   }
   function stopAt(s, ev, kind) {
     // an optional "stop": at this moment the non-turn player gets priority on an empty stack (turnStart, draw, mainStart, mainEnd, combatStart, combatEnd, stack).
@@ -339,6 +361,7 @@ Sim.def('stack', function (K) {
       canPlay,
       checkTurnEnd,
       endTurn,
+      enterEndStep,
       fire,
       hitStack,
       openRespond,
@@ -346,6 +369,7 @@ Sim.def('stack', function (K) {
       respPri,
       resolveObj,
       stopAt,
+      stopOn,
       stopWants,
     },
     needs: [

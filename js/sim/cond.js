@@ -43,12 +43,13 @@ Sim.def('cond', function (K) {
       ((t.by || []).includes('foe') && ctl(c) !== ctl(subject)) ||
       (t.by || []).includes('any'),
     turnStart: (s, c) => ctl(c) === s.active,
-    damaged: (s, c, t, subject) => c === subject,
+    damaged: (s, c, t, subject, evt) =>
+      c === subject && (t.types || ['combat']).includes((evt && evt.type) || 'combat'), // Patch10: which damage types (default combat)
     combat: (s, c) => ctl(c) === s.active,
     combatEnd: (s, c) => ctl(c) === s.active,
   };
   // continuous effects a card may carry in `passives`; they are not run, the rules read them (value = where)
-  const PASSIVES = { Obscure: 'cloudMap', Aura: 'recalc', Keyword: 'hasKw' }; // Keyword: Flash / Retaliate, read by hasKw
+  const PASSIVES = { Obscure: 'cloudMap', Aura: 'recalc', Keyword: 'hasKw' }; // Keyword: Flash, read by hasKw (Retaliate is a trigger)
   return {
     exports: { COND, EXCOND, PASSIVES, TRIGGERS },
     needs: ['ctl', 'cloudMap', 'colKeys', 'hasSt', 'recalc', 'zoneDist'],
