@@ -332,6 +332,10 @@
       mk = (seed, stops) => {
         const s = Sim.create(seed, DEFS.concat(FIXTURES), { stops });
         for (const p of ['Player', 'Opponent']) D(s, { type: 'Start', player: p });
+        if (stops) {
+          eq('the first turn’s draw phase opens the "cards drawn" stop (Patch6)', s.respond && s.respond.kind, 'draw');
+          D(s, { type: 'Pass', player: 'Opponent' });
+        }
         return s;
       };
     let s = mk(950, STOPS);

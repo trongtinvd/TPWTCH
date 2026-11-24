@@ -50,11 +50,45 @@ Sim.def('dispatch', function (K) {
       stopAt(s, ev, 'stack'); // stop: stack emptied
     }
   }
+  function drawCards(s, p, n, ev) {
+    // the top n cards of p's deck (fewer when the deck runs out) go to the hand
+    const d = s.piles[p].deck;
+    for (let i = 0; i < n && d.length; i++) {
+      const c = d.shift();
+      c.loc = 'hand';
+      s.piles[c.owner].hand.push(c);
+      ev.push({ t: 'CardDrawn', iid: c.iid, player: c.owner });
+      s.drawn[c.owner]++;
+    }
+  }
+  function checkDrawStep(s, ev) {
+    // Patch6: start -> DRAW -> main. The draw phase comes once the turn start (its triggers, its stop) is over
+    if (!s.drawPending || s.phase !== 'play' || s.stack.length || s.choice || s.respond || s.trg || s.resolving) return;
+    s.drawPending = false;
+    s.step = 'draw';
+    ev.push({ t: 'DrawStepEntered', player: s.active });
+    drawCards(s, s.active, s.cfg.drawPhase, ev);
+    s.step = 'main';
+    s.priority = s.active;
+    s.passes = 0;
+    fire(s, ev, 'drawStep', null);
+    if (s.cfg.drawPhase > 0) stopAt(s, ev, 'draw'); // stop: cards drawn
+    recalc(s, ev); // statuses tied to the deck end, the logs record the draws
+  }
   function dispatch(s, cmd) {
     // mutates s; returns {ok, why, events}
     const ev = [],
       fail = why => ({ ok: false, why, events: [] });
     if (s.capped) return fail('The history limit was reached: the game is over');
+    if (cmd.type === 'SetStop') {
+      // Patch6: a player turns one of their stops on or off (the stop icons in the game). Any time, recorded like any command
+      const role = cmd.role === 'own' ? 'own' : 'opp',
+        P = cmd.player;
+      if (P !== 'Player' && P !== 'Opponent') return fail('Unknown player');
+      if (!s.stops) s.stops = { Player: { opp: {}, own: {} }, Opponent: { opp: {}, own: {} } };
+      s.stops[P][role][cmd.kind] = !!cmd.on;
+      return { ok: true, events: [{ t: 'StopChanged', player: P, role, kind: cmd.kind, on: !!cmd.on }] };
+    }
     if (s.choice && !['Choose', 'Surrender', 'Leave'].includes(cmd.type))
       return fail('Waiting for ' + s.choice.player + ' to choose'); // giving up is possible at any time
     if (s.phase === 'deck' && cmd.type !== 'ReorderDeck' && cmd.type !== 'Start')
@@ -79,7 +113,7 @@ Sim.def('dispatch', function (K) {
           s.phase = 'play';
           for (const p of ['Player', 'Opponent']) {
             const P = s.piles[p];
-            P.hand = P.deck.splice(0, 5);
+            P.hand = P.deck.splice(0, s.cfg.startHand);
             P.hand.forEach(c => {
               c.loc = 'hand';
               ev.push({ t: 'CardDrawn', iid: c.iid, player: p });
@@ -87,6 +121,8 @@ Sim.def('dispatch', function (K) {
           }
           ev.push({ t: 'GameStarted' });
           gainAP(s, s.active, ev); // the first turn's action point
+          s.step = 'start';
+          s.drawPending = true; // the first turn has a draw phase too
         }
         break;
       }
@@ -100,18 +136,7 @@ Sim.def('dispatch', function (K) {
         if (!d.length) return fail('Deck is empty');
         if (!hasAP(s, cmd.player)) return fail('No action point left');
         spendAP(s, cmd.player, 'Draw', ev);
-        if (d.length > 1) {
-          const x = d.shift();
-          x.loc = 'hand';
-          s.piles[x.owner].hand.push(x);
-          ev.push({ t: 'CardDrawn', iid: x.iid, player: x.owner });
-          s.drawn[x.owner]++;
-        } // draw two
-        const c = d.shift();
-        c.loc = 'hand';
-        s.piles[c.owner].hand.push(c);
-        ev.push({ t: 'CardDrawn', iid: c.iid, player: c.owner });
-        s.drawn[c.owner]++;
+        drawCards(s, cmd.player, s.cfg.drawAction, ev); // the Draw action: cfg.drawAction cards (2 by default)
         stopAt(s, ev, 'draw'); // stop: cards drawn
         break;
       }
@@ -224,6 +249,7 @@ Sim.def('dispatch', function (K) {
         }
         const was = s.attackPhase;
         s.attackPhase = !!cmd.on;
+        s.step = s.attackPhase ? 'combat' : 'main'; // Patch6
         ev.push({ t: 'AttackPhaseChanged', on: s.attackPhase });
         if (cmd.on && !was) {
           s.combats = (s.combats || 0) + 1;
@@ -304,6 +330,7 @@ Sim.def('dispatch', function (K) {
       case 'EndTurn':
         if (cmd.player !== s.active || cmd.player !== s.priority)
           return fail('Only the turn player holding priority can end the turn');
+        if (s.drawPending) return fail('The draw phase has not happened yet');
         if (s.stack.length) return fail('Stack is not empty');
         if (s.respond) return fail('Waiting for the response window');
         if (s.attackPhase) {
@@ -344,6 +371,7 @@ Sim.def('dispatch', function (K) {
     sweepUnusable(s, ev);
     recalc(s, ev);
     checkTurnEnd(s, ev);
+    checkDrawStep(s, ev);
     if (!s.capped && historyBytes(s) > RULES.historyCap) {
       // Q43: the game ends (a draw, unless it was decided already; the first decision stands)
       s.capped = true;

@@ -16,6 +16,7 @@ const STOP_NAMES = {
   draw: 'cards drawn',
   stack: 'stack emptied',
 };
+const STEP_NAMES = { start: 'Start', draw: 'Draw phase', main: 'Main phase', combat: 'Combat phase', end: 'End phase' }; // Patch6
 const STOPS_ON = { turnStart: true, combatStart: true, combatEnd: true, draw: true, stack: true }; // real games run with every stop on
 const disp = n => n.replace(/^Opp(onent)?\b/, 'Player 2').replace(/^Player(?! [12])\b/, 'Player 1');
 const deckStatus = () =>
@@ -526,6 +527,25 @@ function switchPlayer() {
   setView(other(ui.view));
   sync();
 } // debug: seat only
+// Patch6: the options of the start dialog. A replay recorded before the draw phase existed has no `rules`: LEGACY_RULES keeps it exact
+const LEGACY_RULES = { drawPhase: 0 };
+const gameRules = c => {
+  const r = {};
+  for (const k of ['startHand', 'drawPhase', 'drawAction', 'life']) if (c[k] != null) r[k] = c[k];
+  return r;
+};
+const gameNames = c =>
+  c.mode === 'bot'
+    ? { [c.botSeat === 'Player' ? 'Opponent' : 'Player']: c.name1 || 'Player', [c.botSeat || 'Opponent']: 'Bot' }
+    : { Player: c.name1 || 'Player', Opponent: c.name2 || 'Player 2' };
+function setNames(s) {
+  // the shown names follow the game (logs, panels, the life bars)
+  Object.assign(NAME, { Player: 'Player 1', Opponent: 'Player 2' }, s.names || {});
+  for (const p of ['Player', 'Opponent']) {
+    const el = document.querySelector('#hp [data-p="' + p + '"] span');
+    if (el) el.textContent = NAME[p];
+  }
+}
 function newGame(cfg) {
   ui.lastCfg = cfg;
   resetGame();
@@ -545,6 +565,8 @@ function resetGame() {
   clearTimeout(ui.botTimer);
   const deckOf = n => (DeckStore.find(n) || BUILTIN_DECKS[0]).cards,
     exOf = n => (DeckStore.find(n) || BUILTIN_DECKS[0]).extra || [];
+  const rules = gameRules(c),
+    names = gameNames(c);
   sim = Sim.create(newSeed(), DEFS, {
     decks: { Player: deckOf(c.p1), Opponent: deckOf(c.p2) },
     extra: { Player: exOf(c.p1), Opponent: exOf(c.p2) },
@@ -552,7 +574,10 @@ function resetGame() {
     autoStart: true,
     stops: Settings.get('stops') || STOPS_ON,
     orderTriggers: true, // real games: a player with several triggers at once orders them
+    rules,
+    names,
   });
+  setNames(sim);
   game = sim;
   fxReset();
   undoStack.length = 0;
@@ -573,6 +598,8 @@ function resetGame() {
     sh: !!c.shuffle,
     stops: Settings.get('stops') || STOPS_ON,
     ot: true, // the replay needs the same options (the trigger order choices are part of the recorded commands)
+    rules, // Patch6: the game options and the names
+    names,
     mode: c.mode,
     a: c.p1,
     b: c.p2,
@@ -787,6 +814,7 @@ document.body.appendChild(dbg);
   })
 );
 function updateDbg() {
+  if (typeof StopsBar !== 'undefined') StopsBar.update(); // Patch6: the stop icons (bottom right)
   [...FN, ...DBTN].forEach(b => {
     b.el.textContent = b.label();
     b.el.disabled = !b.on();

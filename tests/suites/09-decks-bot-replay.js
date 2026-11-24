@@ -76,9 +76,9 @@
       autoStart: true,
     });
     eq(
-      'create with decks + no shuffle + autoStart: play phase, hand = first five of the list, the rest stays in the deck in order',
+      'create with decks + no shuffle + autoStart: play phase, hand = first five of the list + the draw phase card, the rest stays in the deck in order',
       [s.phase, s.piles.Player.hand.map(c => c.def.id), s.piles.Player.deck.map(c => c.def.id)],
-      ['play', A.slice(0, 5), A.slice(5)]
+      ['play', A.slice(0, 6), A.slice(6)]
     );
     eq(
       'the second player has its own list',

@@ -78,7 +78,7 @@ Sim.def('observe', function (K) {
     });
     for (const id in s.cards) {
       const c = s.cards[id];
-      if (c.def.type === 'ability' || c.loc === 'deck' || c.loc === 'gone') continue; // a deck is known to nobody: only its size is told
+      if (c.def.type === 'ability' || (c.loc === 'deck' && !sc.known(id)) || c.loc === 'gone') continue; // a deck: only its size, and the cards revealed to p (Patch6)
       if (sc.known(id)) cards[id] = card(c);
       else if (c.loc === 'hand' || c.loc === 'extra') cards[sc.alias(id)] = stub(c); // a card under an enemy cloud is not even mentioned
     }
@@ -86,7 +86,14 @@ Sim.def('observe', function (K) {
     for (const q of ['Player', 'Opponent']) {
       const P = s.piles[q],
         ids = list => list.map(c => sc.alias(c.iid));
-      piles[q] = { deck: P.deck.length, hand: ids(P.hand), gy: ids(P.gy), exile: ids(P.exile), extra: ids(P.extra) };
+      piles[q] = {
+        deck: P.deck.length,
+        deckKnown: P.deck.map((c, i) => (sc.known(c.iid) ? [i, c.iid] : null)).filter(Boolean), // Patch6: [position, iid] of the deck cards revealed to p
+        hand: ids(P.hand),
+        gy: ids(P.gy),
+        exile: ids(P.exile),
+        extra: ids(P.extra),
+      };
       players[q] = {
         life: s.life[q],
         statuses: sc.scrub(s.players[q].statuses),

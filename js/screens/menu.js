@@ -206,45 +206,12 @@ function settingsDialog() {
     note.textContent =
       'Browsers slow hidden tabs down: the bot and the automatic passes may act about once per second there.';
     box.appendChild(note);
-    // stops (Q50, Arena style): per player, the windows on the opponent's turn and on their own turn. Used by the next game.
-    const KINDS = [
-        ['turnStart', 'Turn start'],
-        ['combatStart', 'Combat start'],
-        ['combatEnd', 'Combat end'],
-        ['draw', 'Cards drawn'],
-        ['stack', 'Stack emptied'],
-      ],
-      own = KINDS.concat([
-        ['enter', 'Permanent entered'],
-        ['end', 'End step'],
-      ]),
-      cur = Settings.get('stops') ? JSON.parse(JSON.stringify(Settings.get('stops'))) : null,
-      st = cur || {
-        Player: { opp: Object.assign({}, STOPS_ON), own: {} },
-        Opponent: { opp: Object.assign({}, STOPS_ON), own: {} },
-      };
-    box.appendChild(mkEl('h2')).textContent = 'Stops';
-    for (const p of ['Player', 'Opponent'])
-      for (const [role, list, title] of [
-        ['opp', KINDS, ' on the opponent\u2019s turn'],
-        ['own', own, ' on their own turn'],
-      ]) {
-        const g = mkEl('div', 'mgroup');
-        g.appendChild(mkEl('div', 'mgtitle')).textContent = NAME[p] + title;
-        for (const [k, t] of list) {
-          const l = mkEl('label', 'mcheck'),
-            c = mkEl('input');
-          c.type = 'checkbox';
-          c.checked = !!st[p][role][k];
-          c.onchange = () => {
-            st[p][role][k] = c.checked;
-            Settings.set('stops', st);
-          };
-          l.append(c, document.createTextNode(' ' + t));
-          g.appendChild(l);
-        }
-        box.appendChild(g);
-      }
+    // Patch6: the stops moved into the game (the stop icons in the bottom right corner)
+    const sn = mkEl('p', 'mmsg');
+    sn.style.fontSize = '12px';
+    sn.style.opacity = '0.7';
+    sn.textContent = 'Stops are set during a game: the small icons in the bottom right corner.';
+    box.appendChild(sn);
     const row = mkEl('div', 'mrow');
     row.appendChild(mkBtn('Close', cancel));
     box.appendChild(row);
@@ -273,6 +240,43 @@ function startDialog(mode) {
     };
     const s1 = sel('Player 1 deck', MenuUI.last.p1),
       s2 = sel(mode === 'bot' ? 'Bot deck (Player 2)' : 'Player 2 deck', MenuUI.last.p2);
+    // Patch6: player names and the game options (cards in the opening hand, per draw phase, per Draw action, starting life)
+    const txt = (label, def) => {
+      const w = mkEl('label', 'mfield');
+      w.appendChild(mkEl('span')).textContent = label;
+      const i = mkEl('input', 'dctl');
+      i.type = 'text';
+      i.maxLength = 24;
+      i.value = def;
+      w.appendChild(i);
+      box.appendChild(w);
+      return i;
+    };
+    const num = (label, def, min, max) => {
+      const w = mkEl('label', 'mfield'),
+        i = mkEl('input', 'dctl');
+      w.appendChild(mkEl('span')).textContent = label;
+      i.type = 'number';
+      i.min = min;
+      i.max = max;
+      i.step = 1;
+      i.value = def;
+      w.appendChild(i);
+      grid.appendChild(w);
+      return i;
+    };
+    const L = MenuUI.last,
+      n1 = txt(mode === 'bot' ? 'Player name' : 'Player 1 name', L.name1 || 'Player'),
+      n2 = mode === 'bot' ? null : txt('Player 2 name', L.name2 || 'Player 2'),
+      grid = box.appendChild(mkEl('div', 'mgrid')), // the four numbers, two per row
+      gh = num('Cards at the start', L.startHand != null ? L.startHand : 5, 0, 40),
+      gd = num('Cards per draw phase', L.drawPhase != null ? L.drawPhase : 1, 0, 10),
+      ga = num('Cards per Draw action', L.drawAction != null ? L.drawAction : 2, 0, 10),
+      gl = num('Starting HP', L.life != null ? L.life : 20, 1, 999);
+    const int = (el, d, min, max) => {
+      const v = Math.floor(+el.value);
+      return isFinite(v) && el.value !== '' ? Math.max(min, Math.min(max, v)) : d;
+    };
     const cw = mkEl('label', 'mcheck'),
       cb = mkEl('input');
     cb.type = 'checkbox';
@@ -304,7 +308,19 @@ function startDialog(mode) {
       mkBtn(
         'Start',
         () => {
-          MenuUI.last = { p1: s1.value, p2: s2.value, shuffle: cb.checked, botEnd: sb ? sb.value : MenuUI.last.botEnd };
+          MenuUI.last = {
+            p1: s1.value,
+            p2: s2.value,
+            shuffle: cb.checked,
+            botEnd: sb ? sb.value : MenuUI.last.botEnd,
+            name1: n1.value.trim() || 'Player',
+            name2: n2 ? n2.value.trim() || 'Player 2' : MenuUI.last.name2,
+            startHand: int(gh, 5, 0, 40),
+            drawPhase: int(gd, 1, 0, 10),
+            drawAction: int(ga, 2, 0, 10),
+            life: int(gl, 20, 1, 999),
+          };
+          Settings.set('lastGame', MenuUI.last); // the dialog remembers the last choices
           close();
           MenuUI.play(Object.assign({ mode }, MenuUI.last));
         },
@@ -318,7 +334,10 @@ function startDialog(mode) {
 const MenuUI = {
   away: true, // true while the main menu or the deck editor is on screen: the game underneath is paused (no bot, no auto-pass)
   root: null,
-  last: { p1: BUILTIN_DECKS[0].name, p2: BUILTIN_DECKS[1].name, shuffle: true, botEnd: 'random' },
+  last: Object.assign(
+    { p1: BUILTIN_DECKS[0].name, p2: BUILTIN_DECKS[1].name, shuffle: true, botEnd: 'random' },
+    Settings.get('lastGame') || {}
+  ),
   build() {
     const r = (this.root = mkEl('div', 'screen'));
     r.id = 'mainMenu';

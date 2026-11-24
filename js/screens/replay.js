@@ -317,7 +317,10 @@ const Replays = (function () {
       autoStart: true,
       stops: rec.stops,
       orderTriggers: !!rec.ot,
+      rules: rec.rules || LEGACY_RULES, // Patch6: older replays had no draw phase
+      names: rec.names,
     });
+    setNames(sim);
     game = sim;
     fxReset();
     undoStack.length = 0;
@@ -359,7 +362,10 @@ const Replays = (function () {
         autoStart: true,
         stops: rec.stops,
         orderTriggers: !!rec.ot,
+        rules: rec.rules || LEGACY_RULES, // Patch6
+        names: rec.names,
       });
+      setNames(sim);
       undoStack.length = 0; // (from the current state the replay's snapshots stay: Undo goes back through the replayed moves too)
       eventLog.length = 0;
       GameLog.clear();
@@ -378,6 +384,9 @@ const Replays = (function () {
       shuffle: !!rec.sh,
       botEnd: MenuUI.last.botEnd || 'random',
       botSeat: ui.botSeat,
+      ...(rec.rules || LEGACY_RULES), // Patch6: a rematch keeps the game options
+      name1: (rec.names || {}).Player,
+      name2: (rec.names || {}).Opponent,
     };
     ui.rpInit = {
       n: rec.n,
@@ -388,6 +397,8 @@ const Replays = (function () {
       sh: !!rec.sh,
       stops: rec.stops || null,
       ot: !!rec.ot,
+      rules: rec.rules || LEGACY_RULES, // Patch6
+      names: rec.names,
       mode: ui.mode,
       a: rec.a,
       b: rec.b,

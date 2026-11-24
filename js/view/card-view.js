@@ -330,6 +330,91 @@ DEFS.forEach(d => {
 artR.dispose();
 artR.forceContextLoss();
 artR = null;
+// ---- Patch6: the card back (face-down cards, the bottom face of every card, decks): a framed emblem of a small house under a sky of rays ----
+function drawCardBack(g, w, h) {
+  const css = (n, d) => getComputedStyle(document.documentElement).getPropertyValue(n).trim() || d,
+    A = css('--card-back-a', '#1d2550'),
+    B = css('--card-back-b', '#0b0f26'),
+    L = css('--card-back-line', '#c9a54a'),
+    cx = w / 2,
+    cy = h / 2;
+  const bg = g.createRadialGradient(cx, cy, 8, cx, cy, h * 0.7);
+  bg.addColorStop(0, A);
+  bg.addColorStop(1, B);
+  g.fillStyle = bg;
+  g.fillRect(0, 0, w, h);
+  g.save(); // a fine diamond lattice
+  g.globalAlpha = 0.13;
+  g.strokeStyle = L;
+  g.lineWidth = 1;
+  for (let i = -h; i < w + h; i += 14) {
+    g.beginPath();
+    g.moveTo(i, 0);
+    g.lineTo(i + h, h);
+    g.moveTo(i, h);
+    g.lineTo(i + h, 0);
+    g.stroke();
+  }
+  g.restore();
+  g.strokeStyle = L; // double frame
+  g.lineWidth = 5;
+  g.strokeRect(6, 6, w - 12, h - 12);
+  g.lineWidth = 1.5;
+  g.strokeRect(13, 13, w - 26, h - 26);
+  g.save(); // rays behind the emblem
+  g.translate(cx, cy);
+  g.globalAlpha = 0.35;
+  g.lineWidth = 2;
+  for (let i = 0; i < 16; i++) {
+    const a = (i / 16) * Math.PI * 2;
+    g.beginPath();
+    g.moveTo(Math.cos(a) * 30, Math.sin(a) * 30);
+    g.lineTo(Math.cos(a) * 52, Math.sin(a) * 52);
+    g.stroke();
+  }
+  g.restore();
+  g.beginPath(); // emblem: a ring with a house inside
+  g.arc(cx, cy, 27, 0, Math.PI * 2);
+  g.fillStyle = B;
+  g.fill();
+  g.lineWidth = 3;
+  g.stroke();
+  g.beginPath();
+  g.moveTo(cx - 13, cy + 12);
+  g.lineTo(cx - 13, cy - 1);
+  g.lineTo(cx, cy - 13);
+  g.lineTo(cx + 13, cy - 1);
+  g.lineTo(cx + 13, cy + 12);
+  g.closePath();
+  g.fillStyle = L;
+  g.fill();
+  g.fillStyle = B;
+  g.fillRect(cx - 3.5, cy + 2, 7, 10);
+  [-1, 1].forEach(s => {
+    // corner diamonds
+    [-1, 1].forEach(t => {
+      const x = cx + s * (w / 2 - 26),
+        y = cy + t * (h / 2 - 26);
+      g.beginPath();
+      g.moveTo(x, y - 7);
+      g.lineTo(x + 5, y);
+      g.lineTo(x, y + 7);
+      g.lineTo(x - 5, y);
+      g.closePath();
+      g.fillStyle = L;
+      g.fill();
+    });
+  });
+}
+const backMat = (() => {
+  const c = document.createElement('canvas');
+  c.width = 160;
+  c.height = 230;
+  drawCardBack(c.getContext('2d'), c.width, c.height);
+  const tex = new THREE.CanvasTexture(c);
+  tex.anisotropy = 4;
+  return new THREE.MeshBasicMaterial({ map: tex });
+})();
 function cardMat(def, faceDown, rot, hp, atk) {
   // on the table a card shows only: name, power, effective HP
   const key = (faceDown ? 'fd' : def.id) + '|' + rot;
@@ -338,18 +423,16 @@ function cardMat(def, faceDown, rot, hp, atk) {
   c.width = 160;
   c.height = 230;
   const g = c.getContext('2d');
-  g.fillStyle = faceDown ? '#3b3f4d' : cardColor(def);
-  g.fillRect(0, 0, c.width, c.height);
-  g.strokeStyle = 'rgba(255,255,255,.6)';
-  g.lineWidth = 6;
-  g.strokeRect(3, 3, c.width - 6, c.height - 6);
-  g.fillStyle = '#fff';
-  g.textAlign = 'center';
-  g.textBaseline = 'middle';
-  if (faceDown) {
-    g.font = 'bold 64px sans-serif';
-    g.fillText('?', c.width / 2, c.height / 2);
-  } else {
+  if (faceDown)
+    drawCardBack(g, c.width, c.height); // Patch6: a proper card back
+  else {
+    g.fillStyle = cardColor(def);
+    g.fillRect(0, 0, c.width, c.height);
+    g.strokeStyle = 'rgba(255,255,255,.6)';
+    g.lineWidth = 6;
+    g.strokeRect(3, 3, c.width - 6, c.height - 6);
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
     g.fillStyle = 'rgba(0,0,0,.22)';
     g.fillRect(22, 42, 116, 116);
     g.drawImage(artCanvas(def), 24, 44, 112, 112);
@@ -365,7 +448,7 @@ function cardMat(def, faceDown, rot, hp, atk) {
   tex.center.set(0.5, 0.5);
   tex.rotation = rot;
   tex.anisotropy = 4;
-  return (matCache[key] = [sideMat, sideMat, new THREE.MeshBasicMaterial({ map: tex }), sideMat, sideMat, sideMat]);
+  return (matCache[key] = [sideMat, sideMat, new THREE.MeshBasicMaterial({ map: tex }), backMat, sideMat, sideMat]); // bottom face: the card back
 }
 const cardGroup = new THREE.Group();
 scene.add(cardGroup);

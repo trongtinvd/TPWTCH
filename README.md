@@ -44,13 +44,17 @@ Godot (final presentation); three.js board prototype to validate rules/feel. Pri
 
 Plain scripts loaded in order by `index.html` (no build step):
 
-- `js/cards.js` Fx effect API + card definitions - `js/sim/*.js` rules (no THREE/DOM; `kernel.js` scaffold, one file per concern and per registry: `ops.js` effects, `costs.js`, `reqs.js`, `targeting.js`, `cond.js` conditions / triggers / passives, `ap.js` action points, `fusion.js` / `choices.js` extra deck flows, `ch.js`, `then.js`; `index.js` is the public `Sim` facade, `validate.js` checks cards against `Sim.API`) - `js/decks.js` deck store, validation, search - `js/bot.js` bot
-- `js/scene.js`, `js/board.js`, `js/card-view.js`, `js/view-sync.js` three.js scene, board, card meshes, state -> mesh sync
-- `js/game-host.js`, `js/input.js`, `js/layout.js`, `js/panels.js`, `js/menu.js`, `js/deck-editor.js`, `js/replay.js`, `js/result.js` host and UI state, pointer input, phone panel resizing (localStorage), panels, menu, deck editor, duel replays (localStorage), result dialog (rematch / continue / leave)
-- `css/theme.css` every colour, distance and sprite setting as a CSS variable; `js/theme.js` reads them for the 3D scene; `js/storage.js` the only code that touches localStorage
-- `js/gamelog.js` the game log (back of the stack panel: every command and rule event, by name)
+Folders under `js/` (Patch6):
+
+- `js/core/` `theme.js` (reads `css/theme.css` for the 3D scene), `storage.js` (the only code that touches localStorage), `settings.js`
+- `js/content/` `cards.js` Fx effect API + card definitions, `decks.js` deck store, validation, search
+- `js/sim/*.js` rules (no THREE/DOM; `kernel.js` scaffold, one file per concern and per registry: `ops.js` effects, `costs.js`, `reqs.js`, `targeting.js`, `cond.js` conditions / triggers / passives, `ap.js` action points, `fusion.js` / `choices.js` extra deck flows, `ch.js`, `then.js`; `index.js` is the public `Sim` facade, `validate.js` checks cards against `Sim.API`, `observe.js` per-player Observations)
+- `js/game/` `game-host.js` host and UI state (send, automation, buttons), `input.js` pointer input, `bot.js` the bot
+- `js/log/` `narrate.js` the per-player story log (no DOM; the Node tests load it to check the logs for leaks), `gamelog.js` the log panel (back of the stack panel)
+- `js/view/` `scene.js`, `board.js`, `card-view.js` (card meshes, card back), `view-sync.js` (state -> meshes, pile tops), `panels.js`, `layout.js` (phone panel resizing), `stops-bar.js` (the stop icons)
+- `js/screens/` `menu.js` (main menu, start dialog, settings), `deck-editor.js`, `replay.js` (duel replays), `result.js` (rematch / continue / leave)
 - `js/main.js` console hook and render loop
-- `js/sim/observe.js` per-player Observations (`Sim.observe`, `Sim.observeEvents`); `js/narrate.js` is loaded by the Node tests too, to check the logs for leaks
+- `css/theme.css` every colour, distance and sprite setting as a CSS variable
 - `tests/selftest.js` headless rules tests, `tests/run.js` runs them in Node
 
 ## Running the tests

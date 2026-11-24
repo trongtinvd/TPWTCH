@@ -646,6 +646,62 @@ function buildStack() {
     stackEl.appendChild(el);
   }
 }
+// ---- Patch6: the deck, extra deck, graveyard and exile show their top card: its front when the viewer may know it (a deck card only when it
+// was revealed to them, e.g. by L4), otherwise the card back. The pile is a thin stack with the number of cards on a badge; it is not pickable,
+// so a click still opens the zone's list.
+const PILE_TOP = {
+    deck: P => P.deck[0],
+    extra: P => P.extra[0],
+    gy: P => P.gy[0], // newest first
+    exile: P => P.exile[P.exile.length - 1], // newest last
+  },
+  piles3d = {};
+function pileView(key) {
+  const z = sideZones[key],
+    rot = z.userData.owner === 'Opponent' ? Math.PI : 0,
+    mesh = new THREE.Mesh(cardGeo, cardMat(null, true, rot)),
+    badge = new THREE.Mesh(badgeGeo, new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false }));
+  mesh.raycast = () => {};
+  badge.raycast = () => {};
+  badge.rotation.set(-Math.PI / 2, 0, rot);
+  scene.add(mesh, badge);
+  return (piles3d[key] = { z, rot, mesh, badge, n: -1, mat: null });
+}
+function syncPiles() {
+  for (const p of ['Player', 'Opponent'])
+    for (const k in PILE_TOP) {
+      const key = p + k,
+        v = piles3d[key] || pileView(key),
+        P = game.piles[p],
+        n = P[k].length,
+        top = PILE_TOP[k](P),
+        z = v.z;
+      v.mesh.visible = v.badge.visible = !!top;
+      z.userData.pileShown = !!top;
+      if (!top) continue;
+      const mat = cardMat(top.def, !Sim.canSee(game, ui.view, top), v.rot);
+      if (v.mat !== mat) v.mesh.material = v.mat = mat;
+      if (v.n !== n) {
+        v.n = n;
+        v.h = 0.02 + 0.01 * Math.min(n, 40); // a thicker stack for a bigger pile
+        v.mesh.scale.y = v.h / 0.08;
+        v.badge.material.map = badgeTexture(n, '#1d2230', '#5a6378');
+        v.badge.material.needsUpdate = true;
+        placePile(v);
+      }
+    }
+}
+function placePile(v) {
+  // on the zone, which rises with its half of the board (the frame loop calls this too)
+  const z = v.z,
+    sg = v.rot ? -1 : 1;
+  v.mesh.position.set(z.position.x, z.position.y + 0.06 + v.h / 2, z.position.z);
+  v.badge.position.set(
+    z.position.x + sg * (CW / 2 - 0.25),
+    z.position.y + 0.07 + v.h,
+    z.position.z + sg * (CD / 2 - 0.25)
+  );
+}
 function sync() {
   const seat = game.choice ? game.choice.player : game.priority;
   if (ui.pin && ui.pin !== seat) ui.pin = null; // a manual seat switch holds until priority moves on
@@ -728,6 +784,7 @@ function sync() {
       Object.assign(m.userData, { tx: z.position.x, tz: z.position.z, ty: 0.11, dying: true, card: null });
       setGlow(m, false);
     }
+  syncPiles();
   for (const p of ['Player', 'Opponent']) {
     sideZones[p + 'deck'].userData.relabel(game.piles[p].deck.length + ' cards');
     sideZones[p + 'gy'].userData.relabel(game.piles[p].gy.length + ' cards');
@@ -799,7 +856,7 @@ function sync() {
   zones.forEach(z => {
     const dead = !!(z.userData.slotKey && Sim.isUnusable(game, z.userData.slotKey));
     z.visible = !dead;
-    z.userData.plane.visible = !dead;
+    z.userData.plane.visible = !dead && !z.userData.pileShown; // Patch6: a pile with a card on it hides its label (the count is on the pile)
   }); // an unusable zone vanishes from the board
   stackEl.classList.toggle(
     'drop',
@@ -844,7 +901,7 @@ function sync() {
                   : 'Placing ' + ui.placing.def.name + ': click a highlighted zone (Esc to cancel)'
               : NAME[game.active] +
                 '\u2019s turn' +
-                (game.attackPhase ? ' (attack phase)' : '') +
+                (' \u00b7 ' + (STEP_NAMES[game.step] || 'Main phase')) + // Patch6: start -> draw -> main -> combat -> main or end
                 (' (' +
                   Sim.apCount(game, game.active) +
                   ' action point' +
@@ -986,6 +1043,7 @@ function animate() {
     z.userData.plane.position.y = 0.065 + L;
   });
   for (const k in clouds) clouds[k].position.y = 0.2 + lift[k.split('|')[0]];
+  for (const k in piles3d) if (piles3d[k].h) placePile(piles3d[k]); // Patch6: the piles ride with their zones
   for (const [id, m] of meshes) {
     if (ui.drag && ui.drag.card.iid === id) {
       busy = true;

@@ -3,8 +3,9 @@
 // Both logs together are the whole game: every command, what it targeted and chose, the stack, damage, life, action points, statuses, every zone change.
 // Card names carry a colour mark (the owner) in `rich`; `text` is the same line without marks.
 const Narrate = (function () {
-  const NAMEP = { Player: 'Player 1', Opponent: 'Player 2' },
-    P = p => NAMEP[p] || String(p),
+  const NAMEP = { Player: 'Player 1', Opponent: 'Player 2' };
+  let shownNames = NAMEP; // Patch6: the names chosen in the start dialog (state.names)
+  const P = p => shownNames[p] || NAMEP[p] || String(p),
     OWN = { Player: 'P', Opponent: 'O' },
     STOP = {
       enter: 'permanent entered',
@@ -43,6 +44,7 @@ const Narrate = (function () {
     };
   function story(pre, post, cmd, ev, V) {
     V = V || 'Player';
+    shownNames = post.names || NAMEP;
     const out = [],
       line = (rich, h) => out.push({ rich, text: strip(rich), h: !!h }),
       card = id => post.cards[id] || pre.cards[id],
@@ -149,6 +151,17 @@ const Narrate = (function () {
       case 'EndTurn':
         line(P(cmd.player) + ' ends their turn');
         break;
+      case 'SetStop':
+        line(
+          P(cmd.player) +
+            ' turns ' +
+            (cmd.on ? 'on' : 'off') +
+            ' the stop "' +
+            (STOP[cmd.kind] || cmd.kind) +
+            '" on ' +
+            (cmd.role === 'own' ? 'their own turn' : 'the opponent\u2019s turn')
+        );
+        break;
       case 'Surrender':
         line(P(cmd.player) + ' surrenders');
         break;
@@ -195,6 +208,9 @@ const Narrate = (function () {
           act = e.active;
           line('Turn ' + post.turn + ': ' + P(e.active) + '\u2019s turn', true);
           break;
+        case 'DrawStepEntered':
+          line(P(e.player) + '\u2019s draw phase');
+          break;
         case 'ActionPointGained':
           ap[e.player]++;
           line(P(e.player) + ' ap = ' + ap[e.player]);
@@ -231,7 +247,7 @@ const Narrate = (function () {
           if (o.kind === 'spell') line(C(o.iid) + ' is put on the stack (stack HP ' + o.hp + ')' + tg);
           else {
             const src = post.cards[o.src],
-              a = src && Sim.abDef(src)[o.list][o.ab];
+              a = src && (Sim.abDef(src)[o.list] || [])[o.ab]; // Patch6: the source may have lost that ability list since (Avatar)
             if (o.list === 'triggers')
               line(CS(o.src) + ' triggers' + (a && a.text ? ': ' + a.text : '') + tg + ' (stack HP ' + o.hp + ')');
             else
@@ -332,7 +348,23 @@ const Narrate = (function () {
     // ---- zone changes and statuses, from the cards' own logs (written by this command), oldest first. A hidden card's statuses are hidden too.
     const n0 = pre.lseq || 0,
       later = [],
-      HIDE = ['entered', 'attacked', 'damage', 'attackCounter'];
+      HIDE = ['entered', 'attacked', 'damage', 'attackCounter'],
+      // Patch6: a status text may name another card (Avatar of Rabies): a name only hidden cards have becomes "a card"
+      shown = new Set(
+        Object.keys(post.cards)
+          .filter(seen)
+          .map(id => card(id).def.name)
+      ),
+      secret = [
+        ...new Set(
+          Object.keys(post.cards)
+            .filter(id => !seen(id) && card(id).def.type !== 'ability')
+            .map(id => card(id).def.name)
+        ),
+      ]
+        .filter(n => !shown.has(n))
+        .sort((a, b) => b.length - a.length),
+      mask = t => secret.reduce((r, n) => r.split(n).join('a card'), t);
     for (const c of Object.values(post.cards))
       for (const l of c.logs || []) {
         if (l.n <= n0) continue;
@@ -346,14 +378,14 @@ const Narrate = (function () {
             t:
               C(c.iid) +
               ': ' +
-              (l.kind === 'status+' ? l.text : 'status #' + l.id + ' (' + l.sk + ') removed: ' + l.why),
+              mask(l.kind === 'status+' ? l.text : 'status #' + l.id + ' (' + l.sk + ') removed: ' + l.why),
           });
         }
       }
     for (const p of ['Player', 'Opponent'])
       for (const l of post.players[p].logs || [])
         if (l.n > n0 && l.kind === 'status+' && !['damage', 'paid', 'life'].includes(l.sk))
-          later.push({ n: l.n, t: P(p) + ': ' + l.text });
+          later.push({ n: l.n, t: P(p) + ': ' + mask(l.text) });
     later.sort((a, b) => a.n - b.n).forEach(m => line(m.t));
     // the prompt of a pending choice is for the chooser only (it can name a hidden card)
     if (lastChoice && post.choice)
@@ -363,6 +395,7 @@ const Narrate = (function () {
   // the opening: your own starting hand and deck lists (your own information), the size of the other hand, who goes first
   function opening(s, V) {
     V = V || 'Player';
+    shownNames = s.names || NAMEP;
     const names = list => list.map(c => mark(c.owner, c.iid, c.def.name)).join(', '),
       out = [{ rich: 'Game start', h: true }];
     for (const p of ['Player', 'Opponent'])

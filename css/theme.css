@@ -16,6 +16,12 @@
   --btn-exit: #d63a2f; /* Exit / Leave */
   --exit-glow: #ff5a4d; /* the pulsing Exit button */
   --ap-color: #ffd34d; /* action points (the four-point star under each life bar) */
+  --stop-on: #ffd34d; /* Patch6: a stop icon that is on (bottom right corner) */
+  --stop-off: rgba(200, 205, 220, 0.35); /* ...and one that is off */
+  --stop-size: 26px; /* ...the size of one stop icon */
+  --card-back-a: #1d2550; /* Patch6: the card back: gradient, frame and emblem colours */
+  --card-back-b: #0b0f26;
+  --card-back-line: #c9a54a;
   --accent: #3fe07a; /* hover links, drop targets, selected highlight */
   --drop: #3fa66a;
   --splat: #b3121c;

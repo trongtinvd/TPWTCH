@@ -137,7 +137,10 @@ Sim.def('statuses', function (K) {
         'Ability replaced: uses the abilities of ' + byId[st.to].name + ' (ends when that damage is removed)',
       nodamage: () => 'Damage is denied until the end of the turn' + by,
       revealed: () =>
-        'Revealed to ' + st.to + ' while it stays in ' + (st.zone === 'extra' ? 'the extra deck' : 'hand'),
+        'Revealed to ' +
+        st.to +
+        ' while it stays in ' +
+        ({ extra: 'the extra deck', deck: 'the deck' }[st.zone] || 'hand'),
       mats: () =>
         'Summoned using ' + st.cards.map(m => m.name).join(', ') + (st.srcName ? ' (' + st.srcName + ')' : ''),
       vault: () => 'Exiled by it: ' + (st.name || st.card),

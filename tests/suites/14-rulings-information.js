@@ -142,7 +142,14 @@
       if (!r.ok) continue;
       for (const V of ['Player', 'Opponent']) {
         const visible = id => Sim.canSee(pre, V, pre.cards[id]) || Sim.canSee(g, V, g.cards[id]),
-          hid = Object.values(g.cards).filter(c => c.def.type !== 'ability' && !visible(c.iid) && !Sim.canSee(g, V, c)),
+          seen = new Set(
+            Object.values(g.cards)
+              .filter(c => visible(c.iid))
+              .map(c => c.def.name)
+          ), // Patch6: a name a visible card also has (two Vine tokens, one under a cloud) is no leak
+          hid = Object.values(g.cards).filter(
+            c => c.def.type !== 'ability' && !visible(c.iid) && !Sim.canSee(g, V, c) && !seen.has(c.def.name)
+          ),
           bad = text => hid.some(c => text.includes(quoted(c.def.name)) || text.includes(quoted(c.def.id))),
           o = Sim.observe(g, V),
           oj = JSON.stringify(Object.assign({}, o, { choice: null })); // the chooser may be offered names (look at the top card, exile from your deck)
@@ -214,8 +221,12 @@
       second = D(g, { type: 'Start', player: 'Opponent' });
     eq(
       'the events are in causal order: ready, then the hands, then the game starts',
-      [first.events.map(e => e.t), second.events.map(e => e.t).slice(0, 2), second.events.map(e => e.t).slice(-2)],
-      [['PlayerReady'], ['PlayerReady', 'CardDrawn'], ['GameStarted', 'ActionPointGained']]
+      [first.events.map(e => e.t), second.events.map(e => e.t).slice(0, 2), second.events.map(e => e.t).slice(-4)],
+      [
+        ['PlayerReady'],
+        ['PlayerReady', 'CardDrawn'],
+        ['GameStarted', 'ActionPointGained', 'DrawStepEntered', 'CardDrawn'],
+      ]
     );
     for (let i = 0; i < 300; i++) {
       const cmd = botChoose(g, botActor(g), rnd, mem);

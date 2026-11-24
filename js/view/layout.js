@@ -57,6 +57,14 @@
     h.addEventListener('pointerup', end);
     h.addEventListener('pointercancel', end);
   }
+  // Patch6: --hpB = the bottom of the life bars (they grow with the action point stars): the status line and the buttons sit under it
+  const hp = document.getElementById('hp');
+  const measure = () => {
+    if (hp) rootStyle.setProperty('--hpB', Math.ceil(hp.getBoundingClientRect().bottom) + 'px');
+  };
+  if (hp && typeof ResizeObserver !== 'undefined') new ResizeObserver(measure).observe(hp);
+  addEventListener('resize', measure);
+  measure();
   handle('hTop', 'top', 'Drag to resize the inspector');
   handle('hBot', 'bot', 'Drag to resize the stack and card lists');
   load();

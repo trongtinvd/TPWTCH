@@ -49,9 +49,9 @@
     const s1 = start(1002);
     D(s1, { type: 'Draw', player: 'Player' });
     eq(
-      'cards drawn are counted per player (the opening hand does not count)',
+      'cards drawn are counted per player (the opening hand does not count; the draw phase and the Draw action do)',
       [s1.drawn.Player, s1.drawn.Opponent],
-      [2, 0]
+      [1 + 2, 0]
     );
   });
 
@@ -497,7 +497,7 @@
       );
       const h0 = s.piles.Player.hand.length;
       pass2(s);
-      eq('...it draws a card', s.piles.Player.hand.length, h0 + 1);
+      eq('...it draws a card, then the draw phase draws one more (Patch6)', s.piles.Player.hand.length, h0 + 1 + 1);
     }
     {
       // L4 plays a permanent of the opponent

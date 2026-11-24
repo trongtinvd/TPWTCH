@@ -5,6 +5,7 @@ Sim.def('choices', function (K) {
   let ctl; // added by Patch3
   let byId, cname, isPerm, other, zoneDist; // util
   let has; // statuses
+  let addStatus, isRevealed; // Patch6
   let cloudMap, destroy, enterBoard, freeSlots, isUnusable; // state
   let ask; // fx
   let REQS; // reqs
@@ -97,9 +98,15 @@ Sim.def('choices', function (K) {
       ev
     );
   }
+  // Patch6: a card someone looked at in a deck is revealed to them while it stays in that deck (it keeps the status when the deck is reordered)
+  const revealInDeck = (s, c, who, src) => {
+    if (c && c.owner !== who && !isRevealed(c, who))
+      addStatus(s, c, { kind: 'revealed', to: who, zone: 'deck', srcName: src.def.name });
+  };
   function reorderStart(x, e) {
     const owner = e.who === 'foe' ? x.foe : x.who,
       top = x.s.piles[owner].deck.slice(0, e.n).map(c => c.iid);
+    top.forEach(id => revealInDeck(x.s, x.s.cards[id], x.who, x.src));
     if (top.length > 1) reorderAsk(x.s, x.who, x.src, owner, top, [], x.ev);
   }
   // ---- L4, second ability: declare a name, look at the opponent's top card; if it has that name you may play it (you control it while it is in play / on the stack), then repeat
@@ -136,6 +143,7 @@ Sim.def('choices', function (K) {
   function libLook(s, me, c, name, ev) {
     const top = s.piles[other(me)].deck[0];
     if (!top) return;
+    revealInDeck(s, top, me, c);
     const hit = top.def.id === name,
       can = hit && playable(s, me, top);
     ask(
@@ -195,6 +203,8 @@ Sim.def('choices', function (K) {
   return {
     exports: { declareAsk, libLook, libPlay, pairLabel, pairOptions, pairPicked, pairStart, reorderAsk, reorderStart },
     needs: [
+      'addStatus', // Patch6
+      'isRevealed', // Patch6
       'ctl',
       'REQS',
       'ask',
@@ -211,6 +221,7 @@ Sim.def('choices', function (K) {
       'zoneDist',
     ],
     link: () => {
+      ({ addStatus, isRevealed } = K); // Patch6
       ({ ctl } = K);
       ({ REQS, ask, byId, cloudMap, cname, destroy, enterBoard, freeSlots, has, isPerm, isUnusable, other, zoneDist } =
         K);

@@ -33,12 +33,25 @@ Sim.def('state', function (K) {
       ? { Player: one(x.Player), Opponent: one(x.Opponent) }
       : { Player: one(x), Opponent: one(x) };
   };
+  // game options (Patch6): the Vs Bot / Vs Self dialog sets them; older replays (no options recorded) pass {drawPhase: 0}
+  const GAME_DEFAULTS = { startHand: 5, drawPhase: 1, drawAction: 2, life: 20 };
+  const gameCfg = o => {
+    const c = Object.assign({}, GAME_DEFAULTS);
+    for (const k in GAME_DEFAULTS)
+      if (o && o[k] != null && isFinite(o[k])) c[k] = Math.max(k === 'life' ? 1 : 0, Math.floor(+o[k]));
+    return c;
+  };
   function create(n, defs, opts = {}) {
     // opts: {decks:{Player:[ids], Opponent:[ids]}, shuffle:true, autoStart:false} (see createGame)                         // content is injected: the Sim never reads globals
     for (const k in byId) delete byId[k];
     Object.assign(byId, Object.fromEntries(defs.map(d => [d.id, d])));
+    const cfg = gameCfg(opts.rules);
     const s = {
       n,
+      cfg, // {startHand, drawPhase, drawAction, life}: cards in the opening hand, drawn in the draw phase, drawn by the Draw action; starting life
+      names: { Player: 'Player 1', Opponent: 'Player 2', ...(opts.names || {}) }, // shown names (logs, panels)
+      step: 'start', // the turn order: start -> draw -> main -> combat (optional) -> main or end
+      drawPending: false, // the draw phase happens once nothing is pending after the turn start
       phase: 'deck',
       ready: { Player: false, Opponent: false },
       cards: {},
@@ -49,9 +62,9 @@ Sim.def('state', function (K) {
       priority: 'Player',
       passes: 0,
       attackPhase: false,
-      life: { Player: 20, Opponent: 20 },
+      life: { Player: cfg.life, Opponent: cfg.life },
       players: { Player: { statuses: [], ap: [] }, Opponent: { statuses: [], ap: [] } },
-      maxLife: 20,
+      maxLife: cfg.life,
       turn: 1,
       seq: 0,
       apn: 0, // action point ids
@@ -174,13 +187,15 @@ Sim.def('state', function (K) {
     return m;
   };
   // INFORMATION: may player p know which card c is, right now? The board (unless covered by a cloud the owner controls), the graveyard, exile and the
-  // stack are public; a hand or the extra deck is known to its owner and to whoever it was revealed to; a deck is known to nobody (nobody knows the order).
+  // stack are public; a hand or the extra deck is known to its owner and to whoever it was revealed to; a deck card is known only to whoever it was
+  // revealed to while it stays in the deck (Patch6: L4 looks at the top cards), otherwise to nobody (nobody knows the order).
   // Logs, the table and every list ask THIS function, so a hidden card can never leak by accident.
   const canSee = (s, p, c) => {
     if (!c) return false;
     if (c.loc === 'board') return !(ctl(c) !== p && cloudMap(s)[c.slot]);
     if (c.loc === 'gy' || c.loc === 'exile' || c.loc === 'stack' || c.loc === 'gone') return true;
     if (c.loc === 'hand' || c.loc === 'extra') return c.owner === p || isRevealed(c, p);
+    if (c.loc === 'deck') return isRevealed(c, p);
     return false;
   };
   const AURAREQ = (s, c, st) => {
@@ -346,6 +361,7 @@ Sim.def('state', function (K) {
     exports: {
       AURAREQ,
       bounce,
+      GAME_DEFAULTS,
       buildDeck,
       canSee,
       cloudMap,

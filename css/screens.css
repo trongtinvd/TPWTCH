@@ -591,3 +591,18 @@
   font-weight: 600;
   opacity: 0.8;
 }
+
+/* Patch6: the start dialog grew (names, game options): it scrolls on a small screen, the numbers sit two per row */
+.modal {
+  max-height: 92dvh;
+  overflow-y: auto;
+}
+.mgrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 12px;
+}
+.mgrid .dctl {
+  width: 100%;
+  box-sizing: border-box;
+}

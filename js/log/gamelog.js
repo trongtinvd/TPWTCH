@@ -44,6 +44,8 @@ const GameLog = (function () {
     ResponseWindowOpened: e => 'stop: ' + stop(e.kind) + ' (' + who(e.player || other(sim.active)) + ' may respond)',
     ResponseWindowClosed: e => 'stop closed: ' + stop(e.kind),
     EndStepEntered: () => 'end step',
+    DrawStepEntered: e => who(e.player) + '\u2019s draw phase',
+    StopChanged: e => who(e.player) + ' stop "' + stop(e.kind) + '" (' + e.role + ') ' + (e.on ? 'on' : 'off'),
     TurnChanged: e => 'turn ' + sim.turn + ': ' + who(e.active) + '\u2019s turn begins',
     AttackPhaseChanged: e => 'combat ' + (e.on ? 'started' : 'ended'),
     CombatSkipped: e => who(e.player) + '\u2019s combat is skipped (End turn instead)',
@@ -113,7 +115,12 @@ const GameLog = (function () {
   const MODES = ['auto', 'Player', 'Opponent', 'raw'],
     viewer = () => (mode === 'auto' ? ui.view : mode),
     modeLabel = () =>
-      ({ auto: 'Log: ' + NAME[ui.view], Player: 'Log: Player 1', Opponent: 'Log: Player 2', raw: 'All events' })[mode];
+      ({
+        auto: 'Log: ' + NAME[ui.view],
+        Player: 'Log: ' + NAME.Player,
+        Opponent: 'Log: ' + NAME.Opponent,
+        raw: 'All events',
+      })[mode];
   const storyText = () => {
     const V = viewer();
     let n = 0;

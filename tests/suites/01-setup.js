@@ -58,9 +58,9 @@
       );
       D(s, { type: 'Start', player: 'Opponent' });
       eq(
-        'both ready: play phase, opening hand = first five cards of the reordered deck, deck shrinks by 5',
+        'both ready: play phase, opening hand = first five cards of the reordered deck, then the first turn’s draw phase draws the next one (Patch6)',
         [s.phase, s.piles.Player.hand.map(c => c.iid), s.piles.Player.deck.length, s.piles.Opponent.hand.length],
-        ['play', [top[1], top[2], top[3], top[0], top[4]], n - 5, 5]
+        ['play', [top[1], top[2], top[3], top[0], top[4], top[5]], n - 6, 5]
       );
       rej('Start after the game began is rejected', s, { type: 'Start', player: 'Player' }, 'already started');
     }

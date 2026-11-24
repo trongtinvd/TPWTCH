@@ -271,6 +271,7 @@ Sim.def('stack', function (K) {
   const respPri = s => (s.respond && s.respond.stage === 'turn' ? s.active : other(s.active)); // who holds priority in the open window
   function openRespond(s, ev, kind) {
     // an empty-stack priority window (triggers on the stack resolve first); nothing opens when neither player wants this stop
+    if (kind === 'end') s.step = 'end'; // Patch6: the turn order shown in the game
     const foe = other(s.active),
       stage = stopWants(s, foe, kind) ? 'foe' : stopWants(s, s.active, kind) ? 'turn' : null;
     if (!stage) return;
@@ -323,6 +324,8 @@ Sim.def('stack', function (K) {
     s.passes = 0;
     ev.push({ t: 'TurnChanged', active: s.active });
     gainAP(s, s.active, ev); // one action point at the start of each turn; unspent ones stay
+    s.step = 'start';
+    s.drawPending = true; // Patch6: the draw phase follows once the turn start is over (dispatch: checkDrawStep)
     fire(s, ev, 'turnStart', null);
     stopAt(s, ev, 'turnStart');
   }
