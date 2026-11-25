@@ -1202,6 +1202,13 @@ canvas {
 }
 
 /* ---- the turn order strip (js/view/turn-strip.js): right side, current turn on top (flashing), later turns fade out downwards ---- */
+/* a deck / graveyard / exile / extra deck list is open (desktop, landscape): the turn strip steps aside so it never covers the list */
+@media (orientation: landscape) {
+  body.pileOpen #turnStrip {
+    opacity: 0;
+    pointer-events: none;
+  }
+}
 #turnStrip {
   --ts-count: 8; /* tiles shown (js reads it) */
   --ts-pitch: 46px; /* px between tile tops: tile height + gap (js reads it) */

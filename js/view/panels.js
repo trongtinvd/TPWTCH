@@ -629,3 +629,9 @@ addEventListener('keydown', e => {
   } else if (!inspect.hidden) hideInspect();
   else if (!deckPanel.hidden) hideList();
 });
+// an open pile list (deck, graveyard, exile, extra deck) temporarily hides the turn strip on desktop (css: body.pileOpen)
+if (typeof MutationObserver !== 'undefined')
+  new MutationObserver(() => document.body.classList.toggle('pileOpen', !deckPanel.hidden)).observe(deckPanel, {
+    attributes: true,
+    attributeFilter: ['hidden'],
+  });
