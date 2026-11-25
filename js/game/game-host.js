@@ -71,6 +71,8 @@ const ui = {
   extraAsk: null, // pending 'pay the additional cost?' popup: {c, cmd}
   downAt: null,
   lastEmptyTap: 0,
+  lastCardTap: null, // {iid, t}: a second tap on the same card within 400 ms toggles its mute counter
+  muted: new Set(), // iids with a mute counter (a UI marker: the automation passes as if their Quick spells / abilities were Slow)
   pinchD: 0, // two-finger pinch zooms the top view
   hoverP: null, // player inspection: hovered / pinned (click a life bar)
   stackLog: false, // the stack panel is flipped over: the game log is shown (js/gamelog.js)
@@ -465,6 +467,17 @@ function send(cmd, src, trace) {
   }
   return r;
 }
+// is there anything p could do now that should stop the game? A card with a mute counter is left out: while something waits for a
+// response its Quick spells and abilities count as Slow ones (it can still be used by hand at a stop). The rules never see it.
+const liveAction = (s, p) => Sim.actionsOf(s, p).some(a => !(a.iid && ui.muted.has(a.iid)));
+function toggleMute(c) {
+  if (ui.muted.has(c.iid)) ui.muted.delete(c.iid);
+  else ui.muted.add(c.iid);
+  ui.note = c.def.name + (ui.muted.has(c.iid) ? ': muted (it no longer stops the game)' : ': mute counter removed');
+  sync();
+  clearTimeout(ui.autoTimer);
+  ui.autoTimer = setTimeout(autoStep, 50); // a muted card may have been the only reason to wait
+}
 function autoStep() {
   if (MenuUI.away || rp.on) return; // the menu or the deck editor is on screen (or a replay plays): nothing happens by itself
   if (Result.check()) return; // the game is decided: the result dialog (or the Exit button) takes over
@@ -477,9 +490,9 @@ function autoStep() {
     mode = ui.actions;
   let cmd = null;
   if (game.stack.length) {
-    if (mode === 'off' || (mode === 'normal' && !Sim.hasAction(game, p))) cmd = { type: 'Pass', player: p };
+    if (mode === 'off' || (mode === 'normal' && !liveAction(game, p))) cmd = { type: 'Pass', player: p };
   } else if (game.respond) {
-    if (mode === 'off' || (mode === 'normal' && !Sim.hasAction(game, p))) cmd = { type: 'Pass', player: p };
+    if (mode === 'off' || (mode === 'normal' && !liveAction(game, p))) cmd = { type: 'Pass', player: p };
   } else if (ui.autoTurn && mode !== 'always' && p === game.active) {
     const acts = Sim.actionsOf(game, p);
     if (game.attackPhase) {
@@ -700,6 +713,7 @@ function resetGame() {
   game = sim;
   fxReset();
   undoStack.length = 0;
+  ui.muted.clear();
   eventLog.length = 0;
   GameLog.clear();
   GameLog.begin(sim);

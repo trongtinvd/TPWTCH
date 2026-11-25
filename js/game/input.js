@@ -243,6 +243,16 @@ addEventListener('pointerup', e => {
     return;
   }
   if (u.card && !ui.placing) {
+    // double click / double tap on a card you control (board, hand, GY): toggle its mute counter
+    const now = performance.now(),
+      lt = ui.lastCardTap;
+    ui.lastCardTap = { iid: u.card.iid, t: now };
+    if (!rp.on && lt && lt.iid === u.card.iid && now - lt.t < 400 && Sim.ctl(u.card) === ui.view) {
+      ui.lastCardTap = null;
+      closeMenu();
+      toggleMute(u.card);
+      return;
+    }
     showCard(u.card);
     if (!rp.on) openMenu(u.card, e.clientX, e.clientY); // a replay only inspects
   } else if (u.deckOf && !ui.placing) {

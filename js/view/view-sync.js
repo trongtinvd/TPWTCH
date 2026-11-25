@@ -724,7 +724,7 @@ function sync() {
     !game.stack.length &&
     !!game.respond &&
     !['enter', 'end'].includes(game.respond.kind) &&
-    (ui.actions === 'off' || (ui.actions === 'normal' && !Sim.hasAction(game, seat))); // a new stop that will be passed by itself: the camera does not swing over for it
+    (ui.actions === 'off' || (ui.actions === 'normal' && !liveAction(game, seat))); // a new stop that will be passed by itself: the camera does not swing over for it
   if (ui.autoView && !ui.viewHold && !ui.pin && game.phase === 'play' && ui.view !== seat && !quiet) setView(seat);
   updateDbg();
   buildStack();
@@ -779,6 +779,7 @@ function sync() {
           atkSet.has(t.c.iid)), // the sword stays while the Attack is on the stack
       !!t.rot
     );
+    setMute(m, !t.down && ui.muted.has(t.c.iid) && Sim.ctl(t.c) === ui.view); // only its controller sees the mute counter
     m.visible = !seenHidden(t.c);
     if (!t.down && m.visible) ui.pickCards.push(m);
   }

@@ -653,6 +653,56 @@ function setSword(m, on, opp) {
     u.sword = null;
   }
 }
+// the mute counter (a UI marker of the viewing seat, not a game status): a crossed speaker in the top left corner of the card
+let muteTex = null;
+function setMute(m, on) {
+  const u = m.userData;
+  if (on && !u.mute) {
+    if (!muteTex) {
+      const c = document.createElement('canvas');
+      c.width = c.height = 64;
+      const g = c.getContext('2d');
+      g.fillStyle = 'rgba(16,24,48,0.9)';
+      g.beginPath();
+      g.arc(32, 32, 30, 0, 7);
+      g.fill();
+      g.strokeStyle = '#d9b44a';
+      g.lineWidth = 3;
+      g.stroke();
+      g.fillStyle = '#d9b44a';
+      g.beginPath();
+      g.moveTo(14, 26);
+      g.lineTo(22, 26);
+      g.lineTo(32, 16);
+      g.lineTo(32, 48);
+      g.lineTo(22, 38);
+      g.lineTo(14, 38);
+      g.closePath();
+      g.fill();
+      g.strokeStyle = '#e0433a';
+      g.lineWidth = 4;
+      g.beginPath();
+      g.moveTo(38, 24);
+      g.lineTo(52, 40);
+      g.moveTo(52, 24);
+      g.lineTo(38, 40);
+      g.stroke();
+      muteTex = new THREE.CanvasTexture(c);
+    }
+    const p = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.5, 0.5),
+      new THREE.MeshBasicMaterial({ map: muteTex, transparent: true, depthWrite: false })
+    );
+    p.rotation.x = -Math.PI / 2;
+    p.position.set(-CW / 2 + 0.3, 0.07, -CD / 2 + 0.3);
+    p.raycast = () => {};
+    m.add(p);
+    u.mute = p;
+  } else if (!on && u.mute) {
+    m.remove(u.mute);
+    u.mute = null;
+  }
+}
 function setGlow(m, on) {
   const g = m.userData.glow;
   if (on && !g) {
