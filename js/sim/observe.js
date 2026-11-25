@@ -174,9 +174,20 @@ Sim.def('observe', function (K) {
     (!!post.cards[iid] && canSee(post, p, post.cards[iid])) || slotSeen(post, p, key);
   function observeEvents(pre, post, ev, p) {
     // the events of one command as p may see them: the id of a card p never knew is opaque, names inside texts are masked
-    const sc = scope([pre, post], p);
+    const sc = scope([pre, post], p),
+      // a card hidden ON THE BOARD before (under an enemy cloud) that is public afterwards (it left the board): its events before
+      // the one that takes it off the board carry a one-off opaque id, so they cannot be tied to the card that then shows up in the GY
+      LEAVE = ['PermanentDestroyed', 'PermanentReturned', 'CardExiled', 'CardReturnedExtra'],
+      under = new Set(
+        Object.keys(pre.cards).filter(
+          id => pre.cards[id].loc === 'board' && !canSee(pre, p, pre.cards[id]) && !sc.hiddenIid.has(id)
+        )
+      ),
+      before = id => 'h-' + hash(pre.n + '|' + p + '|before|' + id);
     return ev.map(e => {
+      if (under.size && typeof e.iid === 'string' && under.has(e.iid) && LEAVE.includes(e.t)) under.delete(e.iid);
       const o = Object.assign({}, e);
+      for (const k of ['iid', 'source', 'target']) if (typeof o[k] === 'string' && under.has(o[k])) o[k] = before(o[k]);
       // where a card p cannot see stands is hidden too (a card played or moved under an enemy cloud): the zone goes
       if (typeof o.slot === 'string' && typeof e.iid === 'string' && !slotKnown(pre, post, p, e.iid, o.slot))
         o.slot = null;

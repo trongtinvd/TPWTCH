@@ -46,12 +46,35 @@ const Narrate = (function () {
     };
   function story(pre, post, cmd, ev, V) {
     V = V || 'Player';
+    let atN = null; // the log number of the zone / status line being written (null: an event line)
     shownNames = post.names || NAMEP;
     const out = [],
       line = (rich, h) => out.push({ rich, text: strip(rich), h: !!h }),
       card = id => post.cards[id] || pre.cards[id],
       // the viewer may know this card if they could see it before OR after the command (a discarded card is public afterwards)
-      seen = id => !!(Sim.canSee(pre, V, pre.cards[id]) || Sim.canSee(post, V, post.cards[id])),
+      seen0 = id => !!(Sim.canSee(pre, V, pre.cards[id]) || Sim.canSee(post, V, post.cards[id])),
+      // ...except a card hidden ON THE BOARD before (under an enemy cloud): it stays "a card" in every line of this command until
+      // the line of its own move off the board (it is public from then on: board -> GY). The event lines come first, so they never name
+      // it; the zone / status lines (atN = their log number) name it from that move on. A bug report: "the obscured Avatar of Rabies deals
+      // damage to the obscured Creeping Parasite" named both because both died later in the same command.
+      hidBoard = id => {
+        const c = pre.cards[id];
+        return !!c && c.loc === 'board' && !Sim.canSee(pre, V, c);
+      },
+      leftAt = id => {
+        const c = post.cards[id],
+          l =
+            c &&
+            (c.logs || []).find(
+              x =>
+                x.n > (pre.lseq || 0) &&
+                x.kind === 'zone' &&
+                /^board /.test(x.from || '') &&
+                !/^board /.test(x.to || '')
+            );
+        return l ? l.n : null;
+      },
+      seen = id => seen0(id) && (!hidBoard(id) || (atN != null && leftAt(id) != null && atN >= leftAt(id))),
       // an ability whose source the viewer cannot see appears to come from the King Eye that covers it (like the stack panel); otherwise it is "a card"
       masked = id => {
         const sc = card(id);
@@ -376,25 +399,19 @@ const Narrate = (function () {
     const n0 = pre.lseq || 0,
       later = [],
       HIDE = ['entered', 'attacked', 'damage', 'attackCounter'],
-      // a status text may name another card (Avatar of Rabies): a name only hidden cards have becomes "a card"
-      shown = new Set(
-        Object.keys(post.cards)
-          .filter(seen)
-          .map(id => card(id).def.name)
-      ),
-      secret = [
-        ...new Set(
-          Object.keys(post.cards)
-            .filter(id => !seen(id) && card(id).def.type !== 'ability')
-            .map(id => card(id).def.name)
-        ),
-      ]
-        .filter(n => !shown.has(n))
-        .sort((a, b) => b.length - a.length),
-      mask = t => secret.reduce((r, n) => r.split(n).join('a card'), t);
+      // a status text may name another card (Avatar of Rabies): a name only hidden cards have (at that line) becomes "a card"
+      mask = t => {
+        const ids = Object.keys(post.cards).filter(id => card(id).def.type !== 'ability'),
+          shown = new Set(ids.filter(seen).map(id => card(id).def.name)),
+          secret = [...new Set(ids.filter(id => !seen(id)).map(id => card(id).def.name))]
+            .filter(n => !shown.has(n))
+            .sort((a, b) => b.length - a.length);
+        return secret.reduce((r, n) => r.split(n).join('a card'), t);
+      };
     for (const c of Object.values(post.cards))
       for (const l of c.logs || []) {
         if (l.n <= n0) continue;
+        atN = l.n;
         if (l.kind === 'zone') {
           if (l.how !== 'shifted')
             later.push({
@@ -423,7 +440,7 @@ const Narrate = (function () {
     for (const p of ['Player', 'Opponent'])
       for (const l of post.players[p].logs || [])
         if (l.n > n0 && l.kind === 'status+' && !['damage', 'paid', 'life'].includes(l.sk))
-          later.push({ n: l.n, t: P(p) + ': ' + mask(l.text) });
+          later.push({ n: l.n, t: P(p) + ': ' + mask(((atN = l.n), l.text)) });
     later.sort((a, b) => a.n - b.n).forEach(m => line(m.t));
     // the prompt of a pending choice is for the chooser only (it can name a hidden card)
     if (lastChoice && post.choice)

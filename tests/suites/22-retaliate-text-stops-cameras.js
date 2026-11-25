@@ -434,6 +434,34 @@
       b.P
     );
     check('...the owner sees the name', /Volley/.test(b.O));
+    {
+      // a covered card that is hit and dies in the SAME command: it is public once in the GY, but the lines before its move stay hidden
+      const k = start(2245);
+      take(k, 'Opponent', 'kingeye', 'board', 'Opponent|front|1');
+      const so = take(k, 'Opponent', 'soldier', 'board', 'Opponent|front|3'),
+        sb = take(k, 'Player', 'superbolt', 'hand');
+      D(k, { type: 'PlayCard', iid: sb.iid, zone: 'Opponent|front|3' });
+      D(k, { type: 'Pass', player: k.priority });
+      const pre = structuredClone(k),
+        cmd = { type: 'Pass', player: k.priority },
+        r = D(k, cmd),
+        L = Narrate.story(pre, k, cmd, r.events, 'Player').map(l => l.text),
+        hit = L.findIndex(t => /deals 20 effect damage/.test(t)),
+        mv = L.findIndex(t => /board \(a covered zone\) \u2192 GY/.test(t));
+      check(
+        'a covered card killed in one command: the damage line says "a card", only its move to the GY names it',
+        so.loc === 'gy' && /to a card$/.test(L[hit]) && /^Soldier/.test(L[mv]) && hit < mv,
+        L.join(' | ')
+      );
+      const oe = Sim.observeEvents(pre, k, r.events, 'Player'),
+        dmg = oe.find(e => e.t === 'DamageDealt' || /Damage/.test(e.t)),
+        gone = oe.find(e => e.t === 'PermanentDestroyed');
+      check(
+        '...the observed events too: the hit carries a one-off id, not the id the card has once in the GY',
+        dmg && gone && gone.iid === so.iid && !JSON.stringify(dmg).includes(so.iid),
+        JSON.stringify(dmg)
+      );
+    }
     const vis = start(2241),
       arv = take(vis, 'Opponent', 'archer', 'hand');
     vis.active = vis.priority = 'Opponent';
