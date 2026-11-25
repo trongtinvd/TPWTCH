@@ -206,6 +206,27 @@ function settingsDialog() {
     note.textContent =
       'Browsers slow hidden tabs down: the bot and the automatic passes may act about once per second there.';
     box.appendChild(note);
+    // targets: confirm them, or the effect goes on as soon as the last one is marked
+    const tf = mkEl('div', 'mfield');
+    tf.appendChild(mkEl('span')).textContent = 'Targets of a spell or ability:';
+    [
+      [false, 'The effect resolves as soon as all the targets are selected'],
+      [true, 'Once all the targets are selected, click Confirm to resolve the effect'],
+    ].forEach(([v, t]) => {
+      const w = mkEl('label', 'mcheck'),
+        r = mkEl('input');
+      r.type = 'radio';
+      r.name = 'tgtmode';
+      r.checked = !!Settings.get('targetConfirm') === v;
+      r.onchange = () => {
+        if (!r.checked) return;
+        Settings.set('targetConfirm', v);
+        if (typeof sync === 'function' && typeof game !== 'undefined' && game && game.piles) sync(); // an open target selection follows at once
+      };
+      w.append(r, document.createTextNode(' ' + t));
+      tf.appendChild(w);
+    });
+    box.appendChild(tf);
     // the stops moved into the game (the stop icons in the bottom right corner)
     const sn = mkEl('p', 'mmsg');
     sn.style.fontSize = '12px';

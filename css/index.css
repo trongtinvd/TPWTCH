@@ -1505,3 +1505,111 @@ canvas {
     z-index: 4;
   }
 }
+/* ---- target selection (targeting.js): red target marks (flashing, rotating) and the curved arrows ---- */
+#tgtArrows {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 6;
+  overflow: visible;
+}
+#tgtArrows path {
+  fill: none;
+  stroke: #ff3b3b;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 3px rgba(255, 40, 40, 0.7));
+}
+#tgtMarks {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+.tmark {
+  display: inline-block;
+  width: 26px;
+  height: 26px;
+  flex: none;
+  pointer-events: none;
+}
+.tmark.board {
+  position: fixed;
+  left: -17px;
+  top: -17px;
+  width: 34px;
+  height: 34px;
+}
+.tmark[hidden] {
+  display: none;
+}
+.tmark svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: #ff3b3b;
+  stroke-width: 3;
+  filter: drop-shadow(0 0 3px rgba(255, 30, 30, 0.9));
+  animation:
+    tmSpin 3s linear infinite,
+    tmFlash 0.9s ease-in-out infinite;
+}
+.tmark.sel svg,
+.trow.sel .tmark svg {
+  stroke: #ff1f1f;
+  stroke-width: 4;
+  animation: tmSpin 3s linear infinite;
+}
+.tmark.sel svg circle:last-of-type,
+.trow.sel .tmark svg circle:last-of-type {
+  fill: #ff1f1f;
+}
+@keyframes tmSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes tmFlash {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+/* list options with their card art (fusion, search, deck / graveyard picks) */
+#pick .tlist {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-y: auto;
+  max-height: 260px;
+}
+.abtn.trow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
+  padding: 3px 8px 3px 3px;
+}
+.abtn.trow img {
+  width: 34px;
+  height: 46px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid var(--tc, #888);
+  flex: none;
+}
+.abtn.trow .tnm {
+  flex: 1;
+}
+.abtn.trow.sel {
+  outline: 2px solid #ff3b3b;
+}
+#pick .tpicked {
+  margin: 0;
+  font-size: 11px;
+}

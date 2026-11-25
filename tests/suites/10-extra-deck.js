@@ -616,4 +616,24 @@
       );
     }
   });
+  Tests.add('choice-need', () => {
+    // ================= a pick chain tells the UI how many picks it still asks for (choice.need: one arrow per pick) =================
+    const s = start(1090);
+    const uf = take(s, 'Player', 'underworldfusion', 'hand');
+    ['scout', 'vine', 'hummingbird'].forEach(id => take(s, 'Player', id, 'gy'));
+    setLife(s, 'Opponent', 15);
+    D(s, { type: 'PlayCard', iid: uf.iid });
+    pass2(s);
+    D(s, { type: 'Choose', player: 'Player', option: s.choice.options[0] });
+    const first = [s.choice.kind, s.choice.need];
+    D(s, { type: 'Choose', player: 'Player', option: s.choice.options[0] });
+    eq(
+      'Underworld Fusion: picking material 1 of 2 needs 2 picks, then material 2 needs 1',
+      [first, [s.choice.kind, s.choice.need]],
+      [
+        ['fusemat', 2],
+        ['fusemat', 1],
+      ]
+    );
+  });
 })();

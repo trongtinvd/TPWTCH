@@ -742,6 +742,7 @@ function setGlow(m, on) {
 const canUse = c => !rp.on && canUseNow(c); // nothing glows in a replay
 const canUseNow = c =>
   (game.choice &&
+    !Targeting.on() && // a target selection marks its targets in red instead: yellow only means "can be played / used"
     !foeChoice() &&
     ((game.choice.kind === 'pick' && !game.choice.labels) || boardPick(game.choice)) &&
     Sim.choicePicks(game, game.choice.player).cards.includes(c.iid)) || // the legal picks come from the Sim

@@ -94,7 +94,7 @@ Sim.def('choices', function (K) {
         ' of ' +
         (placed.length + rest.length) +
         ').',
-      { owner, placed },
+      { owner, placed, need: rest.length - 1 }, // need: the picks still to come (the last card goes by itself)
       ev
     );
   }

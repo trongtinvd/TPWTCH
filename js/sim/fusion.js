@@ -117,7 +117,7 @@ Sim.def('fusion', function (K) {
       opts.map(m => m.iid),
       i => cname(s, i) + ' (' + s.cards[i].loc + ')',
       c.def.name + ': pick material ' + (chosen.length + 1) + ' of ' + sl.length + ' for ' + t.def.name + '.',
-      { fu: { e, ex: t.iid, chosen } },
+      { fu: { e, ex: t.iid, chosen }, need: sl.length - chosen.length }, // need: the picks this chain still asks for (the UI draws that many arrows)
       ev
     );
   }

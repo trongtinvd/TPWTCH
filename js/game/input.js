@@ -189,6 +189,19 @@ addEventListener('pointerup', e => {
       if (passByRightClick()) return;
     } else ui.lastEmptyTap = now;
   } // phone: double tap on empty space = Pass (or End turn)   // (a right-drag pan moved > 6px and never gets here)
+  if (Targeting.on()) {
+    // a target selection: a click on a target picks it (on a picked one: undoes it); anything else is inspected as usual
+    const o = Targeting.optAt(u);
+    if (o != null && Targeting.click(o)) return;
+    if (game.choice && !ui.placing) {
+      if (u.card) showCard(u.card);
+      else if (u.deckOf || u.gyOf || u.exileOf || u.extraOf) {
+        const k = u.deckOf ? 'deck' : u.gyOf ? 'gy' : u.exileOf ? 'exile' : 'extra';
+        showPile(u[k + 'Of'], k);
+      }
+      return;
+    }
+  }
   if (game.choice && !foeChoice() && isPairChoice(game.choice)) {
     // two adjacent cards (Widow Maker): click the first, then the second; a click on the first again undoes it
     const k = game.choice,

@@ -479,6 +479,7 @@ function toggleMute(c) {
   ui.autoTimer = setTimeout(autoStep, 50); // a muted card may have been the only reason to wait
 }
 function autoStep() {
+  if (typeof Targeting !== 'undefined') Targeting.flush(); // target picks waiting for an animation go on
   if (MenuUI.away || rp.on) return; // the menu or the deck editor is on screen (or a replay plays): nothing happens by itself
   if (Result.check()) return; // the game is decided: the result dialog (or the Exit button) takes over
   if (ui.mode === 'bot' && botWants()) {

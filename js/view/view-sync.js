@@ -307,6 +307,7 @@ document.querySelectorAll('#hp .hpr').forEach(r => {
     }
   });
   r.addEventListener('click', () => {
+    if (Targeting.on() && Targeting.click('P:' + r.dataset.p)) return;
     if (ui.placing && ui.placing.def.playerTarget)
       send({ type: 'PlayCard', iid: ui.placing.iid, tplayer: r.dataset.p });
     else if (game.choice && !foeChoice() && game.choice.options.includes('P:' + r.dataset.p))
@@ -581,11 +582,17 @@ function declareUI(pk, k) {
     }
     hits.forEach(d => {
       const b = document.createElement('button');
-      b.className = 'abtn';
-      b.textContent = d.name;
+      b.className = 'abtn trow';
+      b.dataset.opt = d.id;
+      b.innerHTML = '<img alt=""><span class="tnm"></span>' + (Targeting.on() ? '<span class="tmark"></span>' : '');
+      b.querySelector('img').src = artURL(d);
+      b.querySelector('.tnm').textContent = d.name;
+      b.style.setProperty('--tc', cardColor(d));
+      const m = b.querySelector('.tmark');
+      if (m) m.innerHTML = '<svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="14"/><circle cx="20" cy="20" r="5"/><path d="M20 1v9M20 30v9M1 20h9M30 20h9"/></svg>';
       b.onclick = () => {
         ui.declareQ = '';
-        send({ type: 'Choose', player: k.player, option: d.id });
+        if (!(Targeting.on() && Targeting.click(d.id))) send({ type: 'Choose', player: k.player, option: d.id });
       };
       res.appendChild(b);
     });
@@ -641,7 +648,9 @@ function buildStack() {
     el.firstChild.textContent = stackName(o);
     el.querySelector('.sm span:last-child').textContent = NAME[own];
     el.onclick = () =>
-      ui.placing && ui.placing.def.stackTarget && o.kind === 'spell'
+      Targeting.on() && Targeting.click('S:' + o.sid)
+        ? null
+        : ui.placing && ui.placing.def.stackTarget && o.kind === 'spell'
         ? send({ type: 'PlayCard', iid: ui.placing.iid, tsid: o.sid })
         : showCard(c, true, o.kind === 'ability' && !mk ? { from: o.from, list: o.list, i: o.ab, src: o.src } : null);
     stackEl.appendChild(el);
@@ -723,6 +732,7 @@ function placePile(v) {
   v.bb.position.set(v.badge.position.x, v.badge.position.y + 0.25, v.badge.position.z);
 }
 function sync() {
+  if (typeof Targeting !== 'undefined') Targeting.refresh(); // a target selection: which choice it shows, the picks so far
   const seat = game.choice ? game.choice.player : game.priority;
   if (ui.pin && ui.pin !== seat) ui.pin = null; // a manual seat switch holds until priority moves on
   const quiet =
@@ -830,7 +840,8 @@ function sync() {
         : null,
     tcols = held && !isPerm(held) && held.def.colTarget ? Sim.targetColumns(game, held) : null;
   if (!isPairChoice(game.choice)) ui.pairFirst = null;
-  const ch = foeChoice() ? null : game.choice,
+  const tch = Targeting.on() ? Targeting.choice() : game.choice, // a target selection shows its own (dry run) choice
+    ch = foeChoice() || (tch && tch.kind === 'cast') ? null : tch,
     chCur = ch && !ch.kind ? game.cards[ch.iid].slot : isPairChoice(ch) ? ui.pairFirst : null,
     chSlots = !ch
       ? []
@@ -895,7 +906,9 @@ function sync() {
           (isPerm(ui.drag.card) || ui.drag.card.def.colTarget || ui.drag.card.def.zoneTarget
             ? ' on a highlighted zone'
             : ' on the board or the stack')
-        : foeChoice()
+        : Targeting.on() && Targeting.prompt() != null
+          ? Targeting.prompt()
+          : foeChoice()
           ? rp.on
             ? NAME[game.choice.player] + ' is choosing\u2026'
             : 'Bot is choosing\u2026'
@@ -950,8 +963,9 @@ function sync() {
     row.querySelector('i').style.width = Math.max(0, Math.min(100, (L / game.maxLife) * 100)) + '%';
     row.classList.toggle(
       'tgt',
-      !!(ui.placing && ui.placing.def.playerTarget) ||
-        !!(game.choice && !foeChoice() && !game.choice.labels && game.choice.options.includes('P:' + p))
+      !Targeting.on() &&
+        (!!(ui.placing && ui.placing.def.playerTarget) ||
+          !!(game.choice && !foeChoice() && !game.choice.labels && game.choice.options.includes('P:' + p)))
     );
     row.querySelector('b').textContent = L;
     // action points: one four-point star per unspent point; a click opens its inspection panel
@@ -988,6 +1002,7 @@ function sync() {
         : null;
   if (ui.extraAsk && !ui.placing) ui.extraAsk = null;
   pk.hidden = !pkc && !ui.extraAsk;
+  const tgtPanel = !ui.extraAsk && Targeting.render(pk); // a target selection fills the panel itself (list rows with art and marks)
   if (ui.extraAsk && !pkc) {
     pk.innerHTML = '<div class="mt"></div>';
     pk.firstChild.textContent = ui.extraAsk.c.def.name + ': also spend an action point (additional cost)?';
@@ -1006,7 +1021,7 @@ function sync() {
       pk.appendChild(b);
     });
   }
-  if (pkc) {
+  if (pkc && !tgtPanel) {
     pk.innerHTML = '<div class="mt"></div>';
     pk.firstChild.textContent = pkc.prompt;
     if (pkc.kind === 'trigorder') trigOrderUI(pk, pkc);
@@ -1016,6 +1031,16 @@ function sync() {
         const b = document.createElement('button');
         b.className = 'abtn';
         b.textContent = pkc.labels[o];
+        if (game.cards[o]) {
+          // a card option: its art next to its name
+          const img = document.createElement('img'),
+            d = game.cards[o].def;
+          img.alt = '';
+          img.src = artURL(d);
+          b.classList.add('trow');
+          b.style.setProperty('--tc', cardColor(d));
+          b.prepend(img);
+        }
         b.onclick = () => send({ type: 'Choose', player: pkc.player, option: o });
         pk.appendChild(b);
       });
@@ -1036,6 +1061,7 @@ function animate() {
     busy = true;
     updateLink();
   }
+  if (typeof Targeting !== 'undefined' && Targeting.frame()) busy = true; // the target marks and arrows follow the board and the cursor
   for (const m of meshes.values()) if (m.userData.glow) gl++;
   if (gl) {
     ui.pulse = true;
