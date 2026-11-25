@@ -57,24 +57,17 @@ const AvatarView = (function () {
     measure();
   }
   // --foeB / --foeR (bottom / right of the top-left row: the hover label, the inspector and the status line keep clear of it),
-  // --meT (top of the bottom-right row: the card list panel ends above it). A short landscape screen with many buttons (Vs Self):
-  // no room above the buttons, so the row goes under the stack panel (.tight, --meH = its height)
+  // --meT (top of the own row, bottom left in landscape: the inspection panel ends above it), --meH (its height)
   let mKey = '';
   function measure() {
     const f = document.querySelector('#hp .hpr.foe'),
       m = document.querySelector('#hp .hpr.me');
     if (!f || !m) return;
     const land = innerWidth > innerHeight,
-      fn = document.getElementById('fn'),
-      dbg = document.getElementById('dbg');
-    if (land && dbg) {
-      const btns = [...dbg.querySelectorAll(':scope > .abtn')].filter(b => b.offsetParent),
-        top = btns.length ? Math.min(...btns.map(b => b.getBoundingClientRect().top)) : innerHeight,
-        room = top - 8 - m.offsetHeight - ((fn ? fn.getBoundingClientRect().bottom : 44) + 8);
-      const tight = room < 0;
-      if (tight !== m.classList.contains('tight')) m.classList.toggle('tight', tight);
-      document.documentElement.style.setProperty('--meH', m.offsetHeight + 'px');
-    } else m.classList.remove('tight');
+      fn = document.getElementById('fn');
+    m.classList.remove('tight'); // landscape: the row sits bottom left, under the inspection panel (it used to share the right side with
+    // the buttons and, when they left no room, went under the stack panel)
+    if (land) document.documentElement.style.setProperty('--meH', m.offsetHeight + 'px');
     const fr = f.getBoundingClientRect(),
       a = Math.ceil(fr.bottom),
       r = Math.ceil(fr.right),

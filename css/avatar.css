@@ -80,15 +80,17 @@
   }
   #hp .hpr.me {
     left: 234px;
-    bottom: calc(100vh - var(--dbgT, 100vh) + 8px);
-    width: clamp(150px, calc(50vw - 38vh - 246px), 280px); /* stays right of the board */
+    bottom: calc(
+      52px + env(safe-area-inset-bottom, 0px)
+    ); /* bottom left, above the view hint: under the inspection panel */
+    width: clamp(150px, calc(50vw - 38vh - 246px), 280px); /* stays left of the board */
   }
   #hud {
     top: calc(var(--foeB, 96px) + 8px);
   }
   #inspect {
     top: calc(var(--foeB, 96px) + 52px);
-    max-height: calc(100% - var(--foeB, 96px) - 108px - env(safe-area-inset-bottom, 0px));
+    max-height: calc(var(--meT, 100vh) - var(--foeB, 96px) - 62px); /* ends above the own life bar */
   }
   /* the status line: under the top right buttons, never under the top-left row. right-aligned under them (the right of the
      view is free; the opponent's hand is in the middle) */
@@ -114,18 +116,8 @@
     font-size: 12px;
     padding: 6px 12px;
   }
-  /* no room above the buttons (a short screen, many buttons): under the stack panel, which gets shorter; never over the board */
-  #hp .hpr.me.tight {
-    right: auto;
-    left: 12px;
-    width: 210px;
-    bottom: calc(64px + env(safe-area-inset-bottom, 0px));
-  }
-  body:has(#hp .hpr.me.tight) #stack {
-    bottom: calc(var(--meH, 90px) + 72px + env(safe-area-inset-bottom, 0px));
-  }
   #deckPanel {
-    max-height: calc(var(--meT, 100vh) - 76px - env(safe-area-inset-top, 0px));
+    max-height: calc(var(--dbgT, 100vh) - 76px - env(safe-area-inset-top, 0px));
   }
 }
 /* a short landscape screen (phone on its side): smaller rows */
