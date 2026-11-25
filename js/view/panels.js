@@ -83,6 +83,14 @@ function showList(owner, kind) {
   buildList();
   deckPanel.scrollTop = 0;
 }
+// a click on a pile: its list opens; when the pile shows its top card face up (always for the graveyard and exile, a deck card only
+// while it is revealed to the viewer, e.g. by L4), that card's inspection panel opens with it
+function showPile(owner, kind) {
+  showList(owner, kind);
+  if (!ui.openList) return;
+  const top = PILE_TOP[kind] && PILE_TOP[kind](game.piles[owner]);
+  if (top && Sim.canSee(game, ui.view, top)) showCard(top);
+}
 function buildList() {
   const st = deckPanel.scrollTop,
     { owner, kind } = ui.openList,

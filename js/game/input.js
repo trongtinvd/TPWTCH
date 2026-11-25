@@ -257,16 +257,16 @@ addEventListener('pointerup', e => {
     if (!rp.on) openMenu(u.card, e.clientX, e.clientY); // a replay only inspects
   } else if (u.deckOf && !ui.placing) {
     closeMenu();
-    showList(u.deckOf, 'deck');
+    showPile(u.deckOf, 'deck');
   } else if (u.gyOf && !ui.placing) {
     closeMenu();
-    showList(u.gyOf, 'gy');
+    showPile(u.gyOf, 'gy');
   } else if (u.exileOf && !ui.placing) {
     closeMenu();
-    showList(u.exileOf, 'exile');
+    showPile(u.exileOf, 'exile');
   } else if (u.extraOf && !ui.placing) {
     closeMenu();
-    showList(u.extraOf, 'extra');
+    showPile(u.extraOf, 'extra');
   } else closeAll(); // empty space / plain zone: close every popup
 });
 function updateHover() {
