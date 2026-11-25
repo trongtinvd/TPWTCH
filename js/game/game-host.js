@@ -497,6 +497,18 @@ function autoStep() {
     botSchedule();
     return;
   } // the bot decides its own passes and plays
+  const tk = game.choice;
+  if (
+    tk &&
+    tk.kind === 'trigorder' &&
+    Settings.get('autoTrig') &&
+    !(ui.mode === 'bot' && tk.player === ui.botSeat) &&
+    game === sim &&
+    !ui.fxBusy
+  ) {
+    send({ type: 'Choose', player: tk.player, option: tk.options[0] }, 'auto'); // "Auto stack triggers": the default order
+    return;
+  }
   if (ui.placing || ui.autoDepth > 12 || game.phase !== 'play' || game.choice) return;
   const p = game.priority,
     mode = ui.actions;
@@ -883,6 +895,17 @@ const DBTN = [
     show: () => !rp.on,
   },
   {
+    id: 'autotrig', // several triggers of yours at once: put on the stack in their default order, no ordering panel
+    label: () => 'Auto stack triggers: ' + (Settings.get('autoTrig') ? 'on' : 'off'),
+    run: () => {
+      Settings.set('autoTrig', !Settings.get('autoTrig'));
+      sync();
+      autoStep();
+    },
+    on: () => true,
+    show: () => !rp.on,
+  },
+  {
     id: 'actions',
     label: () => 'Actions: ' + ui.actions,
     run: () => {
@@ -986,6 +1009,7 @@ const SHORT = {
   surrender: () => '\u2691',
   autoturn: () => 'Auto ' + (ui.autoTurn ? 'on' : 'off'),
   actions: () => 'Act: ' + ui.actions,
+  autotrig: () => 'Trig ' + (Settings.get('autoTrig') ? 'auto' : 'ask'),
   stops: () => 'Stops ' + (typeof StopsBar !== 'undefined' && StopsBar.portraitShown() ? '\u25be' : '\u25b8'),
   reset: () => (rp.on ? 'Restart' : 'Reset'),
   deckedit: () => 'Decks ' + (ui.deckEdit ? 'on' : 'off'),
