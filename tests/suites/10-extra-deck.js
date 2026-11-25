@@ -322,6 +322,32 @@
       [s.choice.kind, s.choice.player, s.choice.options.sort()],
       ['pairsend', 'Opponent', [s1.iid, s3.iid].sort()]
     );
+    {
+      // a token is a legal choice: the action is "send it to the GY", whether or not it gets there (a token ceases to exist)
+      const t = start(1046),
+        wt = take(t, 'Player', 'widowmaker', 'board', 'Player|front|2'),
+        cr = take(t, 'Opponent', 'soldier', 'board', 'Opponent|front|1'),
+        tk = {
+          iid: 'tk-90',
+          def: Object.values(DEFS.find(d => d.id === 'wardrum').tokens)[0],
+          owner: 'Opponent',
+          loc: 'board',
+          slot: 'Opponent|front|2',
+          statuses: [],
+          token: true,
+        };
+      t.cards[tk.iid] = tk;
+      t.slots[tk.slot] = tk.iid;
+      Sim.enterCombat(t);
+      D(t, { type: 'Attack', iid: wt.iid });
+      pass2(t);
+      check('a creature + a token: the foe is asked about both', t.choice && t.choice.options.includes(tk.iid));
+      D(t, { type: 'Choose', player: 'Opponent', option: tk.iid });
+      check(
+        '...sending the token is allowed: it ceases to exist, the creature stays',
+        tk.loc === 'gone' && cr.loc === 'board'
+      );
+    }
     s = start(1042);
     const w3 = take(s, 'Player', 'widowmaker', 'board', 'Player|front|2'),
       r1 = take(s, 'Opponent', 'soldier', 'board', 'Opponent|front|1'),
