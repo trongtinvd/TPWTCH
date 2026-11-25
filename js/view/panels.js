@@ -333,6 +333,25 @@ function partsInto(p, parts, c) {
     if (i < parts.length - 1) p.appendChild(document.createTextNode(' '));
   });
 }
+// a card row of a choice / search list: hovering it with the mouse shows that card in the inspection panel (ui.listPreview wins
+// over the board hover and the pinned card until the pointer leaves the row). get() returns a card of the game, or a card
+// definition (the declare-a-name search: any card of the pool, shown with its printed text)
+function hoverInspect(el, get) {
+  el.addEventListener('pointerenter', e => {
+    if (e.pointerType !== 'mouse') return; // touch: a tap is a pick, never a preview
+    const x = get();
+    if (!x) return;
+    const c = x.def
+      ? x
+      : { iid: 'def:' + x.id, def: x, owner: ui.view, controller: ui.view, loc: 'none', statuses: [], logs: [] };
+    ui.listPreview = { c, el };
+    refreshInspect();
+  });
+  el.addEventListener('pointerleave', () => {
+    if (ui.listPreview && ui.listPreview.el === el) ui.listPreview = null;
+    refreshInspect();
+  });
+}
 function showCard(c, pin = true, hl = null) {
   ui.inspLast = { c };
   const d = c.def,
@@ -603,7 +622,10 @@ function renderMenu() {
   menu.style.top = Math.max(8, Math.min(y + 10, innerHeight - h - 8)) + 'px';
 }
 function refreshInspect() {
-  // hovered card wins; otherwise the pinned (clicked) one; otherwise hidden
+  // a hovered list row first (its row still on screen); then the hovered card; otherwise the pinned (clicked) one; otherwise hidden
+  if (ui.listPreview && !ui.listPreview.el.isConnected) ui.listPreview = null;
+  const lp = ui.listPreview && ui.listPreview.c;
+  if (lp && (lp.loc === 'none' || Sim.canSee(game, ui.view, lp) || lp.owner === ui.view)) return showCard(lp, false);
   const c = ui.inspHold ? null : ui.preview || (ui.hoverP ? null : ui.selected),
     p = ui.inspHold || c ? null : ui.hoverP || ui.selP,
     a = ui.inspHold || c || p ? null : ui.selAP;

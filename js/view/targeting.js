@@ -308,6 +308,7 @@ const Targeting = (function () {
     }
     b.querySelector('.tnm').textContent = nameOf(s, k, o);
     b.onclick = onclick;
+    if (d) hoverInspect(b, () => game.cards[o] || d);
     return b;
   }
   // list options: what cannot be clicked on the board (a deck, the graveyard, the extra deck, a stack object, a status...)

@@ -588,6 +588,7 @@ function declareUI(pk, k) {
       b.querySelector('img').src = artURL(d);
       b.querySelector('.tnm').textContent = d.name;
       b.style.setProperty('--tc', cardColor(d));
+      hoverInspect(b, () => d);
       const m = b.querySelector('.tmark');
       if (m) m.innerHTML = '<svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="14"/><circle cx="20" cy="20" r="5"/><path d="M20 1v9M20 30v9M1 20h9M30 20h9"/></svg>';
       b.onclick = () => {
@@ -1040,6 +1041,7 @@ function sync() {
           b.classList.add('trow');
           b.style.setProperty('--tc', cardColor(d));
           b.prepend(img);
+          hoverInspect(b, () => game.cards[o]);
         }
         b.onclick = () => send({ type: 'Choose', player: pkc.player, option: o });
         pk.appendChild(b);
