@@ -199,6 +199,70 @@ function makeSword() {
   g.add(blade, tip, guard, grip);
   return g;
 }
+// non-combat damage to a card: a lightning bolt strikes it three times in 0.5 s (a new jagged bolt each time), on every card hit at once
+function makeBolt(to) {
+  const g = new THREE.Group(),
+    mat = new THREE.MeshBasicMaterial({
+      color: 0xfff2a8,
+      transparent: true,
+      opacity: 0.95,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    }),
+    glow = new THREE.MeshBasicMaterial({
+      color: 0x9fc8ff,
+      transparent: true,
+      opacity: 0.35,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    }),
+    // it comes in slanted (from above and behind), so the top view sees a line and not a dot
+    from = new THREE.Vector3(to.x + 2.2, 6, to.z - 4),
+    end = new THREE.Vector3(to.x, 0.15, to.z),
+    N = 7,
+    pts = [];
+  for (let i = 0; i <= N; i++) {
+    const p = from.clone().lerp(end, i / N);
+    if (i > 0 && i < N) p.add(new THREE.Vector3((Math.random() - 0.5) * 0.7, 0, (Math.random() - 0.5) * 0.7));
+    pts.push(p);
+  }
+  const up = new THREE.Vector3(0, 1, 0);
+  for (let i = 0; i < N; i++) {
+    const a = pts[i],
+      b = pts[i + 1],
+      len = a.distanceTo(b),
+      dir = b.clone().sub(a).normalize();
+    for (const [r, m] of [
+      [0.07, mat],
+      [0.2, glow], // a soft halo around the core
+    ]) {
+      const seg = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, 6), m);
+      seg.position.copy(a).lerp(b, 0.5);
+      seg.quaternion.setFromUnitVectors(up, dir);
+      g.add(seg);
+    }
+  }
+  g.raycast = () => {};
+  return g;
+}
+async function boltJob(ev) {
+  const ms = [...new Set(ev.filter(e => e.t === 'DamageDealt' && e.type !== 'combat').map(e => e.target))]
+    .map(id => meshes.get(id))
+    .filter(Boolean);
+  if (!ms.length) return;
+  for (let k = 0; k < 3; k++) {
+    const bolts = ms.map(m => makeBolt(m.position));
+    bolts.forEach(b => scene.add(b));
+    ui.dirty = true;
+    await sleep(100);
+    bolts.forEach(b => {
+      scene.remove(b);
+      b.traverse(o => o.geometry && o.geometry.dispose());
+    });
+    ui.dirty = true;
+    await sleep(67);
+  }
+}
 const isCombatHit = e => (e.t === 'DamageDealt' && e.type === 'combat') || (e.t === 'PlayerDamaged' && e.combat);
 const attackResolved = (pre, post) => {
   // did this command resolve the Attack that was on top of the stack?
@@ -316,6 +380,7 @@ function send(cmd, src, trace) {
       .filter(e => e.t === 'CardRevealed' || e.t === 'EffectFailed')
       .map(e => () => noticeJob(pre, e))
       .concat(fxJobs(pre, sim)); // reveals and failures are shown first
+    if (r.events.some(e => e.t === 'DamageDealt' && e.type !== 'combat')) jobs.push(() => boltJob(r.events)); // effect damage: lightning
     const fail = r.events.find(e => e.t === 'EffectFailed');
     if (fail) ui.note = sim.cards[fail.iid].def.name + ' fails: ' + fail.why;
     if (r.events.some(isCombatHit) || (attackResolved(pre, sim) && r.events.some(e => e.t === 'DamageDenied'))) {
