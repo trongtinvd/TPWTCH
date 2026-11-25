@@ -744,8 +744,7 @@ const canUseNow = c =>
   (game.choice &&
     !Targeting.on() && // a target selection marks its targets in red instead: yellow only means "can be played / used"
     !foeChoice() &&
-    ((game.choice.kind === 'pick' && !game.choice.labels) || boardPick(game.choice)) &&
-    Sim.choicePicks(game, game.choice.player).cards.includes(c.iid)) || // the legal picks come from the Sim
+    picksOf(game.choice).how[c.iid] === 'click') || // the Sim says which picks are clicked where they stand (never also listed)
   (Sim.ctl(c) === ui.view &&
     (c.loc === 'hand'
       ? !Sim.canPlay(game, c) || (Sim.abDef(c).abilities || []).some((a, i) => !Sim.canActivate(game, c, i))

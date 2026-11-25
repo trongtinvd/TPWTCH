@@ -500,7 +500,7 @@ function autoStep() {
   const tk = game.choice;
   if (
     tk &&
-    tk.kind === 'trigorder' &&
+    picksOf(tk).kind === 'trigorder' &&
     Settings.get('autoTrig') &&
     !(ui.mode === 'bot' && tk.player === ui.botSeat) &&
     game === sim &&

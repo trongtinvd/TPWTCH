@@ -358,7 +358,7 @@
     const g = Sim.choicePicks(s, 'Player');
     check(
       'step 1 (GY to hand): the GY cards are not clicked where they stand (a list)',
-      s.choice.kind === 'upto' && !g.click && g.cards.length === 1
+      s.choice.kind === 'upto' && !g.table && g.cards.length === 1 && g.list.length === 1 && !g.click.length
     );
     D(s, { type: 'Choose', player: 'Player', option: 'done' });
     const k = s.choice,
@@ -367,8 +367,10 @@
     check(
       'step 2 (hand into play): the Sim exposes the legal cards: every creature / enchantment of the hand, nothing else',
       k.kind === 'upto' &&
-        P.click === true &&
+        P.table === true &&
         P.cards.length > 0 &&
+        P.cards.every(id => P.how[id] === 'click') &&
+        !P.list.length &&
         P.cards.every(id => s.cards[id].loc === 'hand' && ['creature', 'enchantment'].includes(s.cards[id].def.type)) &&
         hand.filter(c => ['creature', 'enchantment'].includes(c.def.type)).every(c => P.cards.includes(c.iid)) &&
         !P.cards.includes(sp.iid) &&
@@ -388,6 +390,74 @@
     check('a card that is not highlighted is refused (the spell in hand)', !bad.ok);
     const good = D(s, { type: 'Choose', player: 'Player', option: P.cards[0] });
     check('a highlighted card is accepted', good.ok);
+  });
+
+  // ================= how each option is answered: the Sim says it (click / zone / player / list / button), every UI path reads it =================
+  Tests.add('choice-how', () => {
+    // a card under an enemy King Eye cloud is never a "click" entry (nor listed by name): its zone is clicked
+    const s = start(2232),
+      pa = take(s, 'Player', 'parasite', 'hand');
+    take(s, 'Opponent', 'kingeye', 'board', 'Opponent|front|1');
+    const hid = take(s, 'Opponent', 'knight', 'board', 'Opponent|front|3'),
+      own = take(s, 'Player', 'wolf', 'board', 'Player|front|2');
+    D(s, { type: 'PlayCard', iid: pa.iid, slot: 'Player|front|0' });
+    drain(s);
+    D(s, { type: 'Choose', player: 'Player', option: '1' });
+    const k = Sim.choicePicks(s, 'Player');
+    check(
+      'Parasite under an enemy King Eye: the covered Knight is never click or list (its zone is the pick); every click is a visible card',
+      k.how[hid.iid] !== 'click' &&
+        k.how[hid.iid] !== 'list' &&
+        k.how['Z:Opponent|front|3'] === 'zone' &&
+        k.click.every(id => Sim.canSee(s, 'Player', s.cards[id])) &&
+        k.how[own.iid] === 'click' &&
+        !k.list.length,
+      JSON.stringify(k.how)
+    );
+    check('...the other player gets nothing to answer', Sim.choicePicks(s, 'Opponent').options.length === 0);
+    check(
+      'a dry-run choice can be classified too (the view passes it): the same answer for the same choice',
+      JSON.stringify(Sim.choicePicks(s, 'Player', structuredClone(s.choice)).how) === JSON.stringify(k.how)
+    );
+  });
+  Tests.add('choice-how-invariant', () => {
+    // over bot games: at every pending choice the options Choose accepts are exactly the union of the how groups (nothing missing,
+    // nothing extra, no option in two groups), and only the chooser gets any
+    const bad = [];
+    let seen = 0;
+    for (const seed of [2235, 2236, 2237]) {
+      const g = Sim.create(seed, DEFS, { shuffle: true, autoStart: true, orderTriggers: true }),
+        rnd = botRng(seed),
+        mem = {};
+      for (let i = 0; i < 300 && !g.result; i++) {
+        if (g.choice) {
+          seen++;
+          const k = g.choice,
+            P = Sim.choicePicks(g, k.player),
+            groups = ['click', 'zone', 'player', 'list', 'button'].flatMap(h => P[h]),
+            other = Sim.choicePicks(g, k.player === 'Player' ? 'Opponent' : 'Player');
+          if (
+            groups.length !== k.options.length ||
+            JSON.stringify(groups.slice().sort()) !== JSON.stringify(k.options.slice().sort())
+          )
+            bad.push(seed + '@' + i + ' groups ' + k.kind);
+          if (other.options.length) bad.push(seed + '@' + i + ' other player');
+          for (const o of k.options)
+            if (!Sim.dispatch(structuredClone(g), { type: 'Choose', player: k.player, option: o }).ok)
+              bad.push(seed + '@' + i + ' refused ' + o);
+          if (Sim.dispatch(structuredClone(g), { type: 'Choose', player: k.player, option: 'not-an-option' }).ok)
+            bad.push(seed + '@' + i + ' extra accepted');
+        }
+        const cmd = botChoose(g, botActor(g), rnd, mem);
+        if (!cmd) break;
+        Sim.dispatch(g, cmd);
+      }
+    }
+    check(
+      'bot games: at every choice, Choose accepts exactly the options in the how groups',
+      !bad.length && seen > 20,
+      seen + ' choices; ' + bad.slice(0, 4).join(' | ')
+    );
   });
 
   // ================= 10. King Eye: hidden identities stay hidden in the log and the observed events =================

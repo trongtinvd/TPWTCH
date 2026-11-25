@@ -11,9 +11,7 @@
 // Sim is told (SetAutoPick) and the player clicks them. Widow Maker's pair (two adjacent zones) is two picks of the same chain.
 // The view never edits the game: the picks become ordinary Choose / PlayCard commands through send().
 const Targeting = (function () {
-  const NOT_TARGET = new Set(['mode', 'trigorder', 'libplay', 'libseen']), // plain menus, not targets
-    BUTTONS = new Set(['done', 'no', 'ok', 'stay', 'play', 'skip']), // answers that are buttons, never targets
-    NS = 'http://www.w3.org/2000/svg';
+  const NS = 'http://www.w3.org/2000/svg';
   let T = null, // {key, base, picks[], auto[], sends[], cur, vs, done}
     queue = null; // {player, picks[{o, auto}]}: picks being sent one Choose at a time
   const ptr = { x: -1, y: -1, touch: false };
@@ -48,12 +46,18 @@ const Targeting = (function () {
   const markHTML = () => '<span class="tmark">' + MARK_SVG + '</span>';
   const paths = [],
     marks = new Map(); // option -> overlay div
-  // ---- which choices are targeting
-  const isTargetKind = k => !!k && !!k.kind && !NOT_TARGET.has(k.kind);
+  // ---- which choices are targeting, and how each option is answered: the Sim says it (Sim.choicePicks), never the view.
+  // A target selection = a choice answered one pick at a time (or a pair) with at least one option that is not a button;
+  // plain menus (a mode, play it / not, ok) and the trigger order / name search / shift choices are not.
+  const picksIn = (k, s) => Sim.choicePicks(s || vstate(), k.player, k),
+    isTargetKind = k => {
+      if (!k) return false;
+      const P = picksIn(k, game);
+      return (P.kind === 'pick' || P.kind === 'pair') && P.button.length < P.options.length;
+    },
+    howIn = (k, o, s) => (k ? picksIn(k, s).how[o] : null);
   const autoOn = () => Settings.get('autoPick') !== false;
   const isCard = (s, o) => !!s.cards[o];
-  const isBoardOpt = o => /^[ZPS]:/.test(o) || (typeof game !== 'undefined' && o in game.slots);
-  const isButton = (s, o) => BUTTONS.has(o) && !isCard(s, o);
   function castBase() {
     // a spell held to cast that needs a target: a choice of the UI's own (the Sim takes the target with PlayCard)
     const c = ui.placing;
@@ -83,12 +87,7 @@ const Targeting = (function () {
     return castBase();
   }
   const sameChain = k => !!k && !!T && k.player === T.base.player && k.iid === T.base.iid && isTargetKind(k);
-  function needOf(k, s) {
-    if (!k) return 0;
-    const n = k.need != null ? k.need : ['upto', 'vault'].includes(k.kind) && k.left != null ? k.left : 1,
-      t = k.options.filter(o => !isButton(s, o)).length;
-    return Math.max(0, Math.min(n, t));
-  }
+  const needOf = (k, s) => (k ? picksIn(k, s).need : 0);
   // Widow Maker's pair as a choice of single zones: the zones of every pair, or (one picked) its adjacent partners
   function pairView(k, a) {
     return {
@@ -106,9 +105,11 @@ const Targeting = (function () {
     T.done = false;
     T.auto = [];
     T.sends = [];
+    T.hows = {}; // how each pick was answered (a list pick shows as a chip in the panel; a table pick has its mark on the table)
     if (T.base.kind === 'cast') {
       T.picks = T.picks.filter(o => T.base.options.includes(o)).slice(0, 1);
       T.done = T.picks.length > 0;
+      T.picks.forEach(o => (T.hows[o] = howIn(T.base, o, game)));
       if (T.done) T.cur = null;
       return;
     }
@@ -128,12 +129,14 @@ const Targeting = (function () {
     for (;;) {
       const k = vs.choice;
       if (!k || (T.sends.length && !sameChain(k))) break;
+      for (const o of k.options) T.hows[o] = T.hows[o] || picksIn(k, vs).how[o];
       if (k.options.length === 1 && autoOn()) {
         // nothing to decide: picked for the player (mark and arrow included)
         if (!choose(k.options[0])) {
           cur = k;
           break;
         }
+        if (isPairChoice(k)) k.options[0].split('#').forEach(z => (T.hows[z] = 'zone'));
         T.auto.push(...(isPairChoice(k) ? k.options[0].split('#') : k.options));
         T.sends.push({ o: k.options[0], auto: true });
         continue;
@@ -153,6 +156,7 @@ const Targeting = (function () {
           break;
         }
         const o = k.options.find(q => q.split('#').includes(a) && q.split('#').includes(b));
+        T.hows[a] = T.hows[b] = 'zone';
         if (!choose(o)) {
           cur = v;
           break;
@@ -224,7 +228,7 @@ const Targeting = (function () {
     }
     const k = T.cur;
     if (!k || !k.options.includes(o) || T.auto.includes(o)) return false;
-    if (isButton(vstate(), o)) {
+    if (howIn(k, o) === 'button') {
       // Done / Do not play...: the answer itself, sent at once after the picks so far
       if (T.base.kind !== 'cast') commit([...T.sends, { o }]);
       return true;
@@ -289,7 +293,9 @@ const Targeting = (function () {
     const ok = c.filter(Boolean);
     const k = T.base.kind === 'cast' ? T.base : T.cur;
     return (
-      ok.find(o => T.picks.includes(o)) || (k && ok.find(o => k.options.includes(o) && !isButton(vstate(), o))) || null
+      ok.find(o => T.picks.includes(o)) ||
+      (k && ok.find(o => k.options.includes(o) && howIn(k, o) !== 'button')) ||
+      null
     );
   }
   // ---- the panel (#pick): the prompt, list options with their art and a mark, the picked list items, buttons, Confirm
@@ -311,16 +317,9 @@ const Targeting = (function () {
     if (d) hoverInspect(b, () => game.cards[o] || d);
     return b;
   }
-  // list options: what cannot be clicked on the board (a deck, the graveyard, the extra deck, a stack object, a status...)
-  function listOpts(k) {
-    if (!k) return [];
-    const s = vstate(),
-      at = k.kind === 'pairpick' ? [] : Sim.choicePicks(s, k.player).clickable || [];
-    // per card (Creeping Parasite's 4 damage mixes cards and life bars: its board cards are still clicked, never listed)
-    return k.options.filter(
-      o => !isButton(s, o) && !isBoardOpt(o) && !(isCard(s, o) && at.includes(o) && meshes.has(o))
-    );
-  }
+  // list options: the ones the Sim says are not answered on the table (a deck, the graveyard, the extra deck, a stack object, a status...).
+  // A card clickable where it stands is never listed (Creeping Parasite's 4 damage, Ambush of the Night), whatever the view drew.
+  const listOpts = k => (k ? picksIn(k).list : []);
   function render(pk) {
     // returns true when it filled the panel
     if (queue) {
@@ -330,18 +329,17 @@ const Targeting = (function () {
     if (!T) return false;
     const s = vstate(),
       k = T.cur,
-      rows = k && k.kind !== 'declare' ? listOpts(k) : [],
-      chips = [...T.picks, ...T.auto].filter(o => !isBoardOpt(o) && !meshes.has(o)),
-      btns = k ? k.options.filter(o => isButton(s, o)) : [],
+      rows = listOpts(k),
+      chips = [...T.picks, ...T.auto].filter(o => T.hows[o] === 'list'),
+      btns = k ? picksIn(k, s).button : [],
       conf = confirmMode() && T.picks.length > 0;
-    if (!rows.length && !chips.length && !btns.length && !conf && !(k && k.kind === 'declare')) {
+    if (!rows.length && !chips.length && !btns.length && !conf) {
       pk.hidden = true;
       return true;
     }
     pk.hidden = false;
     pk.innerHTML = '<div class="mt"></div>';
     pk.firstChild.textContent = k ? k.prompt : T.base.prompt;
-    if (k && k.kind === 'declare') declareUI(pk, k);
     if (rows.length) {
       const L = document.createElement('div');
       L.className = 'tlist';
@@ -538,7 +536,7 @@ const Targeting = (function () {
       const k = T.base.kind === 'cast' ? T.base : T.cur,
         s = vstate();
       // marks on the board for every legal target and every picked one
-      const opts = k ? k.options.filter(o => !isButton(s, o)) : [];
+      const opts = k ? k.options.filter(o => howIn(k, o, s) !== 'button') : [];
       for (const o of [...T.picks, ...T.auto, ...opts]) {
         if (seen.has(o)) continue;
         const pt = anchorOf(o);

@@ -22,7 +22,7 @@ function passByRightClick() {
   const k = game.choice;
   if (k && !foeChoice()) {
     // a shift choice: right click / double tap on empty space = stay where it is (exactly like clicking the zone the card stands on)
-    if (k.kind) return false;
+    if (picksOf(k).kind !== 'shift') return false;
     send({ type: 'Choose', player: k.player, option: 'stay' });
     return true;
   }
@@ -222,29 +222,31 @@ addEventListener('pointerup', e => {
     }
   }
   if (game.choice && !foeChoice()) {
-    // shift choice answered on the board itself
+    // a choice answered on the board itself: what a click means comes from how the Sim says each option is answered
     const k = game.choice,
+      P = picksOf(k),
+      H = P.how,
       occ = u.slotKey && game.slots[u.slotKey],
       opt =
-        k.kind === 'place'
-          ? u.slotKey && k.options.includes(u.slotKey)
-            ? u.slotKey
-            : null
-          : k.kind
-            ? ['damage', 'pick', 'swap', 'abtarget'].includes(k.kind) || boardPick(k)
-              ? u.slotKey && k.options.includes('Z:' + u.slotKey)
-                ? 'Z:' + u.slotKey
-                : u.card
-                  ? u.card.iid
-                  : occ
+        P.kind === 'shift'
+          ? u.slotKey && u.baseEm
+            ? u.slotKey === game.cards[k.iid].slot
+              ? 'stay'
+              : u.slotKey
+            : u.card && u.card.iid === k.iid
+              ? 'stay'
               : null
-            : u.slotKey && u.baseEm
-              ? u.slotKey === game.cards[k.iid].slot
-                ? 'stay'
-                : u.slotKey
-              : u.card && u.card.iid === k.iid
-                ? 'stay'
-                : null;
+          : P.kind !== 'pick'
+            ? null
+            : u.slotKey && H['Z:' + u.slotKey] === 'zone'
+              ? 'Z:' + u.slotKey
+              : u.slotKey && H[u.slotKey] === 'zone'
+                ? u.slotKey
+                : u.card && H[u.card.iid] === 'click'
+                  ? u.card.iid
+                  : occ && (H[occ] === 'click' || H[occ] === 'zone')
+                    ? occ
+                    : null;
     if (opt && k.options.includes(opt)) {
       send({ type: 'Choose', player: k.player, option: opt });
       return;

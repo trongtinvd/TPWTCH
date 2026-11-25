@@ -475,23 +475,19 @@ async function fxRun(jobs, done) {
   bannerEl.hidden = true;
   done();
 }
-const isPairChoice = k =>
-    !!k && ['pair', 'trigtarget'].includes(k.kind) && k.options.length > 0 && k.options.every(o => o.includes('#')),
+// HOW a choice is answered comes from the Sim (Sim.choicePicks): per option click / zone / player / list / button, and the kind of the
+// whole choice (pick, pair, trigorder, declare, shift). The highlight, the board clicks, the target selection and the pick panel all
+// read it, so they cannot disagree (Ambush of the Night, Creeping Parasite's 4 damage: a card clickable on the table is never listed).
+// st: the state the choice belongs to (a target selection's dry run passes its own).
+const picksOf = (k, st) => Sim.choicePicks(st || game, k ? k.player : null, k),
+  isPairChoice = k => !!k && picksOf(k).kind === 'pair',
   pairPartners = (k, z) =>
     k.options
       .map(o => o.split('#'))
       .filter(p => p.includes(z))
       .map(p => (p[0] === z ? p[1] : p[0]));
-// Engine rule: a choice whose CARD options are all cards the player can see and click (on the board, not under a cloud,
-// or in their own hand) is answered by clicking them, never with a list. Options that are not cards ('done', 'no'...) stay as buttons.
-// the Sim decides it (Sim.choicePicks: the same options Choose accepts). It used to be read from the meshes, mid-sync: a card
-// drawn or returned by the same effect had no mesh yet, so the other cards of the hand lost their highlight (Ambush of the Night).
-const choiceCards = k => k.options.filter(o => game.cards[o]),
-  choiceButtons = k => k.options.filter(o => !game.cards[o]);
-function boardPick(k) {
-  if (!k || !k.labels || k.kind === 'trigorder' || k.kind === 'declare' || isPairChoice(k)) return false;
-  return Sim.choicePicks(game, k.player).click;
-}
+// answered on the table only (nothing to pick from a list): the panel keeps just its buttons (Done)
+const boardPick = k => !!k && picksOf(k).table;
 function trigOrderUI(pk, k) {
   const key = k.player + '|' + k.options[0];
   // the option lists the triggers in RESOLUTION order; the panel shows them like the stack panel: the bottom row resolves first
@@ -590,7 +586,9 @@ function declareUI(pk, k) {
       b.style.setProperty('--tc', cardColor(d));
       hoverInspect(b, () => d);
       const m = b.querySelector('.tmark');
-      if (m) m.innerHTML = '<svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="14"/><circle cx="20" cy="20" r="5"/><path d="M20 1v9M20 30v9M1 20h9M30 20h9"/></svg>';
+      if (m)
+        m.innerHTML =
+          '<svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="14"/><circle cx="20" cy="20" r="5"/><path d="M20 1v9M20 30v9M1 20h9M30 20h9"/></svg>';
       b.onclick = () => {
         ui.declareQ = '';
         if (!(Targeting.on() && Targeting.click(d.id))) send({ type: 'Choose', player: k.player, option: d.id });
@@ -652,8 +650,8 @@ function buildStack() {
       Targeting.on() && Targeting.click('S:' + o.sid)
         ? null
         : ui.placing && ui.placing.def.stackTarget && o.kind === 'spell'
-        ? send({ type: 'PlayCard', iid: ui.placing.iid, tsid: o.sid })
-        : showCard(c, true, o.kind === 'ability' && !mk ? { from: o.from, list: o.list, i: o.ab, src: o.src } : null);
+          ? send({ type: 'PlayCard', iid: ui.placing.iid, tsid: o.sid })
+          : showCard(c, true, o.kind === 'ability' && !mk ? { from: o.from, list: o.list, i: o.ab, src: o.src } : null);
     stackEl.appendChild(el);
   }
   // a spell that left the stack but still waits for its choices (Ambush of the Night) shows here as "resolving", instead of vanishing
@@ -843,22 +841,25 @@ function sync() {
   if (!isPairChoice(game.choice)) ui.pairFirst = null;
   const tch = Targeting.on() ? Targeting.choice() : game.choice, // a target selection shows its own (dry run) choice
     ch = foeChoice() || (tch && tch.kind === 'cast') ? null : tch,
-    chCur = ch && !ch.kind ? game.cards[ch.iid].slot : isPairChoice(ch) ? ui.pairFirst : null,
-    chSlots = !ch
+    chP = ch ? picksOf(ch, Targeting.on() ? Targeting.vstate() : game) : null,
+    chCur =
+      chP && chP.kind === 'shift' && game.cards[ch.iid]
+        ? game.cards[ch.iid].slot
+        : chP && chP.kind === 'pair'
+          ? ui.pairFirst
+          : null,
+    chSlots = !chP
       ? []
-      : isPairChoice(ch)
+      : chP.kind === 'pair'
         ? ui.pairFirst
           ? pairPartners(ch, ui.pairFirst)
           : [...new Set(ch.options.flatMap(o => o.split('#')))]
-        : ch.kind === 'place' || ch.kind === 'pairpick' // pairpick: Widow Maker's pair as single zones (targeting.js)
-          ? ch.options
-          : ['damage', 'pick', 'swap', 'abtarget'].includes(ch.kind)
-            ? ch.options
-                .map(i => (i.startsWith('Z:') ? i.slice(2) : game.cards[i] && game.cards[i].slot))
-                .filter(Boolean)
-            : ch.kind
-              ? []
-              : ch.options; // shift choice: highlight left / right / current zone
+        : chP.kind === 'shift'
+          ? chP.zone // shift choice: highlight left / right (and the current zone, chCur)
+          : [
+              ...chP.zone.map(o => (o.startsWith('Z:') ? o.slice(2) : game.cards[o] ? game.cards[o].slot : o)),
+              ...chP.click.map(id => game.cards[id] && game.cards[id].loc === 'board' && game.cards[id].slot),
+            ].filter(Boolean);
   const valid = ch
     ? zones.filter(z => chSlots.includes(z.userData.slotKey) || z.userData.slotKey === chCur)
     : !held
@@ -910,53 +911,52 @@ function sync() {
         : Targeting.on() && Targeting.prompt() != null
           ? Targeting.prompt()
           : foeChoice()
-          ? rp.on
-            ? NAME[game.choice.player] + ' is choosing\u2026'
-            : 'Bot is choosing\u2026'
-          : game.choice
-            ? NAME[game.choice.player] +
-              ': ' +
-              game.choice.prompt +
-              ((['damage', 'pick', 'swap', 'place'].includes(game.choice.kind) && !game.choice.labels) ||
-              boardPick(game.choice)
-                ? ' Click a highlighted card, zone or life bar.'
-                : isPairChoice(game.choice)
-                  ? ' Click two adjacent highlighted cards (click the first again to undo).'
-                  : game.choice.kind
-                    ? ' Pick an option in the list.'
-                    : ' Click a green zone to shift there, or the amber zone (or right click / double tap empty space) to stay.')
-            : ui.placing
-              ? ui.placing.def.zoneTarget || ui.placing.def.playerTarget
-                ? 'Targeting for ' +
-                  ui.placing.def.name +
-                  ': click ' +
-                  (ui.placing.def.zoneTarget ? 'a highlighted zone' : '') +
-                  (ui.placing.def.zoneTarget && ui.placing.def.playerTarget ? ' or ' : '') +
-                  (ui.placing.def.playerTarget ? 'a life bar' : '') +
-                  ' (Esc to cancel)'
-                : ui.placing.def.colTarget
-                  ? 'Targeting for ' + ui.placing.def.name + ': click a zone in a highlighted column (Esc to cancel)'
-                  : 'Placing ' + ui.placing.def.name + ': click a highlighted zone (Esc to cancel)'
-              : NAME[game.active] +
-                '\u2019s turn' +
-                (' \u00b7 ' + (STEP_NAMES[game.step] || 'Main phase')) + // start -> draw -> main -> combat -> main or end
-                (' (' +
-                  Sim.apCount(game, game.active) +
-                  ' action point' +
-                  (Sim.apCount(game, game.active) === 1 ? '' : 's') +
-                  ')') +
-                ' \u00b7 ' +
-                (ui.note ? ui.note + ' \u00b7 ' : '') +
-                (game.stack.length
-                  ? 'Stack (top last): ' +
-                    game.stack.map(o => stackName(o) + (o.hp == null ? '' : ' [HP ' + o.hp + ']')).join(' \u2192 ') +
-                    ' \u00b7 '
-                  : game.respond
-                    ? 'Response window: ' + (STOP_NAMES[game.respond.kind] || game.respond.kind) + ' \u00b7 '
-                    : 'Stack empty \u00b7 ') +
-                NAME[game.priority] +
-                ' has priority' +
-                (ui.view !== game.priority ? ' (viewing ' + NAME[ui.view] + ')' : '');
+            ? rp.on
+              ? NAME[game.choice.player] + ' is choosing\u2026'
+              : 'Bot is choosing\u2026'
+            : game.choice
+              ? NAME[game.choice.player] +
+                ': ' +
+                game.choice.prompt +
+                (boardPick(game.choice)
+                  ? ' Click a highlighted card, zone or life bar.'
+                  : isPairChoice(game.choice)
+                    ? ' Click two adjacent highlighted cards (click the first again to undo).'
+                    : picksOf(game.choice).kind !== 'shift'
+                      ? ' Pick an option in the list.'
+                      : ' Click a green zone to shift there, or the amber zone (or right click / double tap empty space) to stay.')
+              : ui.placing
+                ? ui.placing.def.zoneTarget || ui.placing.def.playerTarget
+                  ? 'Targeting for ' +
+                    ui.placing.def.name +
+                    ': click ' +
+                    (ui.placing.def.zoneTarget ? 'a highlighted zone' : '') +
+                    (ui.placing.def.zoneTarget && ui.placing.def.playerTarget ? ' or ' : '') +
+                    (ui.placing.def.playerTarget ? 'a life bar' : '') +
+                    ' (Esc to cancel)'
+                  : ui.placing.def.colTarget
+                    ? 'Targeting for ' + ui.placing.def.name + ': click a zone in a highlighted column (Esc to cancel)'
+                    : 'Placing ' + ui.placing.def.name + ': click a highlighted zone (Esc to cancel)'
+                : NAME[game.active] +
+                  '\u2019s turn' +
+                  (' \u00b7 ' + (STEP_NAMES[game.step] || 'Main phase')) + // start -> draw -> main -> combat -> main or end
+                  (' (' +
+                    Sim.apCount(game, game.active) +
+                    ' action point' +
+                    (Sim.apCount(game, game.active) === 1 ? '' : 's') +
+                    ')') +
+                  ' \u00b7 ' +
+                  (ui.note ? ui.note + ' \u00b7 ' : '') +
+                  (game.stack.length
+                    ? 'Stack (top last): ' +
+                      game.stack.map(o => stackName(o) + (o.hp == null ? '' : ' [HP ' + o.hp + ']')).join(' \u2192 ') +
+                      ' \u00b7 '
+                    : game.respond
+                      ? 'Response window: ' + (STOP_NAMES[game.respond.kind] || game.respond.kind) + ' \u00b7 '
+                      : 'Stack empty \u00b7 ') +
+                  NAME[game.priority] +
+                  ' has priority' +
+                  (ui.view !== game.priority ? ' (viewing ' + NAME[ui.view] + ')' : '');
   for (const p of ['Player', 'Opponent']) {
     // life bars
     const row = document.querySelector('#hp [data-p="' + p + '"]'),
@@ -992,13 +992,12 @@ function sync() {
       );
     }
   }
-  const pk = document.getElementById('pick'),
+  // the pick panel: only what is not answered on the table (list options, buttons), or the trigger order / name search panels
+  const pkP = game.choice && !foeChoice() ? picksOf(game.choice) : null,
+    pkRows = pkP ? [...pkP.list, ...pkP.button] : [],
+    pk = document.getElementById('pick'),
     pkc =
-      game.choice &&
-      game.choice.labels &&
-      !foeChoice() &&
-      !isPairChoice(game.choice) &&
-      (!boardPick(game.choice) || choiceButtons(game.choice).length) // a click choice keeps its non-card buttons (Done)
+      pkP && (['trigorder', 'declare'].includes(pkP.kind) || (pkP.kind === 'pick' && pkRows.length))
         ? game.choice
         : null;
   if (ui.extraAsk && !ui.placing) ui.extraAsk = null;
@@ -1025,13 +1024,13 @@ function sync() {
   if (pkc && !tgtPanel) {
     pk.innerHTML = '<div class="mt"></div>';
     pk.firstChild.textContent = pkc.prompt;
-    if (pkc.kind === 'trigorder') trigOrderUI(pk, pkc);
-    else if (pkc.kind === 'declare') declareUI(pk, pkc);
+    if (pkP.kind === 'trigorder') trigOrderUI(pk, pkc);
+    else if (pkP.kind === 'declare') declareUI(pk, pkc);
     else
-      (boardPick(pkc) ? choiceButtons(pkc) : pkc.options).forEach(o => {
+      pkRows.forEach(o => {
         const b = document.createElement('button');
         b.className = 'abtn';
-        b.textContent = pkc.labels[o];
+        b.textContent = (pkc.labels && pkc.labels[o]) || (game.cards[o] ? game.cards[o].def.name : o);
         if (game.cards[o]) {
           // a card option: its art next to its name
           const img = document.createElement('img'),

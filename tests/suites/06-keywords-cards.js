@@ -303,9 +303,9 @@
     D(s, { type: 'Choose', player: 'Opponent', option: '1' });
     const k = Sim.choicePicks(s, 'Opponent');
     eq(
-      'Creeping Parasite, 4 damage to any target: not a pure card choice (life bars), yet each board card is clickable',
-      [s.choice.options.includes('P:Player'), k.click, k.clickable.includes(w.iid), k.clickable.includes(pa.iid)],
-      [true, false, true, true]
+      'Creeping Parasite, 4 damage to any target: board cards are click, life bars are player, nothing in the list',
+      [k.kind, k.click.includes(w.iid), k.click.includes(pa.iid), k.player.sort().join(), k.list.length, k.table],
+      ['pick', true, true, 'P:Opponent,P:Player', 0, true]
     );
   });
   Tests.add('parasite', () => {
