@@ -1,5 +1,5 @@
 // 28-turn-order.js - the turn order race (Docs/RULES.md "Turn order"): Distance / Speed / Acceleration decide who takes each turn.
-// The farthest ahead takes the turn (a tie at the start: coin toss; a tie later: the player who did not have the last turn), the other
+// The farthest ahead takes the turn (ties: greater Speed, greater Acceleration, the player who did not have the last turn, coin toss), the other
 // advances (Distance += Speed; Speed += Acceleration). Sim.turnOrder projects the next turns; `race` statuses change the stats.
 // Run only these: node tests/run.js --only turn-order
 (function () {
@@ -106,6 +106,17 @@
       // P D2 S1 A0, O D3 S1 A0: O (3>2), P -> 3 (tie) -> P (the player who did not have the last turn), O -> 4 -> O, P -> 4 (tie) -> P ...
       const s = game(2806, R(2, 1, 0, 3, 1, 0));
       eq('a tie later goes to the player who did not have the last turn', turns(s, 4), [O, P, O, P]);
+    }
+    {
+      eq('a Distance tie goes to the greater Speed (no coin toss)', game(2808, R(4, 3, 1, 4, 2, 9)).active, P);
+      eq('...a Speed tie too goes to the greater Acceleration', game(2809, R(4, 2, 1, 4, 2, 3)).active, O);
+      // P D4 S2 A0, O D4 S1 A0: P first (speed); O -> 5; O (5>4); P -> 6; P (6>5); O -> 6: tie D6, speed P2 > O1 -> P keeps the turn
+      eq('a later tie breaks on Speed before the last-turn rule', turns(game(2811, R(4, 2, 0, 4, 1, 0)), 4), [
+        P,
+        O,
+        P,
+        P,
+      ]);
     }
     {
       const s = game(2807, R(3, 3, 3, 3, 2, 2)),

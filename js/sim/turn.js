@@ -75,15 +75,20 @@ Sim.def('turn', function (K) {
       v = x.set != null ? x.set : v + (x.amount || 0);
     return v;
   }
-  // last = the player who had the last turn (null at the start). Farthest ahead takes the turn; a tie at the start is a coin toss,
-  // a tie later goes to the player who did NOT have the last turn (only overtaking keeps the turn). The other player advances.
+  // last = the player who had the last turn (null at the start). Farthest ahead takes the turn; ties break on greater Speed, then
+  // greater Acceleration, then the player who did NOT have the last turn, then (only at the start) a seeded coin toss. The other advances.
   function pickTurn(s, last, ev, coin) {
-    const dP = raceStat(s, 'Player', 'distance'),
-      dO = raceStat(s, 'Opponent', 'distance');
-    let p;
-    if (dP !== dO) p = dP > dO ? 'Player' : 'Opponent';
-    else if (last) p = other(last);
-    else {
+    let p = null;
+    for (const k of RACE) {
+      const a = raceStat(s, 'Player', k),
+        b = raceStat(s, 'Opponent', k);
+      if (a !== b) {
+        p = a > b ? 'Player' : 'Opponent';
+        break;
+      }
+    }
+    if (!p && last) p = other(last);
+    else if (!p) {
       p = coin ? coin() : mulberry32((s.n * 7 + 3) >>> 0)() < 0.5 ? 'Player' : 'Opponent';
       if (ev) ev.push({ t: 'CoinToss', winner: p });
     }

@@ -114,11 +114,11 @@ Each player holds **action points** (shown as four-point stars under the life ba
 
 ## Turn order (Distance/Speed/Acceleration) [proto 2026-11-25]
 
-- Start: Distance = Initial Distance. Player farthest ahead takes the turn; ties: coin toss.
+- Start: Distance = Initial Distance. Player farthest ahead takes the turn. Tie breakers, in order: greater Speed, greater Acceleration, the player who did not take the previous turn, coin toss (only possible at the start). [decided 2026-11-25]
 - The player who did _not_ get the turn advances: `Distance += Speed; Speed += Acceleration`. (D10 S3 A2 -> D13 S5.)
 - Overtaking grants the next turn; streaks possible.
 - **[proto]** The stats are the avatars' outfit stats (`initialDistance`, `speed`, `acceleration`), passed to the Sim as the game option `rules.race` (recorded with replays). No race (no avatars, older replays, the rules tests): turns strictly alternate.
-- **[proto, Claude's reading, to confirm]** A tie after the start goes to the player who did **not** have the last turn (only overtaking keeps a streak going). The start coin toss is seeded from the game seed (replays repeat it).
+- **[proto]** The start coin toss is seeded from the game seed (replays repeat it).
 - **[proto]** Stats change through `race` statuses on the player (`{kind:'race', stat:'distance'|'speed'|'acceleration', amount}` adds, `set` replaces; folded in list order, like card stats). Advancing grows the base Distance and Speed; statuses stay on top. Events: `CoinToss`, `RaceAdvanced`.
 - **[proto]** `Sim.turnOrder(s, n)` projects the next n turns (current first) from a copy of the race; the **turn order strip** (right side, `js/view/turn-strip.js`) redraws it on every sync, so any stat change re-projects at once. Blue = your turns, red = the opponent's; the top tile flashes, later ones fade out.
 
