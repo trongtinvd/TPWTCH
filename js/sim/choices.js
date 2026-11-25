@@ -126,16 +126,19 @@ Sim.def('choices', function (K) {
       ev
     );
   }
+  // a spell that must target (no optional target): L4 plays it WITHOUT a target, and it fizzles when it resolves [decided 2026-11-25]
+  const mustTarget = d =>
+    !d.optionalTarget && !!(d.zoneTarget || d.colTarget || d.playerTarget || d.stackTarget || d.target || d.targeting);
+  const TARGET_REQS = ['target', 'stack']; // "a legal target exists": moot for a spell played without one
   const playable = (s, me, t) => {
-    // permanents need a free zone on my side; spells that need no target (or whose target is optional: played without one) and whose
-    // requirements hold (spells that must target cannot be played this way yet)
+    // permanents need a free zone on my side; spells need their requirements (a spell that must target skips the "a target exists" ones)
     const was = t.controller;
     t.controller = me;
     try {
       if (isPerm(t)) return freeSlots(s, t).length > 0;
-      const d = t.def;
-      if (!d.optionalTarget && (d.zoneTarget || d.colTarget || d.playerTarget || d.stackTarget)) return false;
-      return (d.req || []).every(r => !REQS[r] || !REQS[r](s, t, d));
+      const d = t.def,
+        skip = mustTarget(d) ? TARGET_REQS : [];
+      return (d.req || []).every(r => skip.includes(r) || !REQS[r] || !REQS[r](s, t, d));
     } finally {
       if (was === undefined) delete t.controller;
       else t.controller = was;
@@ -194,6 +197,7 @@ Sim.def('choices', function (K) {
         zone: null,
         tplayer: null,
         tsid: null,
+        untargeted: mustTarget(t.def) || undefined, // it fizzles on resolve (stack.js)
         statuses: [],
       });
       s.passes = 0;

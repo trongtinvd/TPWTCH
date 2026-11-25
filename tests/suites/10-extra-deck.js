@@ -532,6 +532,34 @@
       check('...and resolves to its owner\u2019s GY', qi.loc === 'gy' && s.piles.Opponent.gy.includes(qi));
     }
     {
+      // a spell that MUST target (Superbolt: a permanent or a player) is played by L4 without a target and fizzles on resolve [decided 2026-11-25]
+      const { s, li, u } = ready(1055);
+      take(s, 'Player', 'soldier', 'gy');
+      take(s, 'Player', 'heavensun', 'gy');
+      const qi = toDeck(s, 'Opponent', 'superbolt');
+      s.piles.Opponent.deck.unshift(s.piles.Opponent.deck.pop());
+      D(s, { type: 'PlayCard', iid: u.iid });
+      pass2(s);
+      D(s, { type: 'Choose', player: 'Player', option: li.iid });
+      D(s, { type: 'Choose', player: 'Player', option: 'Player|front|2' });
+      pass2(s);
+      D(s, { type: 'Choose', player: 'Player', option: 'superbolt' });
+      eq('L4 declares Superbolt (must target): it may be played', s.choice.kind, 'libplay');
+      D(s, { type: 'Choose', player: 'Player', option: 'play' });
+      check('...on the stack under my control, untargeted', qi.loc === 'stack' && qi.controller === 'Player');
+      while (s.choice && s.choice.kind === 'declare') D(s, { type: 'Choose', player: 'Player', option: 'giant' });
+      if (s.choice && s.choice.kind === 'libseen') D(s, { type: 'Choose', player: 'Player', option: 'ok' });
+      const r0 = pass2(s);
+      check(
+        '...it fizzles (no damage), to its owner\u2019s GY',
+        qi.loc === 'gy' &&
+          s.piles.Opponent.gy.includes(qi) &&
+          r0 &&
+          r0.events.some(e => e.t === 'StackObjectFizzled') &&
+          !r0.events.some(e => /Damage/.test(e.t))
+      );
+    }
+    {
       const s = start(1053),
         l4 = take(s, 'Player', 'librarian', 'board', 'Player|front|2');
       endTurnFlow(s);

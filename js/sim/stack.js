@@ -244,6 +244,10 @@ Sim.def('stack', function (K) {
   function resolveObj(s, o, ev) {
     // the object is already popped
     if (o.kind === 'attack') return resolveAttack(s, o, ev);
+    if (o.untargeted) {
+      ev.push({ t: 'StackObjectFizzled', sid: o.sid });
+      return;
+    } // a spell that must target, played without one (L4: The Librarian): it fizzles
     const src = s.cards[o.src || o.iid],
       def = o.kind === 'spell' ? src.def : byId[o.from][o.list][o.ab];
     let t = o.target ? s.cards[o.target] : null;
