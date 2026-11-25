@@ -140,12 +140,22 @@ function buildList() {
     row.tabIndex = 0;
     row.style.setProperty('--tc', known ? cardColor(c.def) : '#666');
     row.style.background = posColor(i, cards.length, gy ? 275 : 42);
+    const muted = ui.muted.has(c.iid) && Sim.ctl(c) === ui.view; // only its controller sees the mute counter
     row.innerHTML =
       '<span class="pos">' +
       (i + 1) +
-      '</span><span class="nm"></span><span class="ty">' +
+      '</span><span class="rart' +
+      (known ? '' : ' back') +
+      '">' +
+      (known ? '<img alt="">' : '') +
+      '</span><span class="nm"></span>' +
+      (muted
+        ? '<span class="rmute" title="Muted: it no longer stops the game (double click to remove)">\u{1F507}</span>'
+        : '') +
+      '<span class="ty">' +
       (known ? TYPES[c.def.type].label : '') +
       '</span>';
+    if (known) row.querySelector('img').src = artURL(c.def); // the card art, as in the choice and search lists
     row.querySelector('.nm').textContent = known ? c.def.name : 'Hidden card';
     if (kind === 'extra' && game.phase === 'play' && known) {
       // an extra deck creature whose conditions are met is lit; the progress of its conditions is shown next to it
@@ -190,6 +200,16 @@ function buildList() {
     }
     row.addEventListener('click', e => {
       if (!known) return;
+      // double click / double tap on a card you control: its mute counter (as on the board and in the hand)
+      const now = performance.now(),
+        lt = ui.lastCardTap;
+      ui.lastCardTap = { iid: c.iid, t: now };
+      if (!rp.on && lt && lt.iid === c.iid && now - lt.t < 400 && Sim.ctl(c) === ui.view) {
+        ui.lastCardTap = null;
+        closeMenu();
+        toggleMute(c);
+        return;
+      }
       showCard(c);
       if (!rp.on) openMenu(c, e.clientX, e.clientY); // GY: its abilities; deck (debug, Vs Self / Vs Bot): add to hand. No trip across the scene
     });
