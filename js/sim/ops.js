@@ -3,6 +3,7 @@ Sim.def('ops', function (K) {
   let autoOne; // fx
   // imports (bound by Sim.boot once every module is loaded)
   let countValue; // values
+  let drawCards; // dispatch
   let turnGo; // turn
   let addAttackBonus, cancelAttackObj;
   let ctl;
@@ -131,17 +132,8 @@ Sim.def('ops', function (K) {
       if (x.src.loc === 'board') destroy(x.s, x.src, x.ev);
     }, // effect-sacrifice: only if the effect resolves
     Draw: (x, e) => {
-      const w = e.who === 'foe' ? x.foe : x.who,
-        n = countValue(x, e.n); // counted once, before the first draw
-      for (let i = 0; i < n; i++) {
-        const d = x.s.piles[w].deck.shift();
-        if (d) {
-          d.loc = 'hand';
-          x.s.piles[w].hand.push(d);
-          x.ev.push({ t: 'CardDrawn', iid: d.iid, player: w });
-          x.s.drawn[w]++; // every draw counts (L4's condition), not only the Draw action
-        }
-      }
+      const w = e.who === 'foe' ? x.foe : x.who;
+      drawCards(x.s, w, countValue(x, e.n), x.ev); // counted once, before the first draw; drawCards (dispatch.js) is the one draw
     },
     DamageHp: (x, e) => {
       // damage the picked non-player HP target (x.o.pick: a card, a zone / cloud, a stack object; see hp.js)
@@ -496,6 +488,7 @@ Sim.def('ops', function (K) {
     needs: [
       'autoOne',
       'countValue',
+      'drawCards',
       'turnGo',
       'damageHp',
       'placeAttackCounters',
@@ -548,7 +541,7 @@ Sim.def('ops', function (K) {
     ],
     link: () => {
       ({ autoOne } = K);
-      ({ countValue } = K);
+      ({ countValue, drawCards } = K);
       ({ turnGo } = K);
       ({ damageHp, placeAttackCounters } = K);
       ({ addAttackBonus, cancelAttackObj } = K);

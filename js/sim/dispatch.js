@@ -53,15 +53,18 @@ Sim.def('dispatch', function (K) {
       stopAt(s, ev, 'stack'); // stop: stack emptied
     }
   }
-  function drawCards(s, p, n, ev) {
-    // the top n cards of p's deck (fewer when the deck runs out) go to the hand
+  // DRAWING: the ONE place a card goes deck -> hand as a draw (the opening hand, the draw phase, the Draw action, every Draw effect:
+  // Deep Sea Shark, Quick Intuition, Creeping Parasite...). The top n cards (fewer when the deck runs out) go to the hand, one
+  // CardDrawn each, and every CardDrawn counts toward s.drawn (L4: The Librarian), except the opening hand's (opening = true).
+  // A new draw effect calls this; it never moves cards itself (tests: a lint over js/sim).
+  function drawCards(s, p, n, ev, opening) {
     const d = s.piles[p].deck;
     for (let i = 0; i < n && d.length; i++) {
       const c = d.shift();
       c.loc = 'hand';
       s.piles[c.owner].hand.push(c);
       ev.push({ t: 'CardDrawn', iid: c.iid, player: c.owner });
-      s.drawn[c.owner]++;
+      if (!opening) s.drawn[c.owner]++;
     }
   }
   function checkDrawStep(s, ev) {
@@ -131,14 +134,7 @@ Sim.def('dispatch', function (K) {
         s.piles[cmd.player].deck.forEach((c, i, a) => lg(s, c, { kind: 'locked', pos: i + 1, of: a.length }));
         if (s.ready.Player && s.ready.Opponent) {
           s.phase = 'play';
-          for (const p of ['Player', 'Opponent']) {
-            const P = s.piles[p];
-            P.hand = P.deck.splice(0, s.cfg.startHand);
-            P.hand.forEach(c => {
-              c.loc = 'hand';
-              ev.push({ t: 'CardDrawn', iid: c.iid, player: p });
-            });
-          }
+          for (const p of ['Player', 'Opponent']) drawCards(s, p, s.cfg.startHand, ev, true); // the opening hand: not counted
           ev.push({ t: 'GameStarted' });
           if (s.race) s.active = s.priority = pickTurn(s, null, ev); // farthest ahead goes first (a tie: coin toss)
           gainAP(s, s.active, ev); // the first turn's action point
@@ -439,7 +435,7 @@ Sim.def('dispatch', function (K) {
   }
   const hasAction = (s, p) => actionsOf(s, p).length > 0; // is there anything legal for p right now?
   return {
-    exports: { actionsOf, dispatch, hasAction },
+    exports: { actionsOf, dispatch, drawCards, hasAction },
     needs: [
       'autoOne',
       'turnGo',

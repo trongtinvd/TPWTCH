@@ -540,7 +540,11 @@ const Fx = {
   },
   exCond: {
     lostLife: () => ({ op: 'LostLife', text: 'a player has lost life' }),
-    bothDrew: n => ({ op: 'BothDrewMoreThan', n, text: 'both players have drawn more than ' + n + ' cards this game' }),
+    bothDrew: n => ({
+      op: 'BothDrewMoreThan',
+      n,
+      text: 'both players have drawn ' + (n + 1) + ' or more cards this game (the opening hand does not count)',
+    }), // n = "more than n": each player needs n + 1 draws
   },
   fusion: o => ({ op: 'Fusion', ...o }), // effect: reveal an extra deck creature (pick: conditions | fusable | any), choose its materials among `from` zones, pay them (pay: gy | exile | hand), summon it (summon); cond: must | ignoreHB (ignored when only hand + field cards are used) | none
   selfToHand: () => ({ op: 'SelfToHand' }), // effect: this card goes from the deck or the GY to its owner's hand

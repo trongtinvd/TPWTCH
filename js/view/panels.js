@@ -277,8 +277,10 @@ const COND_UI = {
     );
     return who.length ? 'life lost by: ' + who.map(q => NAME[q]).join(', ') : 'nobody has lost life yet';
   },
-  BothDrewMoreThan: (s, e) =>
-    NAME.Player + ' ' + s.drawn.Player + '/' + e.n + ' \u00b7 ' + NAME.Opponent + ' ' + s.drawn.Opponent + '/' + e.n,
+  BothDrewMoreThan: (s, e) => {
+    const need = e.n + 1; // "more than n": EACH player needs n + 1 draws; the opening hand does not count ("Player 6/8 · Bot 9/8")
+    return ['Player', 'Opponent'].map(q => NAME[q] + ' ' + s.drawn[q] + '/' + need).join(' \u00b7 ');
+  },
 };
 const condNote = e => (COND_UI[e.op] ? COND_UI[e.op](game, e) : '');
 function boxInto(p, x, c) {

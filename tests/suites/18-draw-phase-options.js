@@ -3,7 +3,7 @@
 // cards revealed in a deck stay revealed while they are there.
 // Run only these: node tests/run.js --only draw-phase,game-options,set-stop,deck-reveal
 (function () {
-  const { D, check, eq, rej, start, take, pass2, endTurnFlow } = Tests.ctx;
+  const { D, check, eq, rej, start, take, pass2, endTurnFlow, AT, drain } = Tests.ctx;
 
   Tests.add('draw-phase', () => {
     const s = start(1800);
@@ -181,6 +181,161 @@
     check(
       'drawn by its owner: it left the deck, the status ended',
       top.loc === 'hand' && !Sim.isRevealed(top, 'Player')
+    );
+  });
+
+  // ================= drawing: ONE function (drawCards) moves a card deck -> hand as a draw and counts it (L4: The Librarian) =================
+  Tests.add('draw-count', () => {
+    // every source of a draw adds exactly 1 per card drawn: the counter, the CardDrawn events and the hand agree
+    const drawn = (ev, p) => ev.filter(e => e.t === 'CardDrawn' && e.player === p).length;
+    const per = (name, s, p, run) => {
+      const d0 = s.drawn[p],
+        h0 = s.piles[p].hand.length,
+        ev = run(),
+        n = drawn(ev, p);
+      eq(name + ': +1 per card drawn (counter, CardDrawn events, cards in hand)', [s.drawn[p] - d0, n > 0], [n, true]);
+      check(name + ': ...the hand grew by the same number', s.piles[p].hand.length - h0 >= n - 1 || n === 0);
+    };
+    const all = (s, cmds) => cmds.flatMap(c => (typeof c === 'function' ? c() : D(s, c).events));
+    {
+      const s = Sim.create(1500, DEFS.concat(FIXTURES));
+      const ev = all(s, [
+        { type: 'Start', player: 'Player' },
+        { type: 'Start', player: 'Opponent' },
+      ]);
+      eq(
+        'the opening hand: 5 CardDrawn each, none counted (the counter = the draws after it: the first draw phase)',
+        [s.drawn.Player, s.drawn.Opponent, s.phase],
+        [drawn(ev, 'Player') - 5, drawn(ev, 'Opponent') - 5, 'play']
+      );
+    }
+    {
+      const s = start(1501);
+      per('the Draw action', s, 'Player', () => D(s, { type: 'Draw', player: 'Player' }).events);
+    }
+    {
+      const s = start(1502),
+        p = s.active === 'Player' ? 'Opponent' : 'Player',
+        ev = [];
+      const d0 = s.drawn[p];
+      ev.push(...D(s, { type: 'EndTurn', player: s.active }).events);
+      for (let i = 0; i < 8 && s.active !== p; i++) ev.push(...D(s, { type: 'Pass', player: s.priority }).events);
+      for (let i = 0; i < 8 && s.drawPending; i++) ev.push(...D(s, { type: 'Pass', player: s.priority }).events);
+      eq('the draw phase: +1 per card drawn', [s.drawn[p] - d0, drawn(ev, p)], [1, 1]);
+    }
+    {
+      const s = start(1503),
+        q = take(s, 'Player', 'intuition', 'hand');
+      s.piles.Player.hand.splice(0, 3).forEach(c => {
+        c.loc = 'deck';
+        s.piles.Player.deck.push(c);
+      });
+      per('Quick Intuition (draw until 7)', s, 'Player', () =>
+        all(s, [{ type: 'PlayCard', iid: q.iid }, () => pass2(s).events])
+      );
+    }
+    {
+      const s = start(204);
+      take(s, 'Player', 'shark', 'board', 'Player|front|0');
+      const wf = take(s, 'Player', 'wolf', 'board', 'Player|front|1');
+      D(s, { type: 'SetAttackPhase', player: 'Player', on: true });
+      AT(s, wf.iid);
+      D(s, { type: 'SetAttackPhase', player: 'Player', on: false });
+      pass2(s);
+      per(
+        'Deep Sea Shark (the opponent draws 5)',
+        s,
+        'Opponent',
+        () => D(s, { type: 'Choose', player: 'Player', option: '0' }).events
+      );
+    }
+    {
+      const s = start(702);
+      ['soldier', 'wolf', 'hummingbird', 'blackhawk'].forEach((id, k) =>
+        take(s, 'Player', id, 'board', 'Player|front|' + k)
+      );
+      const pa = take(s, 'Opponent', 'parasite', 'hand');
+      s.priority = 'Opponent';
+      D(s, { type: 'PlayCard', iid: pa.iid, slot: 'Opponent|front|0' });
+      drain(s);
+      per('Creeping Parasite (4+: a card per opposing creature)', s, 'Opponent', () => {
+        const ev = D(s, { type: 'Choose', player: 'Opponent', option: '4' }).events;
+        let n = 0;
+        while ((s.stack.length || s.respond) && !s.choice && n++ < 40)
+          ev.push(...D(s, { type: 'Pass', player: s.priority }).events);
+        return ev;
+      });
+    }
+    // over bot games: for every command, the counter moves exactly by the CardDrawn events of that command (the Start command: by 0)
+    const bad = [];
+    for (const seed of [1510, 1511]) {
+      const g = Sim.create(seed, DEFS, { shuffle: true }),
+        rnd = botRng(seed),
+        mem = {};
+      for (const p of ['Player', 'Opponent']) {
+        const d0 = Object.assign({}, g.drawn),
+          r = D(g, { type: 'Start', player: p }),
+          open = r.events.some(e => e.t === 'GameStarted') ? g.cfg.startHand : 0; // the opening hand is dealt in this command
+        for (const q of ['Player', 'Opponent'])
+          if (g.drawn[q] - d0[q] !== drawn(r.events, q) - open) bad.push(seed + ' Start ' + q);
+      }
+      for (let i = 0; i < 400 && !g.result; i++) {
+        const cmd = botChoose(g, botActor(g), rnd, mem);
+        if (!cmd) break;
+        const d0 = Object.assign({}, g.drawn),
+          r = Sim.dispatch(g, cmd);
+        for (const p of ['Player', 'Opponent'])
+          if (g.drawn[p] - d0[p] !== drawn(r.events, p)) bad.push(seed + '@' + i + ' ' + cmd.type + ' ' + p);
+      }
+    }
+    check(
+      'bot games: every command moves the counter by its own CardDrawn events, nothing else',
+      !bad.length,
+      bad.slice(0, 3).join(' | ')
+    );
+  });
+  Tests.add('draw-l4-threshold', () => {
+    // "both players have drawn more than 7": EACH player needs 8 draws
+    const s = start(1520),
+      u = take(s, 'Player', 'underworldfusion', 'hand');
+    take(s, 'Player', 'soldier', 'gy');
+    take(s, 'Player', 'barrier', 'gy');
+    const on = (a, b) => {
+      s.drawn.Player = a;
+      s.drawn.Opponent = b;
+      return Sim.canPlay(s, u) === null;
+    };
+    eq('L4 is off at 8/7 and 7/8, on at 8/8', [on(8, 7), on(7, 8), on(8, 8), on(9, 30)], [false, false, true, true]);
+    const li = DEFS.find(d => d.id === 'librarian'),
+      cond = li.conditions[0];
+    check(
+      'its text says both players, the count needed and that the opening hand does not count',
+      /both players have drawn 8 or more cards/.test(cond.text) && /opening hand does not count/.test(cond.text),
+      cond.text
+    );
+  });
+  Tests.add('draw-lint', () => {
+    // only drawCards moves a card deck -> hand as a draw: a new draw effect cannot forget the counter. Allowed elsewhere, by name: a
+    // mill (deck -> GY) and the log label table; searches (FetchFromDeck, choices) splice, they are not draws.
+    if (typeof readRepoFile !== 'function') return;
+    const files = [...readRepoFile('index.html').matchAll(/<script src="(js\/sim\/[^"]+)">/g)].map(m => m[1]),
+      found = [];
+    for (const f of files) {
+      const src = readRepoFile(f),
+        lines = src.split('\n');
+      let fn = '';
+      lines.forEach((l, i) => {
+        const m = /^\s*function (\w+)\(|^\s*([A-Z]\w*): \(|^\s*const ([A-Z]+) = \{/.exec(l);
+        if (m) fn = m[1] || m[2] || m[3];
+        if (/deck\.shift\(|'CardDrawn'/.test(l)) found.push(f + ':' + (i + 1) + ' ' + fn);
+      });
+    }
+    const allowed = /^js\/sim\/dispatch\.js:\d+ drawCards$|^js\/sim\/ops\.js:\d+ Mill$|^js\/sim\/logs\.js:\d+ HOW$/,
+      other = found.filter(x => !allowed.test(x));
+    check(
+      'deck.shift / CardDrawn in js/sim only inside drawCards (and the whitelisted Mill, log label)',
+      !other.length && found.some(x => / drawCards$/.test(x)),
+      other.join(' | ') || found.join(' | ')
     );
   });
 })();
