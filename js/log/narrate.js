@@ -1,5 +1,5 @@
 // narrate.js - the game log as a STORY, one per player (no DOM, no THREE): Narrate.story(pre, post, cmd, events, viewer) -> [{rich, text, h}]
-// A player's log holds only what that player may know (Sim.canSee, in the state before OR after the command): a card they cannot see is "a card".
+// A player's log is built ONLY from Sim.observeStep (what that player may know of the command): a card they cannot see is "a card".
 // Both logs together are the whole game: every command, what it targeted and chose, the stack, damage, life, action points, statuses, every zone change.
 // Card names carry a colour mark (the owner) in `rich`; `text` is the same line without marks.
 const Narrate = (function () {
@@ -44,77 +44,46 @@ const Narrate = (function () {
       if (m) return 'board (' + (at ? at(m[1]) : zoneTxt(m[1])) + ')';
       return { gy: 'GY', extra: 'extra deck' }[w] || w;
     };
-  function story(pre, post, cmd, ev, V) {
-    V = V || 'Player';
-    let atN = null; // the log number of the zone / status line being written (null: an event line)
+  function story(step) {
+    // step = Sim.observeStep(pre, post, cmd, events, V): only what V may know. A card V may not know has an opaque id here (or is not
+    // there at all), so this file has nothing to hide: it only formats. Hiding lives in one place, js/sim/observe.js.
+    if (!step || !step.post || step.post.viewer !== step.viewer || !step.pre || step.pre.viewer !== step.viewer)
+      throw new Error('Narrate.story takes Sim.observeStep(pre, post, cmd, events, viewer)');
+    const V = step.viewer,
+      pre = step.pre,
+      post = step.post,
+      cmd = step.cmd,
+      ev = step.ev;
     shownNames = post.names || NAMEP;
     const out = [],
       line = (rich, h) => out.push({ rich, text: strip(rich), h: !!h }),
       card = id => post.cards[id] || pre.cards[id],
-      // the viewer may know this card if they could see it before OR after the command (a discarded card is public afterwards)
-      seen0 = id => !!(Sim.canSee(pre, V, pre.cards[id]) || Sim.canSee(post, V, post.cards[id])),
-      // ...except a card hidden ON THE BOARD before (under an enemy cloud): it stays "a card" in every line of this command until
-      // the line of its own move off the board (it is public from then on: board -> GY). The event lines come first, so they never name
-      // it; the zone / status lines (atN = their log number) name it from that move on. A bug report: "the obscured Avatar of Rabies deals
-      // damage to the obscured Creeping Parasite" named both because both died later in the same command.
-      hidBoard = id => {
-        const c = pre.cards[id];
-        return !!c && c.loc === 'board' && !Sim.canSee(pre, V, c);
+      known = id => {
+        const c = card(id);
+        return !!c && !c.hidden;
       },
-      leftAt = id => {
-        const c = post.cards[id],
-          l =
-            c &&
-            (c.logs || []).find(
-              x =>
-                x.n > (pre.lseq || 0) &&
-                x.kind === 'zone' &&
-                /^board /.test(x.from || '') &&
-                !/^board /.test(x.to || '')
-            );
-        return l ? l.n : null;
-      },
-      seen = id => seen0(id) && (!hidBoard(id) || (atN != null && leftAt(id) != null && atN >= leftAt(id))),
-      // an ability whose source the viewer cannot see appears to come from the King Eye that covers it (like the stack panel); otherwise it is "a card"
-      masked = id => {
-        const sc = card(id);
-        if (!sc || seen(id)) return null;
-        const m =
-          (sc.slot && Sim.cloudMap(post)[sc.slot]) ||
-          (pre.cards[id] && pre.cards[id].slot && Sim.cloudMap(pre)[pre.cards[id].slot]);
-        return m && card(m) ? card(m).def.name + ': Ability' : 'a card';
-      },
+      sobj = id => [...post.stack, ...pre.stack].find(o => o.iid === id && o.kind === 'ability'),
       C = id => {
         const c = card(id);
-        if (!c) return String(id);
-        if (c.def.type === 'ability') {
-          // a stack token ("Source: Trigger"): its name would give the source away
-          const m = c.src && masked(c.src);
-          if (m) return mark(c.owner, '', m);
-        }
-        const ok = seen(id);
-        return mark(c.owner, ok ? id : '', ok ? c.def.name : 'a card');
+        if (c && !c.hidden) return mark(c.owner, id, c.name);
+        const o = sobj(id) || step.tokens[id];
+        if (o) return mark(o.controller || o.owner, '', o.name); // an ability ("Source: Name", or the King Eye that covers its source)
+        return mark(c ? c.owner : null, '', 'a card');
       },
-      CS = id => {
-        const m = masked(id);
-        return m ? mark(card(id).owner, '', m) : C(id);
-      },
-      // what IDENTIFIES a hidden card goes with it, not only its name: where it stands (a zone under an enemy cloud), the name
-      // and text of its abilities. pos(id, key, st) = the zone of card id in state st, as V may know it; abOf(id, a) = the ability name /
-      // text only when V may see the card it comes from (Sim.canSee / Sim.slotSeen are the rules; observe.js follows the same ones).
-      pos = (id, key, st) => {
-        const c = st.cards[id];
-        return (c && Sim.canSee(st, V, c)) || Sim.slotSeen(st, V, key) ? zoneTxt(key) : 'a covered zone';
-      },
-      abOf = (id, txt) => (txt && !masked(id) ? txt : ''),
-      zoneWho = (key, st) => {
-        st = st || pre;
-        const z = zoneTxt(key);
-        if (Sim.cloudMap(st)[key] && key.split('|')[0] !== V) return 'a covered zone (' + z + ')';
-        const id = st.slots[key];
+      // a hidden card's ability seems to come from the King Eye that covers it (like the stack panel)
+      CS = (id, cover) =>
+        known(id) ? C(id) : mark(card(id) ? card(id).owner : null, '', cover ? cover + ': Ability' : 'a card'),
+      pos = key => (key ? zoneTxt(key) : 'a covered zone'),
+      zoneWho = (key, o) => {
+        o = o || pre;
+        const z = zoneTxt(key),
+          zn = o.zones[key];
+        if (zn && zn.cloud && !zn.seen && key.split('|')[0] !== V) return 'a covered zone (' + z + ')';
+        const id = o.slots[key];
         return id ? C(id) + ' (' + z + ')' : 'an empty zone (' + z + ')';
       },
       opt1 = (k, o, st) => {
+        if (o === null) return 'a covered zone';
         if (o === 'stay') return 'stay';
         if (/^P:/.test(o)) return P(o.slice(2));
         if (/^Z:/.test(o)) return zoneWho(o.slice(2), st);
@@ -124,17 +93,17 @@ const Narrate = (function () {
             .split('#')
             .map(x => zoneWho(x, st))
             .join(' + ');
-        if (card(o)) return C(o);
+        if (card(o) || /^h-/.test(o)) return C(o);
         if (k && (k.kind === 'libplay' || k.kind === 'libseen'))
           return { play: 'play it', no: 'not play it', ok: 'ok' }[o] || o; // the labels name a hidden card
         if (k && k.labels && k.labels[o] !== undefined) return k.labels[o];
         return o;
       };
-    const ap = { Player: Sim.apCount(pre, 'Player'), Opponent: Sim.apCount(pre, 'Opponent') },
-      life = { Player: pre.life.Player, Opponent: pre.life.Opponent };
+    const ap = { Player: pre.players.Player.ap.open, Opponent: pre.players.Opponent.ap.open },
+      life = { Player: pre.players.Player.life, Opponent: pre.players.Opponent.life };
     let act = pre.active;
     // ---- the command
-    const own = cmd.player || (card(cmd.iid) && Sim.ctl(card(cmd.iid))),
+    const own = cmd.player,
       spent = ev.find(e => e.t === 'ActionPointSpent' && e.player === own),
       apTxt = spent ? ' (ap ' + ap[own] + '\u2192' + (ap[own] - 1) + ')' : '';
     let skipSpent = false;
@@ -144,16 +113,15 @@ const Narrate = (function () {
         skipSpent = !!spent;
         break;
       case 'PlayCard': {
-        const c = pre.cards[cmd.iid],
-          perm = c && Sim.isPerm(c);
+        const perm = !!cmd.perm;
         let t = P(own) + ' plays ' + C(cmd.iid);
-        if (perm && cmd.slot) t += ' to ' + pos(cmd.iid, cmd.slot, post);
+        if (perm && cmd.slot !== undefined) t += ' to ' + pos(cmd.slot);
         if (!perm && cmd.tplayer) t += ', targeting ' + P(cmd.tplayer);
         else if (!perm && cmd.zone) t += ', targeting ' + zoneWho(cmd.zone, pre);
         else if (!perm && cmd.tsid != null) {
           const o = pre.stack.find(q => q.sid === cmd.tsid);
           t += ', targeting ' + (o ? C(o.iid) : 'a stack object');
-        } else if (!perm && cmd.col != null && c && c.def.colTarget) t += ', targeting column ' + (cmd.col + 1);
+        } else if (!perm && cmd.col != null && cmd.colTarget) t += ', targeting column ' + (cmd.col + 1);
         if (cmd.extra) t += ', paying the additional cost';
         line(t + apTxt);
         skipSpent = !!spent;
@@ -166,10 +134,8 @@ const Narrate = (function () {
       case 'Attack':
         break; // CreatureAttackDeclared says it
       case 'Activate': {
-        const c = pre.cards[cmd.iid],
-          a = c && Sim.abDef(c).abilities && Sim.abDef(c).abilities[cmd.ab];
-        const an = abOf(cmd.iid, a && a.name);
-        line(P(own) + ' activates ' + CS(cmd.iid) + (an ? ': ' + an : '') + apTxt);
+        const an = cmd.abName;
+        line(P(own) + ' activates ' + CS(cmd.iid, cmd.cover) + (an ? ': ' + an : '') + apTxt);
         skipSpent = !!spent;
         break;
       }
@@ -212,7 +178,7 @@ const Narrate = (function () {
         line(P(cmd.player) + ' reorders their deck');
         break;
       case 'DebugToHand':
-        line('(debug) ' + C(cmd.iid) + ' goes to ' + P(card(cmd.iid).owner) + '\u2019s hand');
+        line('(debug) ' + C(cmd.iid) + ' goes to ' + P(card(cmd.iid) ? card(cmd.iid).owner : V) + '\u2019s hand');
         break;
       case 'Choose': {
         const k = pre.choice;
@@ -225,24 +191,15 @@ const Narrate = (function () {
         else if (k.kind === 'trigtarget' || k.kind === 'pair') line(who + ' targets ' + d);
         else if (k.kind === 'mode') line(who + ' chooses the effect: ' + d);
         else if (k.kind === 'libplay') line(who + ' chooses to ' + d);
-        else if (!k.kind && cmd.option === 'stay') line(who + ' keeps ' + C(k.iid) + ' where it is');
-        else if (!k.kind)
-          line(
-            who +
-              ' shifts ' +
-              C(k.iid) +
-              ' from ' +
-              pos(k.iid, pre.cards[k.iid].slot, pre) +
-              ' to ' +
-              pos(k.iid, cmd.option, post)
-          );
+        else if (!k.kind && cmd.option === 'stay') line(who + ' keeps ' + C(cmd.about) + ' where it is');
+        else if (!k.kind) line(who + ' shifts ' + C(cmd.about) + ' from ' + pos(cmd.from) + ' to ' + pos(cmd.option));
         else if (k.kind === 'place')
           line(
             who +
               ' puts ' +
-              (k.token ? 'a token' : C(k.card)) +
+              (k.token ? 'a token' : C(cmd.about)) +
               ' on ' +
-              (k.token ? zoneTxt(cmd.option) : pos(k.card, cmd.option, post))
+              (k.token ? zoneTxt(cmd.option) : pos(cmd.option))
           );
         else line(who + ' chooses ' + d);
         break;
@@ -303,14 +260,12 @@ const Narrate = (function () {
               : '';
           if (o.kind === 'spell') line(C(o.iid) + ' is put on the stack (stack HP ' + o.hp + ')' + tg);
           else {
-            const src = post.cards[o.src],
-              a = src && (Sim.abDef(src)[o.list] || [])[o.ab]; // the source may have lost that ability list since (Avatar)
-            const at = abOf(o.src, a && a.text),
-              an = abOf(o.src, a && a.name);
+            const at = o.abText,
+              an = o.abName,
+              who = known(o.src) ? C(o.src) : mark(o.controller, '', o.name);
             if (o.list === 'triggers')
-              line(CS(o.src) + ' triggers' + (at ? ': ' + at : '') + tg + ' (stack HP ' + o.hp + ')');
-            else
-              line(CS(o.src) + (an ? ' ability ' + an : '') + ' is put on the stack' + tg + ' (stack HP ' + o.hp + ')');
+              line(who + ' triggers' + (at ? ': ' + at : '') + tg + ' (stack HP ' + o.hp + ')');
+            else line(who + (an ? ' ability ' + an : '') + ' is put on the stack' + tg + ' (stack HP ' + o.hp + ')');
           }
           break;
         }
@@ -371,8 +326,9 @@ const Narrate = (function () {
           }
           break;
         case 'PermanentMoved': {
-          const was = pre.cards[e.iid] && pre.cards[e.iid].slot;
-          line(C(e.iid) + ' shifts' + (was ? ' from ' + pos(e.iid, was, pre) : '') + ' to ' + pos(e.iid, e.slot, post));
+          const c0 = pre.cards[e.iid],
+            was = c0 && !c0.hidden ? c0.slot : c0 || /^h-/.test(e.iid) ? null : undefined;
+          line(C(e.iid) + ' shifts' + (was !== undefined ? ' from ' + pos(was) : '') + ' to ' + pos(e.slot));
           break;
         }
         case 'CardRevealed':
@@ -398,53 +354,22 @@ const Narrate = (function () {
           break;
       }
     }
-    // ---- zone changes and statuses, from the cards' own logs (written by this command), oldest first. A hidden card's statuses are hidden too.
-    const n0 = pre.lseq || 0,
-      later = [],
-      HIDE = ['entered', 'attacked', 'damage', 'attackCounter'],
-      // a status text may name another card (Avatar of Rabies): a name only hidden cards have (at that line) becomes "a card"
-      mask = t => {
-        const ids = Object.keys(post.cards).filter(id => card(id).def.type !== 'ability'),
-          shown = new Set(ids.filter(seen).map(id => card(id).def.name)),
-          secret = [...new Set(ids.filter(id => !seen(id)).map(id => card(id).def.name))]
-            .filter(n => !shown.has(n))
-            .sort((a, b) => b.length - a.length);
-        return secret.reduce((r, n) => r.split(n).join('a card'), t);
-      };
-    for (const c of Object.values(post.cards))
-      for (const l of c.logs || []) {
-        if (l.n <= n0) continue;
-        atN = l.n;
-        if (l.kind === 'zone') {
-          if (l.how !== 'shifted')
-            later.push({
-              n: l.n,
-              t:
-                C(c.iid) +
-                ': ' +
-                where(l.from, k => pos(c.iid, k, pre)) +
-                ' \u2192 ' +
-                where(l.to, k => pos(c.iid, k, post)) +
-                ' (' +
-                l.how +
-                ')',
-            });
-        } else if ((l.kind === 'status+' || l.kind === 'status-') && !HIDE.includes(l.sk) && seen(c.iid)) {
-          if (l.kind === 'status-' && /^left the|^linked status/.test(l.why)) continue; // clean-up noise
-          later.push({
-            n: l.n,
-            t:
-              C(c.iid) +
-              ': ' +
-              mask(l.kind === 'status+' ? l.text : 'status #' + l.id + ' (' + l.sk + ') removed: ' + l.why),
-          });
-        }
+    // ---- zone changes and statuses: the log lines this command wrote (Sim.observeStep already hid what V may not know), oldest first
+    const HIDE = ['entered', 'attacked', 'damage', 'attackCounter'],
+      at = k => (k === '?' ? 'a covered zone' : zoneTxt(k));
+    for (const l of step.logs) {
+      if (l.player) {
+        if (l.kind === 'status+' && !['damage', 'paid', 'life'].includes(l.sk)) line(P(l.player) + ': ' + l.text);
+      } else if (l.kind === 'zone') {
+        if (l.how !== 'shifted')
+          line(C(l.iid) + ': ' + where(l.from, at) + ' \u2192 ' + where(l.to, at) + ' (' + l.how + ')');
+      } else if (!HIDE.includes(l.sk)) {
+        if (l.kind === 'status-' && /^left the|^linked status/.test(l.why)) continue; // clean-up noise
+        line(
+          C(l.iid) + ': ' + (l.kind === 'status+' ? l.text : 'status #' + l.id + ' (' + l.sk + ') removed: ' + l.why)
+        );
       }
-    for (const p of ['Player', 'Opponent'])
-      for (const l of post.players[p].logs || [])
-        if (l.n > n0 && l.kind === 'status+' && !['damage', 'paid', 'life'].includes(l.sk))
-          later.push({ n: l.n, t: P(p) + ': ' + mask(((atN = l.n), l.text)) });
-    later.sort((a, b) => a.n - b.n).forEach(m => line(m.t));
+    }
     // the prompt of a pending choice is for the chooser only (it can name a hidden card)
     if (lastChoice && post.choice)
       line(P(post.choice.player) + ' must choose' + (post.choice.player === V ? ': ' + post.choice.prompt : ''));

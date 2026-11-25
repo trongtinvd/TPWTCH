@@ -127,49 +127,160 @@
   });
 
   Tests.add('leaks', () => {
-    // ================= bot games with disjoint decks: nothing hidden ever shows in an Observation, an event or a log =================
-    const g = Sim.create(1410, DEFS, { decks: { Player: A, Opponent: B }, shuffle: true, autoStart: true }),
-      rnd = botRng(21),
-      mem = {};
+    // ================= bot games with disjoint decks: nothing hidden ever shows in an Observation, an event, the observed command or a log line.
+    // A hidden card is identified by its name, its id AND the names of its abilities ("Volley" gave a covered Archer away).
+    const abN = c => {
+      const d = Sim.abDef(c);
+      return ['abilities', 'triggers', 'passives'].flatMap(k => (d[k] || []).map(a => a && a.name).filter(Boolean));
+    };
     let leaks = [],
       steps = 0,
       lines = 0;
-    for (; steps < 500; steps++) {
-      const cmd = botChoose(g, botActor(g), rnd, mem);
-      if (!cmd) break;
-      const pre = structuredClone(g),
-        r = D(g, cmd);
-      if (!r.ok) continue;
-      for (const V of ['Player', 'Opponent']) {
-        const visible = id => Sim.canSee(pre, V, pre.cards[id]) || Sim.canSee(g, V, g.cards[id]),
-          seen = new Set(
-            Object.values(g.cards)
+    for (const seed of [1410, 1411, 1412]) {
+      const g = Sim.create(seed, DEFS, { decks: { Player: A, Opponent: B }, shuffle: true, autoStart: true }),
+        rnd = botRng(seed + 11),
+        mem = {};
+      for (let i = 0; i < 300 && !g.result; i++, steps++) {
+        const cmd = botChoose(g, botActor(g), rnd, mem);
+        if (!cmd) break;
+        const pre = structuredClone(g),
+          r = D(g, cmd);
+        if (!r.ok) continue;
+        for (const V of ['Player', 'Opponent']) {
+          const real = id => pre.cards[id] || g.cards[id],
+            visible = id => {
+              const c = real(id);
+              if (c && c.def.type === 'ability') return visible(c.src);
+              return Sim.canSee(pre, V, pre.cards[id]) || Sim.canSee(g, V, g.cards[id]);
+            },
+            cards = Object.values(g.cards).filter(c => c.def.type !== 'ability'),
+            seenNames = new Set(cards.filter(c => visible(c.iid)).flatMap(c => [c.def.name, ...abN(c)])), // a name a visible card also has is no leak
+            hid = cards.filter(c => !visible(c.iid)),
+            pub = cards
               .filter(c => visible(c.iid))
-              .map(c => c.def.name)
-          ), // a name a visible card also has (two Vine tokens, one under a cloud) is no leak
-          hid = Object.values(g.cards).filter(
-            c => c.def.type !== 'ability' && !visible(c.iid) && !Sim.canSee(g, V, c) && !seen.has(c.def.name)
-          ),
-          bad = text => hid.some(c => text.includes(quoted(c.def.name)) || text.includes(quoted(c.def.id))),
-          o = Sim.observe(g, V),
-          oj = JSON.stringify(Object.assign({}, o, { choice: null })); // the chooser may be offered names (look at the top card, exile from your deck)
-        if (bad(oj)) leaks.push('observe ' + V + ' @' + steps + ' ' + cmd.type);
-        const pj = JSON.stringify(Object.assign({}, Sim.optionsFor(g, V), { choice: null })); // what the bot reads
-        if (bad(pj) || hid.some(c => pj.includes(quoted(c.iid))))
-          leaks.push('options ' + V + ' @' + steps + ' ' + cmd.type);
-        const ej = JSON.stringify(Sim.observeEvents(pre, g, r.events, V));
-        if (hid.some(c => !visible(c.iid) && ej.includes(quoted(c.iid))))
-          leaks.push('events ' + V + ' @' + steps + ' ' + cmd.type);
-        for (const l of Narrate.story(pre, g, cmd, r.events, V)) {
-          lines++;
-          if (hid.some(c => l.text.includes(c.def.name))) leaks.push('log ' + V + ' @' + steps + ': ' + l.text);
+              .map(c => JSON.stringify(Sim.abDef(c)))
+              .join(' '), // a visible card's text may name another card (Bolt Master: "add a Superbolt")
+            words = [...new Set(hid.flatMap(c => [c.def.name, ...abN(c)]))].filter(
+              n => ![...seenNames].some(v => v.includes(n)) && !pub.includes(n)
+            ),
+            ids = hid.map(c => c.def.id).filter(id => !cards.some(c => visible(c.iid) && c.def.id === id)),
+            bad = text => words.find(n => text.includes(n)) || ids.find(id => text.includes(JSON.stringify(id))),
+            o = Sim.observe(g, V),
+            oj = JSON.stringify(Object.assign({}, o, { choice: null })); // the chooser may be offered names (look at the top card, exile from your deck)
+          if (bad(oj)) leaks.push('observe ' + V + ' @' + steps + ' ' + cmd.type + ': ' + bad(oj));
+          const pj = JSON.stringify(Object.assign({}, Sim.optionsFor(g, V), { choice: null })); // what the bot reads
+          const foe = hid.filter(c => !(c.owner === V && c.loc === 'deck')); // an ability usable from one's own deck (Recover) is one's own option
+          if (bad(pj) || foe.some(c => pj.includes(quoted(c.iid))))
+            leaks.push('options ' + V + ' @' + steps + ' ' + cmd.type);
+          const st = Sim.observeStep(pre, g, cmd, r.events, V),
+            sj = JSON.stringify(Object.assign({}, st, { pre: null, post: null }));
+          if (bad(sj) || hid.some(c => sj.includes(quoted(c.iid))))
+            leaks.push('step ' + V + ' @' + steps + ' ' + cmd.type + ': ' + (bad(sj) || 'an id'));
+          const ej = JSON.stringify(Sim.observeEvents(pre, g, r.events, V));
+          if (hid.some(c => ej.includes(quoted(c.iid)))) leaks.push('events ' + V + ' @' + steps + ' ' + cmd.type);
+          for (const l of Narrate.story(st)) {
+            lines++;
+            if (bad(l.text)) leaks.push('log ' + V + ' @' + steps + ': ' + l.text);
+          }
         }
       }
     }
     check(
-      '500 bot commands, both players: no hidden name in any Observation, bot options, event id or log line',
-      !leaks.length && steps > 100 && lines > 100,
+      '3 bot games, both players: no hidden card name, id or ability name in any Observation, bot options, observed step, event or log line',
+      !leaks.length && steps > 300 && lines > 300,
       leaks.slice(0, 3).join(' | ')
+    );
+  });
+
+  Tests.add('log-from-observations', () => {
+    // ================= the narrated log is built from Sim.observeStep only: hiding lives in one place (js/sim/observe.js) =================
+    const s = start(2260);
+    let threw = false;
+    try {
+      Narrate.story(s, s, { type: 'EndTurn', player: 'Player' }, [], 'Player');
+    } catch (e) {
+      threw = true;
+    }
+    check('Narrate.story refuses the full state (it only takes Sim.observeStep)', threw);
+    // King Eye, Turn 4 of the report: the bot plays Archer under its cloud, then activates Volley
+    take(s, 'Opponent', 'kingeye', 'board', 'Opponent|front|1');
+    const ar = take(s, 'Opponent', 'archer', 'hand');
+    s.active = s.priority = 'Opponent';
+    s.step = 'main';
+    s.drawPending = false;
+    Sim.gainAP(s, 'Opponent', []);
+    Sim.gainAP(s, 'Opponent', []);
+    const run = cmd => {
+      const pre = structuredClone(s),
+        r = D(s, cmd),
+        st = Sim.observeStep(pre, s, cmd, r.events, 'Player');
+      return {
+        r,
+        st,
+        json: JSON.stringify(st),
+        log: Narrate.story(st)
+          .map(l => l.text)
+          .join('\n'),
+      };
+    };
+    const a = run({ type: 'PlayCard', iid: ar.iid, slot: 'Opponent|front|3' });
+    D(s, { type: 'Pass', player: s.priority });
+    const b = run({ type: 'Activate', iid: ar.iid, ab: 0 });
+    check(
+      'what the Player may know of both commands holds no "Archer", no "Volley", no real id, no zone it stands on',
+      a.r.ok &&
+        b.r.ok &&
+        [a, b].every(x => !/Archer|archer|Volley/.test(x.json) && !x.json.includes(quoted(ar.iid))) &&
+        !/front 4/.test(a.log + b.log),
+      [a, b].map(x => (x.json.match(/.{40}(Archer|archer|Volley).{40}/) || [''])[0]).join(' || ') +
+        a.log +
+        ' | ' +
+        b.log
+    );
+    check(
+      '...the public part stays: the life paid as the cost (with the life total) and the stack HP',
+      /pays 1 life \(life \d+\)/.test(b.log) && /is put on the stack \(stack HP 1\)/.test(b.log),
+      b.log
+    );
+    const ob = Sim.observe(s, 'Player'),
+      so = ob.stack[ob.stack.length - 1];
+    check(
+      'the ability on the stack: opaque id, no ability name or text, its stack HP shown',
+      so &&
+        /^h-/.test(so.iid) &&
+        /^h-/.test(so.src) &&
+        so.abName === null &&
+        so.abText === null &&
+        so.hp === 1 &&
+        so.name === 'King Eye: Ability',
+      JSON.stringify(so)
+    );
+    // step 568 of the report: a hidden source deals damage to a hidden target (Avatar of Rabies, hit by an attack, damages another covered card)
+    const k = start(2250);
+    take(k, 'Opponent', 'kingeye', 'board', 'Opponent|front|1');
+    const av = take(k, 'Opponent', 'avatar', 'board', 'Opponent|front|3'),
+      kn = take(k, 'Opponent', 'knight', 'board', 'Opponent|front|4'),
+      so2 = take(k, 'Player', 'soldier', 'board', 'Player|front|3');
+    Sim.enterCombat(k);
+    D(k, { type: 'Attack', iid: so2.iid });
+    const L = [];
+    for (let i = 0; i < 14 && (k.stack.length || k.choice || k.respond); i++) {
+      const cmd = k.choice
+          ? {
+              type: 'Choose',
+              player: k.choice.player,
+              option: k.choice.options.includes(kn.iid) ? kn.iid : k.choice.options[0],
+            }
+          : { type: 'Pass', player: k.priority },
+        pre = structuredClone(k),
+        r = D(k, cmd);
+      L.push(...Narrate.story(Sim.observeStep(pre, k, cmd, r.events, 'Player')).map(l => l.text));
+    }
+    const hit = L.find(t => /deals 1 effect damage/.test(t));
+    check(
+      'a hidden card damages another hidden card: neither is named, the amount is shown',
+      hit === 'a card deals 1 effect damage to a card' && !L.some(t => /Avatar|Knight/.test(t)) && av.loc === 'board',
+      L.join(' | ')
     );
   });
 

@@ -16,8 +16,8 @@ const GameLog = (function () {
     groups.push({
       turn,
       story: {
-        Player: Narrate.story(pre, sim, cmd, events, 'Player'),
-        Opponent: Narrate.story(pre, sim, cmd, events, 'Opponent'),
+        Player: Narrate.story(Sim.observeStep(pre, sim, cmd, events, 'Player')),
+        Opponent: Narrate.story(Sim.observeStep(pre, sim, cmd, events, 'Opponent')),
       }, // each player's own log
       src: src || 'player',
       cmd: dbg.cmdText,
@@ -44,17 +44,21 @@ const GameLog = (function () {
     });
     ver++;
   };
-  // auto = the log of the seat on screen; Player / Opponent = that player's log; raw = every rule event (all information, for debugging)
+  // auto = the log of the seat on screen; Player / Opponent = that player's log; raw = every rule event (all information, for debugging).
+  // Vs Bot: only the human's own log (the bot's log and "All events" hold what the human may not know); Vs Self, Bot vs Bot, replays: all.
   let mode = 'auto';
-  const MODES = ['auto', 'Player', 'Opponent', 'raw'],
-    viewer = () => (mode === 'auto' ? ui.view : mode),
+  const ALL = ['auto', 'Player', 'Opponent', 'raw'],
+    human = () => (ui.mode === 'bot' ? (ui.botSeat === 'Player' ? 'Opponent' : 'Player') : null),
+    modes = () => (human() ? ['auto'] : ALL),
+    cur = () => (modes().includes(mode) ? mode : 'auto'), // a mode left over from a Vs Self game is not used in a Vs Bot one
+    viewer = () => human() || (cur() === 'auto' ? ui.view : cur()),
     modeLabel = () =>
       ({
-        auto: 'Log: ' + NAME[ui.view],
+        auto: 'Log: ' + NAME[viewer()],
         Player: 'Log: ' + NAME.Player,
         Opponent: 'Log: ' + NAME.Opponent,
         raw: 'All events',
-      })[mode];
+      })[cur()];
   const storyText = () => {
     const V = viewer();
     let n = 0;
@@ -111,7 +115,7 @@ const GameLog = (function () {
   }
   function build() {
     wrap.replaceChildren();
-    if (mode !== 'raw') return buildStory();
+    if (cur() !== 'raw') return buildStory();
     if (!groups.length) {
       const d = document.createElement('div');
       d.className = 'note';
@@ -181,7 +185,7 @@ const GameLog = (function () {
       wrap = document.createElement('div');
       wrap.className = 'lg';
     }
-    const key = ver + '|' + mode + '|' + (mode === 'auto' ? ui.view : '');
+    const key = ver + '|' + cur() + '|' + viewer();
     if (shown !== key) {
       shown = key;
       build();
@@ -190,7 +194,7 @@ const GameLog = (function () {
   }
   function copy(btn) {
     const text =
-        mode === 'raw'
+        cur() === 'raw'
           ? groups.map(rawText).join('\n\n')
           : storyText()
               .map(x => (x.l.h ? '\n' + x.l.text : x.n + ' ' + x.l.text))
@@ -223,7 +227,8 @@ const GameLog = (function () {
     if (apl) showAP(apl.dataset.app, +apl.dataset.ap, true);
     else if (e.target.closest('[data-flip]')) flip();
     else if (e.target.closest('[data-logmode]')) {
-      mode = MODES[(MODES.indexOf(mode) + 1) % MODES.length];
+      const M = modes();
+      mode = M[(M.indexOf(mode) + 1) % M.length];
       ver++;
       sync();
     } else if (e.target.closest('[data-logcopy]')) copy(e.target.closest('[data-logcopy]'));

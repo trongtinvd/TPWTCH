@@ -88,7 +88,7 @@
     eq('the names are part of the state', s.names, { Player: 'Ana', Opponent: 'Bot' });
     check(
       'the logs use them',
-      Narrate.story(s, s, { type: 'EndTurn', player: 'Player' }, [], 'Player').some(
+      Narrate.story(Sim.observeStep(s, s, { type: 'EndTurn', player: 'Player' }, [], 'Player')).some(
         l => l.text === 'Ana ends their turn'
       )
     );

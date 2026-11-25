@@ -147,7 +147,7 @@
     const pre = structuredClone(s),
       cmd = { type: 'Pass', player: s.priority },
       rr = D(s, cmd),
-      txt = Narrate.story(pre, s, cmd, rr.events, 'Player')
+      txt = Narrate.story(Sim.observeStep(pre, s, cmd, rr.events, 'Player'))
         .map(l => l.text)
         .join('\n');
     check(
@@ -403,7 +403,7 @@
       const pre = structuredClone(s),
         r = D(s, cmd),
         log = V =>
-          Narrate.story(pre, s, cmd, r.events, V)
+          Narrate.story(Sim.observeStep(pre, s, cmd, r.events, V))
             .map(l => l.text)
             .join('\n');
       return { r, pre, P: log('Player'), O: log('Opponent') };
@@ -445,7 +445,7 @@
       const pre = structuredClone(k),
         cmd = { type: 'Pass', player: k.priority },
         r = D(k, cmd),
-        L = Narrate.story(pre, k, cmd, r.events, 'Player').map(l => l.text),
+        L = Narrate.story(Sim.observeStep(pre, k, cmd, r.events, 'Player')).map(l => l.text),
         hit = L.findIndex(t => /deals 20 effect damage/.test(t)),
         mv = L.findIndex(t => /board \(a covered zone\) \u2192 GY/.test(t));
       check(
@@ -471,7 +471,7 @@
     const pre = structuredClone(vis),
       cmd = { type: 'PlayCard', iid: arv.iid, slot: 'Opponent|front|3' },
       r = D(vis, cmd),
-      txt = Narrate.story(pre, vis, cmd, r.events, 'Player')
+      txt = Narrate.story(Sim.observeStep(pre, vis, cmd, r.events, 'Player'))
         .map(l => l.text)
         .join('\n');
     check(

@@ -52,6 +52,7 @@ Sim.boot(K => {
     ctl,
     observe,
     observeEvents,
+    observeStep,
     historyBytes,
   } = K;
   const REGISTRIES = {
@@ -121,6 +122,7 @@ Sim.boot(K => {
     ctl,
     observe,
     observeEvents,
+    observeStep, // everything one player may know of one command (the narrated log reads only this)
     historyBytes,
     hasKw: K.hasKw, // keyworded abilities
     choicePicks: K.choicePicks, // the legal selections of the pending choice (validation and highlighting)
