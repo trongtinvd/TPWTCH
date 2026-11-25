@@ -536,6 +536,9 @@ const View3D = (function () {
       } else m.scale.copy(sV);
     }
     for (const k in piles3d) piles3d[k].mesh.scale.x = piles3d[k].mesh.scale.z = bs;
+    for (const m of meshes.values())
+      for (const b of m.userData.bm || [])
+        if (b.isSprite) b.scale.set(b.userData.b0, (b.userData.b0 * (m.scale.x || 1)) / (m.scale.y || 1), 1); // square, sized with its card
     for (const m of meshes.values()) if (m.userData.sword) swordPose(m, true); // the swords stand above the characters, bigger
     if (flashing.size) {
       flashTick(now); // the flying sword flashes
@@ -571,6 +574,9 @@ const View3D = (function () {
     c.layers.set(HAND_LAYER);
     const bg = sc.background;
     sc.background = null; // a colour background would clear the board pass
+    r.render(sc, c);
+    r.clearDepth();
+    c.layers.set(BADGE_LAYER); // the stat and pile badges (billboards) over everything 3D
     r.render(sc, c);
     sc.background = bg;
     r.autoClear = ac;

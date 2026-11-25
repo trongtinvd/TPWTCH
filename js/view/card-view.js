@@ -607,6 +607,19 @@ function badgeTexture(text, fill, line) {
   g.fillText(t, 64, 68);
   return (badgeTex[k] = new THREE.CanvasTexture(c));
 }
+// side view: the stat and pile badges are billboards (they face the camera) drawn in a last pass over every 3D object (view3d.js
+// render: board, hands, then BADGE_LAYER with the depth cleared), so only the HTML UI covers them
+const BADGE_LAYER = 2;
+function badgeSprite(map) {
+  const B = cssNum('--badge-size', 0.62),
+    sp = new THREE.Sprite(new THREE.SpriteMaterial({ map, transparent: true, depthTest: false, depthWrite: false }));
+  sp.layers.set(BADGE_LAYER);
+  sp.renderOrder = 900;
+  sp.scale.set(B, B, 1);
+  sp.userData.b0 = B; // view3d.js keeps it square on a scaled card
+  sp.raycast = () => {};
+  return sp;
+}
 function setBadges(m, spec) {
   // power (bottom left): bronze/silver/gold = below/equal/above printed; HP (bottom right): red/blue/green
   const u = m.userData,
@@ -618,11 +631,18 @@ function setBadges(m, spec) {
   if (!spec) return;
   const sg = spec.opp ? -1 : 1,
     add = (v, base, left, pal) => {
-      const [fill, line] = pal[v < base ? 0 : v === base ? 1 : 2],
-        b = new THREE.Mesh(
-          badgeGeo,
-          new THREE.MeshBasicMaterial({ map: badgeTexture(v, fill, line), transparent: true, depthWrite: false })
-        );
+      const [fill, line] = pal[v < base ? 0 : v === base ? 1 : 2];
+      if (spec.bill) {
+        const sp = badgeSprite(badgeTexture(v, fill, line));
+        sp.position.set(sg * (left ? -1 : 1) * (CW / 2 - 0.3), 0.3, sg * (CD / 2 - 0.3));
+        m.add(sp);
+        u.bm.push(sp);
+        return;
+      }
+      const b = new THREE.Mesh(
+        badgeGeo,
+        new THREE.MeshBasicMaterial({ map: badgeTexture(v, fill, line), transparent: true, depthWrite: false })
+      );
       b.rotation.set(-Math.PI / 2, 0, spec.opp ? Math.PI : 0);
       b.position.set(sg * (left ? -1 : 1) * (CW / 2 - 0.3), 0.07, sg * (CD / 2 - 0.3));
       b.raycast = () => {};

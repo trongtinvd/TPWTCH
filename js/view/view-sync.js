@@ -677,9 +677,9 @@ function pileView(key) {
     badge = new THREE.Mesh(badgeGeo, new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false }));
   mesh.raycast = () => {};
   badge.raycast = () => {};
-  badge.rotation.set(-Math.PI / 2, 0, rot);
-  scene.add(mesh, badge);
-  return (piles3d[key] = { z, rot, mesh, badge, n: -1, mat: null });
+  const bb = badgeSprite(null); // the side view's billboard copy of the count
+  scene.add(mesh, badge, bb);
+  return (piles3d[key] = { z, rot, mesh, badge, bb, n: -1, mat: null });
 }
 function syncPiles() {
   for (const p of ['Player', 'Opponent'])
@@ -690,7 +690,10 @@ function syncPiles() {
         n = P[k].length,
         top = PILE_TOP[k](P),
         z = v.z;
-      v.mesh.visible = v.badge.visible = !!top;
+      const bill = typeof View3D !== 'undefined' && View3D.isOn();
+      v.mesh.visible = !!top;
+      v.badge.visible = !!top && !bill;
+      v.bb.visible = !!top && bill;
       z.userData.pileShown = !!top;
       if (!top) continue;
       const mat = cardMat(top.def, !Sim.canSee(game, ui.view, top), v.rot);
@@ -699,22 +702,25 @@ function syncPiles() {
         v.n = n;
         v.h = 0.02 + 0.01 * Math.min(n, 40); // a thicker stack for a bigger pile
         v.mesh.scale.y = v.h / 0.08;
-        v.badge.material.map = badgeTexture(n, '#1d2230', '#5a6378');
-        v.badge.material.needsUpdate = true;
+        v.badge.material.map = v.bb.material.map = badgeTexture(n, '#1d2230', '#5a6378');
+        v.badge.material.needsUpdate = v.bb.material.needsUpdate = true;
         placePile(v);
       }
     }
 }
 function placePile(v) {
   // on the zone, which rises with its half of the board (the frame loop calls this too)
+  // the count faces the VIEWER (bottom right corner as they see it), like the cards' stats, on either player's piles
   const z = v.z,
-    sg = v.rot ? -1 : 1;
+    sg = ui.view === 'Opponent' ? -1 : 1;
   v.mesh.position.set(z.position.x, z.position.y + 0.06 + v.h / 2, z.position.z);
+  v.badge.rotation.set(-Math.PI / 2, 0, sg < 0 ? Math.PI : 0);
   v.badge.position.set(
     z.position.x + sg * (CW / 2 - 0.25),
     z.position.y + 0.07 + v.h,
     z.position.z + sg * (CD / 2 - 0.25)
   );
+  v.bb.position.set(v.badge.position.x, v.badge.position.y + 0.25, v.badge.position.z);
 }
 function sync() {
   const seat = game.choice ? game.choice.player : game.priority;
@@ -768,6 +774,7 @@ function sync() {
             pw: t.c.def.type === 'creature' ? [Sim.atkOf(t.c), t.c.def.atk] : null,
             hp: [effHp(t.c), t.c.def.hp],
             opp: ui.view === 'Opponent', // the stats face the VIEWER (power bottom left, HP bottom right on every card), whoever controls it
+            bill: typeof View3D !== 'undefined' && View3D.isOn(), // side view: billboards over everything (card-view.js)
           }
     );
     setSword(
