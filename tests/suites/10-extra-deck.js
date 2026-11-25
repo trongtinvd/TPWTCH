@@ -662,4 +662,24 @@
       r = Sim.dispatch(s, { type: 'SetAutoPick', player: 'Opponent', on: false });
     eq('SetAutoPick is accepted at any time and recorded per player', [r.ok, s.noAuto], [true, { Opponent: true }]);
   });
+  Tests.add('widow-attack-pair', () => {
+    // ================= Widow Maker's attack trigger: a pair is targeted when the attack is declared (a red shield leaves no pair) =================
+    const run = red => {
+      const s = start(2001),
+        w = take(s, 'Player', 'widowmaker', 'board', 'Player|front|4'),
+        pa = take(s, 'Opponent', 'parasite', 'board', 'Opponent|front|1');
+      take(s, 'Opponent', 'avatar', 'board', 'Opponent|front|2');
+      take(s, 'Opponent', 'shark', 'board', 'Opponent|front|4');
+      if (red) Sim.addStatus(s, pa, { kind: 'shield', color: 'red', srcName: 'Spirit of the Sand' });
+      Sim.enterCombat(s);
+      D(s, { type: 'Attack', iid: w.iid });
+      const o = s.stack.find(q => q.kind === 'ability' && s.cards[q.iid].def.id.startsWith('tok-widowmaker'));
+      return o ? o.pick || o.tgt : null;
+    };
+    eq(
+      'Parasite (front 1) + Avatar (front 2) are the only adjacent pair: targeted; with Parasite red shielded there is no pair, the trigger is not used (Avatar shifting next to the Shark later does not matter)',
+      [run(false), run(true)],
+      ['Opponent|front|1#Opponent|front|2', null]
+    );
+  });
 })();
