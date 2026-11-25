@@ -127,13 +127,14 @@ Sim.def('choices', function (K) {
     );
   }
   const playable = (s, me, t) => {
-    // permanents need a free zone on my side; spells that need no target and whose requirements hold (targeted spells cannot be played this way yet)
+    // permanents need a free zone on my side; spells that need no target (or whose target is optional: played without one) and whose
+    // requirements hold (spells that must target cannot be played this way yet)
     const was = t.controller;
     t.controller = me;
     try {
       if (isPerm(t)) return freeSlots(s, t).length > 0;
       const d = t.def;
-      if (d.zoneTarget || d.colTarget || d.playerTarget || d.stackTarget) return false;
+      if (!d.optionalTarget && (d.zoneTarget || d.colTarget || d.playerTarget || d.stackTarget)) return false;
       return (d.req || []).every(r => !REQS[r] || !REQS[r](s, t, d));
     } finally {
       if (was === undefined) delete t.controller;

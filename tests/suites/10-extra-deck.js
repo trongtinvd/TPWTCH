@@ -511,6 +511,27 @@
       );
     }
     {
+      // a spell whose target is optional (Quick Intuition) can be played by L4, without a target
+      const { s, li, u } = ready(1054);
+      take(s, 'Player', 'soldier', 'gy');
+      take(s, 'Player', 'heavensun', 'gy');
+      const qi = toDeck(s, 'Opponent', 'intuition');
+      s.piles.Opponent.deck.unshift(s.piles.Opponent.deck.pop());
+      D(s, { type: 'PlayCard', iid: u.iid });
+      pass2(s);
+      D(s, { type: 'Choose', player: 'Player', option: li.iid });
+      D(s, { type: 'Choose', player: 'Player', option: 'Player|front|2' });
+      pass2(s);
+      D(s, { type: 'Choose', player: 'Player', option: 'intuition' });
+      eq('L4 declares Quick Intuition (optional target): it may be played', s.choice.kind, 'libplay');
+      D(s, { type: 'Choose', player: 'Player', option: 'play' });
+      check('...it is on the stack under my control, with no target', qi.loc === 'stack' && qi.controller === 'Player');
+      while (s.choice && s.choice.kind === 'declare') D(s, { type: 'Choose', player: 'Player', option: 'giant' });
+      if (s.choice && s.choice.kind === 'libseen') D(s, { type: 'Choose', player: 'Player', option: 'ok' });
+      pass2(s);
+      check('...and resolves to its owner\u2019s GY', qi.loc === 'gy' && s.piles.Opponent.gy.includes(qi));
+    }
+    {
       const s = start(1053),
         l4 = take(s, 'Player', 'librarian', 'board', 'Player|front|2');
       endTurnFlow(s);
