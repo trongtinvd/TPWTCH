@@ -325,6 +325,19 @@ const AvatarLogic = (function () {
       title: c.name + ' · ' + o.name,
     };
   }
+  // the turn order race of a duel (Docs/RULES.md "Turn order"): each seat's outfit Initial Distance / Speed / Acceleration, as the
+  // Sim's game option `race`. null when a seat has no avatar or a value is missing (the Sim then alternates turns).
+  function raceOf(cat, seats) {
+    const out = {};
+    for (const p of ['Player', 'Opponent']) {
+      const sel = seats && seats[p],
+        o = sel && outfitOf(charOf(cat, sel.character), sel.outfit),
+        st = o && o.stats;
+      if (!st || ![st.initialDistance, st.speed, st.acceleration].every(v => typeof v === 'number')) return null;
+      out[p] = { distance: st.initialDistance, speed: st.speed, acceleration: st.acceleration };
+    }
+    return out;
+  }
   // the animated character Character3D plays (js/anim/character.js): the outfit's model / animations replace the character's
   function resolve(cat, sel) {
     const c = sel && charOf(cat, sel.character),
@@ -397,6 +410,7 @@ const AvatarLogic = (function () {
     describe,
     iconOf,
     resolve,
+    raceOf,
     lifeState,
     cues,
     placement,

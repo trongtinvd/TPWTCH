@@ -1,7 +1,7 @@
 // stack.js - playing cards, activating abilities, the stack, triggers (fire), response windows, end of turn
 Sim.def('stack', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
-  let turnGo; // turn
+  let turnGo, nextTurnPlayer; // turn
   let ctl;
   let byId, isPerm, other, slotRow, slowish; // util
   let gainAP, hasAP; // ap
@@ -340,7 +340,7 @@ Sim.def('stack', function (K) {
         .forEach(x => removeStatus(s, x, 'expired')); // end of turn: expiring statuses go
     expireStatuses(s, 'combatEnd', 'combat ended'); // the turn ending ends any combat phase still open
     clearAttacked(s, 'turn ended');
-    s.active = other(s.active);
+    s.active = nextTurnPlayer(s, ev); // Distance / Speed / Acceleration (or strict alternation without a race)
     turnGo(s, 'nextTurn');
     s.priority = s.active;
     s.passes = 0;
@@ -371,6 +371,7 @@ Sim.def('stack', function (K) {
     },
     needs: [
       'turnGo',
+      'nextTurnPlayer',
       'expireStatuses',
       'findTarget',
       'payCost',
@@ -405,7 +406,7 @@ Sim.def('stack', function (K) {
       'targetZones',
     ],
     link: () => {
-      ({ turnGo } = K);
+      ({ turnGo, nextTurnPlayer } = K);
       ({ expireStatuses, findTarget, payCost } = K);
       ({ ctl } = K);
       ({ expiresAtTurnEnd, hasKw, hasSt } = K);

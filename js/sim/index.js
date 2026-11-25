@@ -130,6 +130,8 @@ Sim.boot(K => {
     HPKINDS: K.HPKINDS,
     actor: K.actor, // who must act now
     turnStage: K.turnStage, // the turn's stage: start, draw, main, combat, ending, end (js/sim/turn.js)
+    turnOrder: K.turnOrder, // the next n turns, the current one first [{turn, player}] (recomputed from the race, statuses included)
+    raceOf: K.raceOf, // a player's effective distance / speed / acceleration, or null (no race: turns alternate)
     turnGo: K.turnGo, // a turn transition (the only writer of the turn's fields)
     TURN: K.TURN, // the transitions and the stages each may start from
     optionsFor: K.optionsFor, // what one player may do now, as plain data (the bot reads only this)

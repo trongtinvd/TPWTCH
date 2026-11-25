@@ -1,7 +1,7 @@
 // dispatch.js - the command interpreter and hasAction
 Sim.def('dispatch', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
-  let turnGo; // turn
+  let turnGo, pickTurn; // turn
   let RULES, historyBytes;
   let ctl;
   let canPayExtra, isPerm, other, slowish; // util
@@ -130,6 +130,7 @@ Sim.def('dispatch', function (K) {
             });
           }
           ev.push({ t: 'GameStarted' });
+          if (s.race) s.active = s.priority = pickTurn(s, null, ev); // farthest ahead goes first (a tie: coin toss)
           gainAP(s, s.active, ev); // the first turn's action point
           turnGo(s, 'gameStarted'); // the first turn has a draw phase too
         }
@@ -431,6 +432,7 @@ Sim.def('dispatch', function (K) {
     exports: { actionsOf, dispatch, hasAction },
     needs: [
       'turnGo',
+      'pickTurn',
       'TARGETINGS',
       'activate',
       'ask',
@@ -485,7 +487,7 @@ Sim.def('dispatch', function (K) {
       'targetZones',
     ],
     link: () => {
-      ({ turnGo } = K);
+      ({ turnGo, pickTurn } = K);
       ({ TARGETINGS, activate, ask, endCombatStatuses, placeAttackCounters, spendAttackCounter } = K);
       ({ RULES, historyBytes } = K);
       ({ ctl } = K);

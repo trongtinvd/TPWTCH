@@ -9,7 +9,7 @@
 // on (the rules tests) a transition from any other stage throws, so an impossible turn order cannot slip in unnoticed.
 Sim.def('turn', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
-  let RULES; // dispatch
+  let RULES, other, mulberry32, live; // dispatch, util, statuses
   const stage = s => (s.turnEnding ? 'ending' : s.step);
   const ANY = null;
   const T = {
@@ -65,11 +65,61 @@ Sim.def('turn', function (K) {
       throw new Error('Turn transition ' + name + ' from stage ' + stage(s) + ' (allowed: ' + t.from.join(', ') + ')');
     return t.run(s, arg);
   }
+  // ---- who takes the next turn: Distance / Speed / Acceleration (Docs/RULES.md "Turn order") --------------------------------
+  // s.race = {Player:{distance, speed, acceleration}, Opponent:...} (base values; distance and speed grow) or null = turns alternate.
+  // A player's effective stat folds their live `race` statuses in list order: {kind:'race', stat, amount} (adds) or {..., set} (sets).
+  const RACE = ['distance', 'speed', 'acceleration'];
+  function raceStat(s, p, k) {
+    let v = s.race[p][k];
+    for (const x of live(s.players[p] || {}).filter(x => x.kind === 'race' && x.stat === k))
+      v = x.set != null ? x.set : v + (x.amount || 0);
+    return v;
+  }
+  // last = the player who had the last turn (null at the start). Farthest ahead takes the turn; a tie at the start is a coin toss,
+  // a tie later goes to the player who did NOT have the last turn (only overtaking keeps the turn). The other player advances.
+  function pickTurn(s, last, ev, coin) {
+    const dP = raceStat(s, 'Player', 'distance'),
+      dO = raceStat(s, 'Opponent', 'distance');
+    let p;
+    if (dP !== dO) p = dP > dO ? 'Player' : 'Opponent';
+    else if (last) p = other(last);
+    else {
+      p = coin ? coin() : mulberry32((s.n * 7 + 3) >>> 0)() < 0.5 ? 'Player' : 'Opponent';
+      if (ev) ev.push({ t: 'CoinToss', winner: p });
+    }
+    const q = other(p),
+      r = s.race[q],
+      sp = raceStat(s, q, 'speed');
+    r.distance += sp; // Distance += Speed; Speed += Acceleration (the base values: statuses stay on top)
+    r.speed += raceStat(s, q, 'acceleration');
+    if (ev)
+      ev.push({
+        t: 'RaceAdvanced',
+        player: q,
+        by: sp,
+        distance: raceStat(s, q, 'distance'),
+        speed: raceStat(s, q, 'speed'),
+      });
+    return p;
+  }
+  const nextTurnPlayer = (s, ev) => (s.race ? pickTurn(s, s.active, ev) : other(s.active));
+  // the next n turns, the current one first: a pure projection (a copy of the race), redone whenever a stat changes
+  function turnOrder(s, n) {
+    const out = [{ turn: s.turn, player: s.active }];
+    if (s.phase !== 'play') return out.slice(0, 0);
+    const c = { n: s.n, race: s.race && JSON.parse(JSON.stringify(s.race)), players: s.players, active: s.active };
+    for (let i = 1; i < n; i++) {
+      c.active = c.race ? pickTurn(c, c.active, null) : other(c.active);
+      out.push({ turn: s.turn + i, player: c.active });
+    }
+    return out;
+  }
+  const raceOf = (s, p) => (s.race ? Object.fromEntries(RACE.map(k => [k, raceStat(s, p, k)])) : null);
   return {
-    exports: { turnGo: go, turnStage: stage, TURN: T },
-    needs: ['RULES'],
+    exports: { turnGo: go, turnStage: stage, TURN: T, pickTurn, nextTurnPlayer, turnOrder, raceOf },
+    needs: ['RULES', 'other', 'mulberry32', 'live'],
     link: () => {
-      ({ RULES } = K);
+      ({ RULES, other, mulberry32, live } = K);
     },
   };
 });

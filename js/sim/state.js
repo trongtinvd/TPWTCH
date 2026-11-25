@@ -41,6 +41,19 @@ Sim.def('state', function (K) {
     const c = Object.assign({}, GAME_DEFAULTS);
     for (const k in GAME_DEFAULTS) if (o && o[k] != null && isFinite(o[k])) c[k] = Math.max(0, Math.floor(+o[k])); // starting life may be 0 (life -1 or less loses)
     if (o && o.strikeBack === true) c.strikeBack = true; // the "Defender strike back" option (absent = off, the default rules)
+    const race = o && o.race,
+      num = v => typeof v === 'number' && isFinite(v);
+    if (
+      race &&
+      ['Player', 'Opponent'].every(p => race[p] && ['distance', 'speed', 'acceleration'].every(k => num(race[p][k])))
+    )
+      c.race = Object.fromEntries(
+        ['Player', 'Opponent'].map(p => [
+          p,
+          { distance: race[p].distance, speed: race[p].speed, acceleration: race[p].acceleration },
+        ])
+      );
+    // race = the avatars' Initial Distance / Speed / Acceleration (the host reads them; the Sim never reads the avatars). Absent: turns alternate
     return c;
   };
   // the avatars a duel was started with: plain ids only (the content lives in config/avatars.json, the Sim never reads it)
@@ -62,6 +75,7 @@ Sim.def('state', function (K) {
       n,
       cfg, // {startHand, drawPhase, drawAction, life, strikeBack?}: cards in the opening hand, drawn in the draw phase, drawn by the Draw action; starting life
       names: { Player: 'Player 1', Opponent: 'Player 2', ...(opts.names || {}) }, // shown names (logs, panels)
+      ...(cfg.race ? { race: JSON.parse(JSON.stringify(cfg.race)) } : null), // the turn order race (turn.js): distance and speed grow; absent = turns alternate
       avatars: avatarSeats(opts.avatars), // {Player: {character, outfit} | null, Opponent: ...}, chosen before the duel; rules never read it
       step: 'start', // the turn order: start -> draw -> main -> combat (optional) -> main or end
       drawPending: false, // the draw phase happens once nothing is pending after the turn start

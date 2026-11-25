@@ -1,5 +1,5 @@
 {
-  "_doc": "the player stats (Docs/RULES.md 'Player stats') in display order. icon = SVG path data in a 16 x 16 box, or an image path (png / svg / webp). Outfits give each stat a value (config/avatars.json); gameplay does not read them yet. See Docs/AVATARS.md",
+  "_doc": "the player stats (Docs/RULES.md 'Player stats') in display order. icon = SVG path data in a 16 x 16 box, or an image path (png / svg / webp). Outfits give each stat a value (config/avatars.json); Initial Distance / Speed / Acceleration decide the turn order (Docs/RULES.md 'Turn order'); the others are not read yet. See Docs/AVATARS.md",
   "stats": [
     { "id": "power", "name": "Power", "icon": "M9.5 0.5L2.5 9h4.2L5.5 15.5 13.5 6.5H9z", "description": "How hard this outfit hits." },
     { "id": "defense", "name": "Defense", "icon": "M8 0.8l6.2 2.3v4.3c0 4-2.7 6.9-6.2 7.9-3.5-1-6.2-3.9-6.2-7.9V3.1z", "description": "How much damage it shrugs off." },

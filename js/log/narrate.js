@@ -233,6 +233,12 @@ const Narrate = (function () {
           act = e.active;
           line('Turn ' + post.turn + ': ' + P(e.active) + '\u2019s turn', true);
           break;
+        case 'CoinToss':
+          line('The distances are tied: a coin toss gives ' + P(e.winner) + ' the first turn');
+          break;
+        case 'RaceAdvanced':
+          line(P(e.player) + ' advances ' + e.by + ' (distance ' + e.distance + ', speed ' + e.speed + ')');
+          break;
         case 'DrawStepEntered':
           line(P(e.player) + '\u2019s draw phase');
           break;

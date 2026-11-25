@@ -23,6 +23,11 @@
   --stop-on: #ffd34d; /* a stop icon that is on (bottom right corner) */
   --stop-off: #8f9cc8; /* ...and one that is off (readable on the navy panel) */
   --stop-off-bg: rgba(255, 255, 255, 0.06); /* the faint tile behind an icon that is off */
+  --ts-mine-a: #2f6fd0; /* the turn order strip (right side): your turns, gradient */
+  --ts-mine-b: #13306e;
+  --ts-foe-a: #c8443f; /* ...the opponent's turns */
+  --ts-foe-b: #5a1517;
+  --ts-glow: #ffe28a; /* ...the flashing current turn */
   --stop-size: 26px; /* ...the size of one stop icon */
   --card-back-a: #1d2550; /* the card back: gradient, frame and emblem colours */
   --card-back-b: #0b0f26;

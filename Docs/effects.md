@@ -167,7 +167,7 @@ Test-only fixtures (not in decks): Soldier 2/3, Knight 4/5, Giant 6/8, Guard 1/6
 - The view and the bot read the full state, not an Observation (`Sim.observe` exists and is tested).
 - Real-time input windows.
 - Player-chosen trigger order; statuses on stack objects; pruning of old removed statuses.
-- Player stats, Distance/Speed/Acceleration. (Win/loss is built: life <= -1, `winGame`, Surrender, Leave; see `RULES.md`.)
+- Player stats (Power, Defense, HP; Distance/Speed/Acceleration are built: the turn order race). (Win/loss is built: life <= -1, `winGame`, Surrender, Leave; see `RULES.md`.)
 - Silent no-ops: `draw` on empty deck; `shiftAdjacent` with no free slot.
 
 ## Card text

@@ -575,6 +575,11 @@ const gameRules = c => {
   const r = {};
   for (const k of ['startHand', 'drawPhase', 'drawAction', 'life']) if (c[k] != null) r[k] = c[k];
   if (c.strikeBack) r.strikeBack = true; // "Defender strike back" (recorded with the replay, like the other options)
+  const race =
+    c.avatars && typeof AvatarCatalog !== 'undefined' && AvatarCatalog.get()
+      ? AvatarLogic.raceOf(AvatarCatalog.get(), c.avatars)
+      : null;
+  if (race) r.race = race; // the avatars' Initial Distance / Speed / Acceleration decide the turn order (recorded with the replay)
   return r;
 };
 const gameNames = c =>
@@ -589,6 +594,7 @@ function setNames(s) {
     if (el) el.textContent = NAME[p];
   }
   if (typeof AvatarView !== 'undefined') AvatarView.newDuel(s); // a new duel: its avatars (icons, 3D models, animations)
+  if (typeof TurnStrip !== 'undefined') TurnStrip.reset(); // a new duel: the turn order strip starts over
 }
 function newGame(cfg) {
   ui.lastCfg = cfg;
@@ -872,6 +878,7 @@ document.body.appendChild(dbg);
 );
 function updateDbg() {
   if (typeof StopsBar !== 'undefined') StopsBar.update(); // the stop icons (bottom right)
+  if (typeof TurnStrip !== 'undefined') TurnStrip.update(); // the turn order strip (right side)
   [...FN, ...DBTN].forEach(b => {
     b.el.textContent = b.label();
     b.el.disabled = !b.on();

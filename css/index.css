@@ -1194,3 +1194,247 @@ canvas {
     display: none;
   }
 }
+
+/* ---- the turn order strip (js/view/turn-strip.js): right side, current turn on top (flashing), later turns fade out downwards ---- */
+#turnStrip {
+  --ts-count: 8; /* tiles shown (js reads it) */
+  --ts-pitch: 46px; /* px between tile tops: tile height + gap (js reads it) */
+  position: fixed;
+  right: 10px;
+  top: calc(64px + env(safe-area-inset-top, 0px)); /* under the top right buttons */
+  z-index: 2;
+  width: 112px;
+  pointer-events: auto;
+  font-family: var(--title-font);
+}
+#turnStrip[hidden] {
+  display: none;
+}
+#turnStrip .tshead {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  margin-bottom: 6px;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gold);
+  text-shadow: 0 1px 2px #000;
+}
+#turnStrip .tsorn {
+  width: 7px;
+  height: 7px;
+  transform: rotate(45deg);
+  border: 1px solid var(--gold);
+  background: var(--card-back-a);
+}
+#turnStrip .tslist {
+  position: relative;
+}
+#turnStrip .ts {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px 0 5px;
+  box-sizing: border-box;
+  border: 1px solid var(--panel-line);
+  border-radius: 4px 12px 4px 12px; /* a cut-gem silhouette */
+  color: var(--card-gold-text);
+  box-shadow:
+    inset 0 0 0 2px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    0 2px 6px rgba(0, 0, 0, 0.5);
+  transform-origin: right center;
+  transition:
+    transform 0.4s cubic-bezier(0.2, 0.8, 0.25, 1),
+    opacity 0.4s,
+    margin-top 0.4s;
+  overflow: hidden;
+}
+#turnStrip .ts::before {
+  /* a sheen across the upper half */
+  content: '';
+  position: absolute;
+  inset: 0 0 50% 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0));
+  pointer-events: none;
+}
+#turnStrip .ts.mine {
+  background: linear-gradient(160deg, var(--ts-mine-a), var(--ts-mine-b));
+}
+#turnStrip .ts.foe {
+  background: linear-gradient(160deg, var(--ts-foe-a), var(--ts-foe-b));
+}
+#turnStrip .tsgem {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid var(--gold);
+  background: radial-gradient(circle at 35% 30%, var(--card-back-a), var(--card-back-b));
+  color: var(--gold);
+}
+#turnStrip .tsgem svg {
+  width: 16px;
+  height: 16px;
+}
+#turnStrip .tsname {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 2px #000;
+}
+#turnStrip .tsno {
+  font-size: 10px;
+  opacity: 0.8;
+}
+#turnStrip .tscorner {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border: 1px solid var(--gold);
+  pointer-events: none;
+}
+#turnStrip .tscorner.tl {
+  left: 2px;
+  top: 2px;
+  border-right: 0;
+  border-bottom: 0;
+}
+#turnStrip .tscorner.br {
+  right: 2px;
+  bottom: 2px;
+  border-left: 0;
+  border-top: 0;
+}
+#turnStrip .ts.now {
+  border-color: var(--ts-glow);
+  animation: tsFlash 1.1s ease-in-out infinite;
+}
+#turnStrip .ts.now .tsname {
+  font-weight: 700;
+  color: #fff;
+}
+#turnStrip .ts.now::after {
+  /* a light sweeping across the current turn */
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 40%;
+  left: -50%;
+  background: linear-gradient(100deg, transparent, rgba(255, 240, 200, 0.45), transparent);
+  animation: tsSweep 2.2s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes tsFlash {
+  0%,
+  100% {
+    box-shadow:
+      inset 0 0 0 2px rgba(0, 0, 0, 0.35),
+      0 0 4px 1px rgba(255, 226, 138, 0.35);
+    filter: brightness(1);
+  }
+  50% {
+    box-shadow:
+      inset 0 0 0 2px rgba(0, 0, 0, 0.2),
+      0 0 14px 4px rgba(255, 226, 138, 0.85);
+    filter: brightness(1.3);
+  }
+}
+@keyframes tsSweep {
+  0% {
+    left: -50%;
+  }
+  60%,
+  100% {
+    left: 120%;
+  }
+}
+#turnStrip .ts.enter {
+  opacity: 0 !important;
+  margin-top: 20px;
+}
+#turnStrip .ts.gone {
+  opacity: 0 !important;
+  margin-top: -40px;
+  transition:
+    margin-top 0.4s,
+    opacity 0.4s;
+}
+#turnStrip .ts.drop {
+  opacity: 0 !important;
+}
+#turnStrip .ts.flip {
+  animation: tsTurnover 0.5s ease-out;
+}
+#turnStrip .ts.now.flip {
+  animation:
+    tsTurnover 0.5s ease-out,
+    tsFlash 1.1s ease-in-out 0.5s infinite;
+}
+@keyframes tsTurnover {
+  0% {
+    filter: brightness(2.2);
+    clip-path: inset(0 0 100% 0);
+  }
+  100% {
+    filter: brightness(1);
+    clip-path: inset(0 0 0 0);
+  }
+}
+@media (orientation: portrait) {
+  /* phone: a narrow column inside the 3D view band, under the life bars: emblem + turn number only, fewer tiles */
+  #turnStrip {
+    --ts-count: 6;
+    --ts-pitch: 31px;
+    top: calc(var(--vt, 0px) + 92px);
+    right: 4px;
+    width: 50px;
+  }
+  #turnStrip .tshead {
+    font-size: 8px;
+    letter-spacing: 0.06em;
+    margin-bottom: 4px;
+  }
+  #turnStrip .tsorn {
+    display: none;
+  }
+  #turnStrip .ts {
+    height: 26px;
+    padding: 0 5px 0 3px;
+    gap: 3px;
+  }
+  #turnStrip .tsname {
+    display: none;
+  }
+  #turnStrip .tsgem {
+    width: 19px;
+    height: 19px;
+  }
+  #turnStrip .tsgem svg {
+    width: 13px;
+    height: 13px;
+  }
+  #turnStrip .tsno {
+    flex: 1;
+    text-align: right;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  #turnStrip .ts.now,
+  #turnStrip .ts.now::after {
+    animation: none;
+  }
+}

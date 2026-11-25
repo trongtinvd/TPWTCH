@@ -160,6 +160,9 @@ const DebugLog = (function () {
     StrikeBack: (s, e) => ref(s, e.source) + ' strikes back at ' + ref(s, e.target) + ' for ' + e.amount,
     StatusSpent: (s, e) => ref(s, e.iid) + ' spends its "' + e.kind + '" status',
     DeferredCommandFailed: (s, e) => 'the follow-up ' + e.cmd + ' could not run: ' + e.why,
+    CoinToss: (s, e) => 'the distances are tied: a coin toss gives ' + nm(s, e.winner) + ' the first turn',
+    RaceAdvanced: (s, e) =>
+      nm(s, e.player) + ' advances ' + e.by + ' (distance ' + e.distance + ', speed ' + e.speed + ')',
     GameDecided: (s, e) => 'GAME DECIDED: ' + (e.winner ? nm(s, e.winner) + ' wins' : 'draw') + ' (' + e.why + ')',
   };
   const evText = (s, e) => (T[e.t] ? T[e.t](s, e) : e.t);

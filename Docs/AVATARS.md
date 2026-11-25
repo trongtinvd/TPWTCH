@@ -135,7 +135,7 @@ Append to the character's `outfits`:
 | `materials`  | by material name: a colour, or `{color, emissive, metalness, roughness}`. On a GLB the material names are the ones from Blender; the outfit recolours its own copies (the file is never changed) |
 | `parts`      | extra placeholder parts (also on a GLB: attached to the node named by `attach`)                                                                                                                  |
 | `visual`     | multiplied (scale) / added (offset, rotation, height) to the character's                                                                                                                         |
-| `stats`      | one number per stat id of `config/stats.json` (missing = shown as "-"; an unknown id is reported). Placeholders: gameplay does not read them yet                                                 |
+| `stats`      | one number per stat id of `config/stats.json` (missing = shown as "-"; an unknown id is reported). `initialDistance`, `speed`, `acceleration` decide the turn order (`AvatarLogic.raceOf`); the others are not read yet                                                 |
 | `abilities`  | `[{ "id", "name", "text", "data" }]`: shown instead of the flavor text when not empty. `data` is kept untouched for the future ability system                                                    |
 | `flavor`     | shown while an outfit has no abilities                                                                                                                                                           |
 | `icon`       | the outfit's own icon (else the character's)                                                                                                                                                     |
@@ -166,4 +166,4 @@ The selection scene lists the outfits in this order; the small preview shows the
 
 ## Not built yet
 
-Stats and abilities do not affect gameplay; the outfit `HP` stat and the start dialog's Starting HP are separate (the dialog decides the duel's life). No GLB or PNG ships yet (placeholders only). The bot's avatar is random, not chosen by a personality.
+Only Initial Distance, Speed and Acceleration affect gameplay (the turn order); the other stats and abilities do not; the outfit `HP` stat and the start dialog's Starting HP are separate (the dialog decides the duel's life). No GLB or PNG ships yet (placeholders only). The bot's avatar is random, not chosen by a personality.

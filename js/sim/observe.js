@@ -4,6 +4,7 @@
 Sim.def('observe', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
   let canSee, cloudMap, slotSeen; // state
+  let raceOf; // turn
   let atkOf, hpOf, totalDamage, apOpen; // statuses, ap
   // an opaque id for a hidden card: a hash of the game seed (never sent), the viewer and the real id, so the real id (its position in the deck list) cannot be read back
   const hash = str => {
@@ -157,6 +158,7 @@ Sim.def('observe', function (K) {
       respond: s.respond ? { kind: s.respond.kind, stage: s.respond.stage } : null,
       maxLife: s.maxLife,
       avatars: JSON.parse(JSON.stringify(s.avatars || { Player: null, Opponent: null })), // public
+      race: s.race ? { Player: raceOf(s, 'Player'), Opponent: raceOf(s, 'Opponent') } : null, // public (the turn order strip)
       players,
       piles,
       cards,
@@ -185,9 +187,9 @@ Sim.def('observe', function (K) {
   }
   return {
     exports: { observe, observeEvents },
-    needs: ['apOpen', 'atkOf', 'canSee', 'cloudMap', 'hpOf', 'slotSeen', 'totalDamage'],
+    needs: ['apOpen', 'atkOf', 'canSee', 'cloudMap', 'hpOf', 'slotSeen', 'totalDamage', 'raceOf'],
     link: () => {
-      ({ apOpen, atkOf, canSee, cloudMap, hpOf, slotSeen, totalDamage } = K);
+      ({ apOpen, atkOf, canSee, cloudMap, hpOf, slotSeen, totalDamage, raceOf } = K);
     },
   };
 });
