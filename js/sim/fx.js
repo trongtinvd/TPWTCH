@@ -149,13 +149,16 @@ Sim.def('fx', function (K) {
       }
     }
   }
+  // a choice with one option only is answered by the Sim itself ("nothing to decide"), unless player p turned that off (the
+  // SetAutoPick command, the setting "Auto select the only legal target"): then p is asked like for any other choice
+  const autoOne = (s, p, opts) => opts.length === 1 && !(s.noAuto && s.noAuto[p]);
   // the legal selections of the pending choice, for player p: ONE source of truth. Choose accepts exactly `options`; `cards` are the
   // options that are cards, `buttons` the others ('done', 'no'...). `click`: every card option is a card p can click where it stands
   // (in p's own hand, or on the board where p can see it), so the UI highlights `cards` and answers by a click on them, never with a
   // list (Ambush of the Night: put creatures from your hand into play). Decided from the rules, never from what the view drew.
   function choicePicks(s, p) {
     const k = s.choice;
-    if (!k || k.player !== p) return { kind: null, cards: [], buttons: [], click: false };
+    if (!k || k.player !== p) return { kind: null, cards: [], buttons: [], click: false, clickable: [] };
     const cards = k.options.filter(o => s.cards[o]),
       buttons = k.options.filter(o => !s.cards[o]),
       at = id => {
@@ -167,10 +170,12 @@ Sim.def('fx', function (K) {
       cards,
       buttons,
       click: cards.length > 0 && cards.every(at) && buttons.every(o => !/^[ZP]:/.test(o)), // zones / players are not card clicks
+      clickable: cards.filter(at), // per card: the ones p can click where they stand (a target choice mixing cards, zones and life
+      // bars, e.g. Creeping Parasite's 4 damage, has click false, yet its board cards are still clicked, never listed)
     };
   }
   return {
-    exports: { ask, askCounters, askDeck, choicePicks, foeCreatures, resume, runFx, suspend, upToAsk },
+    exports: { ask, askCounters, autoOne, askDeck, choicePicks, foeCreatures, resume, runFx, suspend, upToAsk },
     needs: ['canSee', 'ctl', 'OPS', 'cloudMap', 'cname', 'dmgs', 'freeSlots', 'removeStatus'],
     link: () => {
       ({ canSee } = K);

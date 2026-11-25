@@ -292,6 +292,22 @@
     );
   });
 
+  Tests.add('parasite-click', () => {
+    // ================= a target choice mixing cards and life bars: its board cards are still clicked (never a list) =================
+    const s = start(702),
+      w = take(s, 'Player', 'wolf', 'board', 'Player|front|2'),
+      pa = take(s, 'Opponent', 'parasite', 'hand');
+    s.priority = 'Opponent';
+    D(s, { type: 'PlayCard', iid: pa.iid, slot: 'Opponent|front|0' });
+    drain(s);
+    D(s, { type: 'Choose', player: 'Opponent', option: '1' });
+    const k = Sim.choicePicks(s, 'Opponent');
+    eq(
+      'Creeping Parasite, 4 damage to any target: not a pure card choice (life bars), yet each board card is clickable',
+      [s.choice.options.includes('P:Player'), k.click, k.clickable.includes(w.iid), k.clickable.includes(pa.iid)],
+      [true, false, true, true]
+    );
+  });
   Tests.add('parasite', () => {
     // ================= enter triggers on death (War Drum vs War Drum), King Eye + Creeping Parasite =================
     {

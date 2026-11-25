@@ -1,6 +1,7 @@
 // choices.js - the multi-step choices of the extra deck cards: adjacent pairs (Widow Maker), reordering the top of a deck and declaring a card name
 // then playing the opponent's top card (L4: The Librarian). Each flow is started by an op (ops.js) and continued by a CH handler (ch.js).
 Sim.def('choices', function (K) {
+  let autoOne; // fx
   // imports (bound by Sim.boot once every module is loaded)
   let ctl;
   let byId, cname, isPerm, other, zoneDist; // util
@@ -38,7 +39,7 @@ Sim.def('choices', function (K) {
     // the pair was normally chosen when the ability was put on the stack (x.o.pick: targeting is part of the cost); without one it is chosen now
     if (x.o && x.o.pick) return pairPicked(x.s, x.who, x.src, x.o.pick, x.ev);
     const opts = pairOptions(x.s, x.who);
-    if (opts.length === 1) return pairPicked(x.s, x.who, x.src, opts[0], x.ev);
+    if (autoOne(x.s, x.who, opts)) return pairPicked(x.s, x.who, x.src, opts[0], x.ev);
     if (opts.length)
       ask(
         x.s,
@@ -171,7 +172,7 @@ Sim.def('choices', function (K) {
     t.controller = me; // Q56: the owner stays, only the control changes; it ends when the card leaves (release)
     if (isPerm(t)) {
       const f = freeSlots(s, t);
-      if (f.length === 1) enterBoard(s, t, f[0], ev);
+      if (autoOne(s, me, f)) enterBoard(s, t, f[0], ev);
       else
         return ask(
           s,
@@ -208,6 +209,7 @@ Sim.def('choices', function (K) {
   return {
     exports: { declareAsk, libLook, libPlay, pairLabel, pairOptions, pairPicked, pairStart, reorderAsk, reorderStart },
     needs: [
+      'autoOne',
       'addStatus',
       'isRevealed',
       'ctl',
@@ -226,6 +228,7 @@ Sim.def('choices', function (K) {
       'zoneDist',
     ],
     link: () => {
+      ({ autoOne } = K);
       ({ addStatus, isRevealed } = K);
       ({ ctl } = K);
       ({ REQS, ask, byId, cloudMap, cname, destroy, enterBoard, freeSlots, has, isPerm, isUnusable, other, zoneDist } =

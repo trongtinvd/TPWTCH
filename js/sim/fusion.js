@@ -3,6 +3,7 @@
 // A condition is {op, ...} naming an EXCOND entry (cond.js). The Fusion effect (ops.js) is built from these generic pieces:
 // reveal an extra deck creature (candidates by `pick`), choose its materials among the zones in `from`, pay them (`pay`: gy / exile / hand), summon it (`summon`).
 Sim.def('fusion', function (K) {
+  let autoOne; // fx
   // imports (bound by Sim.boot once every module is loaded)
   let cname, other; // util
   let addStatus, atkOf, has, hpOf; // statuses
@@ -95,7 +96,7 @@ Sim.def('fusion', function (K) {
       srcName: c.def.name,
     }); // remembered for good: "the materials used to summon that card" (it also tells the enter triggers how it was summoned)
     const f = freeSlots(s, t);
-    if (f.length === 1) enterBoard(s, t, f[0], ev);
+    if (autoOne(s, p, f)) enterBoard(s, t, f[0], ev);
     else if (f.length)
       ask(s, p, c, 'place', f, null, 'Click a highlighted zone for ' + t.def.name + '.', { card: t.iid }, ev);
   }
@@ -107,7 +108,7 @@ Sim.def('fusion', function (K) {
       opts = all.filter(
         m => !cs.includes(m) && typeOk(m, sl[cs.length]) && groupOk([...cs, m], sl) && solve(all, sl, [...cs, m])
       );
-    if (opts.length === 1) return next(s, p, c, t, e, [...chosen, opts[0].iid], ev); // nothing to decide
+    if (autoOne(s, p, opts)) return next(s, p, c, t, e, [...chosen, opts[0].iid], ev); // nothing to decide
     if (!opts.length) return;
     ask(
       s,
@@ -161,6 +162,7 @@ Sim.def('fusion', function (K) {
   return {
     exports: { condOk, condsMet, fusionCandidates, fusionMat, fusionPicked, fusionPossible, fusionStart },
     needs: [
+      'autoOne',
       'EXCOND',
       'ask',
       'atkOf',
@@ -174,6 +176,7 @@ Sim.def('fusion', function (K) {
       'other',
     ],
     link: () => {
+      ({ autoOne } = K);
       ({ EXCOND, ask, atkOf, addStatus, cname, destroy, enterBoard, freeSlots, has, hpOf, other } = K);
     },
   };

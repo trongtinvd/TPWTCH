@@ -1,5 +1,6 @@
 // then.js - REGISTRY THEN: what pickCard does with the picked card
 Sim.def('then', function (K) {
+  let autoOne; // fx
   // imports (bound by Sim.boot once every module is loaded)
   let live, removeStatus; // statuses
   let bounce, enterBoard, freeSlots; // state
@@ -22,7 +23,7 @@ Sim.def('then', function (K) {
     },
     summonAttack: (s, w, c, t, k, ev) => {
       const f = freeSlots(s, t);
-      if (f.length === 1) {
+      if (autoOne(s, w, f)) {
         enterBoard(s, t, f[0], ev);
         extraAttack(s, t, ev);
       } else if (f.length)
@@ -63,15 +64,16 @@ Sim.def('then', function (K) {
     },
     summon: (s, w, c, t, k, ev) => {
       const f = freeSlots(s, t);
-      if (f.length === 1) enterBoard(s, t, f[0], ev);
+      if (autoOne(s, w, f)) enterBoard(s, t, f[0], ev);
       else if (f.length)
         ask(s, w, c, 'place', f, null, 'Click a highlighted zone for ' + t.def.name + '.', { card: t.iid }, ev);
     },
   };
   return {
     exports: { THEN },
-    needs: ['ask', 'bounce', 'dealDamage', 'enterBoard', 'extraAttack', 'freeSlots', 'live', 'removeStatus'],
+    needs: ['autoOne', 'ask', 'bounce', 'dealDamage', 'enterBoard', 'extraAttack', 'freeSlots', 'live', 'removeStatus'],
     link: () => {
+      ({ autoOne } = K);
       ({ ask, bounce, dealDamage, enterBoard, extraAttack, freeSlots, live, removeStatus } = K);
     },
   };

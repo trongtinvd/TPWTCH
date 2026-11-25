@@ -185,6 +185,9 @@ const Narrate = (function () {
       case 'EndTurn':
         line(P(cmd.player) + ' ends their turn');
         break;
+      case 'SetAutoPick':
+        line(P(cmd.player) + ' turns ' + (cmd.on ? 'on' : 'off') + ' the automatic pick of a single legal option');
+        break;
       case 'SetStop':
         line(
           P(cmd.player) +

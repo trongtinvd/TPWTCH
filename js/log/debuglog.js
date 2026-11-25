@@ -130,6 +130,7 @@ const DebugLog = (function () {
     DrawStepEntered: (s, e) => nm(s, e.player) + '’s draw phase',
     StopChanged: (s, e) =>
       nm(s, e.player) + ' stop "' + stopName(e.kind) + '" (' + e.role + ') ' + (e.on ? 'on' : 'off'),
+    AutoPickChanged: (s, e) => nm(s, e.player) + ' automatic pick of a single option ' + (e.on ? 'on' : 'off'),
     TurnChanged: (s, e) => 'turn ' + s.turn + ': ' + nm(s, e.active) + '’s turn begins',
     AttackPhaseChanged: (s, e) => 'combat ' + (e.on ? 'started' : 'ended'),
     CombatSkipped: (s, e) => nm(s, e.player) + '’s combat is skipped (End turn instead)',

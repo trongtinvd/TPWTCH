@@ -636,4 +636,30 @@
       ]
     );
   });
+  Tests.add('autopick-off', () => {
+    // ================= SetAutoPick: a player may turn off "the only legal option is picked for me" =================
+    const run = off => {
+      const s = start(1090);
+      if (off) D(s, { type: 'SetAutoPick', player: 'Player', on: false });
+      const uf = take(s, 'Player', 'underworldfusion', 'hand');
+      ['scout', 'vine'].forEach(id => take(s, 'Player', id, 'gy'));
+      setLife(s, 'Opponent', 15);
+      D(s, { type: 'PlayCard', iid: uf.iid });
+      pass2(s);
+      D(s, { type: 'Choose', player: 'Player', option: s.choice.options[0] });
+      const a = [s.choice.kind, s.choice.options.length];
+      D(s, { type: 'Choose', player: 'Player', option: s.choice.options[0] });
+      return [a, s.choice && [s.choice.kind, s.choice.options.length]];
+    };
+    const on = run(false),
+      off = run(true);
+    eq(
+      'Underworld Fusion with two materials: on (default) the second one is picked by itself; off it is asked (one option)',
+      [on[1][0], off[1]],
+      ['place', ['fusemat', 1]]
+    );
+    const s = start(1091),
+      r = Sim.dispatch(s, { type: 'SetAutoPick', player: 'Opponent', on: false });
+    eq('SetAutoPick is accepted at any time and recorded per player', [r.ok, s.noAuto], [true, { Opponent: true }]);
+  });
 })();

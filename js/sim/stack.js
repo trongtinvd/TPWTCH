@@ -1,5 +1,6 @@
 // stack.js - playing cards, activating abilities, the stack, triggers (fire), response windows, end of turn
 Sim.def('stack', function (K) {
+  let autoOne; // fx
   // imports (bound by Sim.boot once every module is loaded)
   let turnGo, nextTurnPlayer; // turn
   let ctl;
@@ -217,7 +218,7 @@ Sim.def('stack', function (K) {
         opts = G.options(s, c);
       if (!opts.length)
         it.tgt = false; // no legal target: the trigger is not put on the stack
-      else if (opts.length === 1) it.tgt = opts[0];
+      else if (autoOne(s, it.owner, opts)) it.tgt = opts[0];
       else {
         ask(s, it.owner, c, 'trigtarget', opts, o => G.label(s, c, o), G.prompt(c), { tk: k }, ev);
         return;
@@ -374,6 +375,7 @@ Sim.def('stack', function (K) {
       stopWants,
     },
     needs: [
+      'autoOne',
       'turnGo',
       'nextTurnPlayer',
       'expireStatuses',
@@ -410,6 +412,7 @@ Sim.def('stack', function (K) {
       'targetZones',
     ],
     link: () => {
+      ({ autoOne } = K);
       ({ turnGo, nextTurnPlayer } = K);
       ({ expireStatuses, findTarget, payCost } = K);
       ({ ctl } = K);

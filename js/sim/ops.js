@@ -1,5 +1,6 @@
 // ops.js - REGISTRY OPS: effect handlers. Add an entry here (and an Fx builder in cards.js) to give every card a new building block
 Sim.def('ops', function (K) {
+  let autoOne; // fx
   // imports (bound by Sim.boot once every module is loaded)
   let countValue; // values
   let turnGo; // turn
@@ -238,7 +239,7 @@ Sim.def('ops', function (K) {
       const opts = Object.values(x.s.cards)
         .filter(c => c.loc === 'board' && c.def.type === 'creature' && c !== x.src && !has(c, 'red'))
         .map(c => c.iid);
-      if (opts.length === 1) dealDamage(x.s, x.src, x.s.cards[opts[0]], e.amount, x.ev, 'effect', true);
+      if (autoOne(x.s, x.who, opts)) dealDamage(x.s, x.src, x.s.cards[opts[0]], e.amount, x.ev, 'effect', true);
       else if (opts.length) {
         x.s.choice = {
           player: x.who,
@@ -388,7 +389,7 @@ Sim.def('ops', function (K) {
         .map(k => s.slots[k])
         .filter(id => id && ctl(s.cards[id]) === ctl(src) && s.cards[id].def.type === 'creature');
       if (!ids.length) return;
-      if (ids.length === 1) CH.swap(s, null, src, { option: ids[0] }, x.ev);
+      if (autoOne(s, x.who, ids)) CH.swap(s, null, src, { option: ids[0] }, x.ev);
       else ask(s, x.who, src, 'swap', ids, null, 'Click the creature to return to your hand.', {}, x.ev);
     },
     ShieldAll: (x, e) => {
@@ -476,7 +477,7 @@ Sim.def('ops', function (K) {
         def = x.src.def.tokens[e.token],
         f = Object.keys(s.slots).filter(k => k.startsWith(x.who + '|front|') && !s.slots[k] && !isUnusable(s, k)); // the controller picks the zone (front row only)
       if (!f.length) return;
-      if (f.length === 1) return makeToken(s, def, x.who, f[0], x.ev);
+      if (autoOne(s, x.who, f)) return makeToken(s, def, x.who, f[0], x.ev);
       ask(
         s,
         x.who,
@@ -493,6 +494,7 @@ Sim.def('ops', function (K) {
   return {
     exports: { OPS },
     needs: [
+      'autoOne',
       'countValue',
       'turnGo',
       'damageHp',
@@ -545,6 +547,7 @@ Sim.def('ops', function (K) {
       'markUnusable',
     ],
     link: () => {
+      ({ autoOne } = K);
       ({ countValue } = K);
       ({ turnGo } = K);
       ({ damageHp, placeAttackCounters } = K);

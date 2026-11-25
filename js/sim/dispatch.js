@@ -1,5 +1,6 @@
 // dispatch.js - the command interpreter and hasAction
 Sim.def('dispatch', function (K) {
+  let autoOne; // fx
   // imports (bound by Sim.boot once every module is loaded)
   let turnGo, pickTurn; // turn
   let RULES, historyBytes;
@@ -98,6 +99,15 @@ Sim.def('dispatch', function (K) {
       if (!s.stops) s.stops = { Player: { opp: {}, own: {} }, Opponent: { opp: {}, own: {} } };
       s.stops[P][role][cmd.kind] = !!cmd.on;
       return { ok: true, events: [{ t: 'StopChanged', player: P, role, kind: cmd.kind, on: !!cmd.on }] };
+    }
+    if (cmd.type === 'SetAutoPick') {
+      // a player turns on / off "the only legal option is picked for me" (a setting of theirs). Any time, recorded like any command.
+      // Off: every choice with a single option is asked (s.noAuto[player]); absent = on, the default rules
+      const P = cmd.player;
+      if (P !== 'Player' && P !== 'Opponent') return fail('Unknown player');
+      if (!s.noAuto) s.noAuto = {};
+      s.noAuto[P] = !cmd.on;
+      return { ok: true, events: [{ t: 'AutoPickChanged', player: P, on: !!cmd.on }] };
     }
     if (s.choice && !['Choose', 'Surrender', 'Leave'].includes(cmd.type))
       return fail('Waiting for ' + s.choice.player + ' to choose'); // giving up is possible at any time
@@ -337,7 +347,7 @@ Sim.def('dispatch', function (K) {
           if (cmd.pick != null) {
             if (!opts.includes(cmd.pick)) return fail('Illegal target');
             activate(s, c, cmd.ab, cmd.pick, ev);
-          } else if (opts.length === 1) activate(s, c, cmd.ab, opts[0], ev);
+          } else if (autoOne(s, ctl(c), opts)) activate(s, c, cmd.ab, opts[0], ev);
           else ask(s, ctl(c), c, 'abtarget', opts, o => G.label(s, c, o), G.prompt(c), { ab: cmd.ab }, ev);
           break;
         }
@@ -431,6 +441,7 @@ Sim.def('dispatch', function (K) {
   return {
     exports: { actionsOf, dispatch, hasAction },
     needs: [
+      'autoOne',
       'turnGo',
       'pickTurn',
       'TARGETINGS',
@@ -487,6 +498,7 @@ Sim.def('dispatch', function (K) {
       'targetZones',
     ],
     link: () => {
+      ({ autoOne } = K);
       ({ turnGo, pickTurn } = K);
       ({ TARGETINGS, activate, ask, endCombatStatuses, placeAttackCounters, spendAttackCounter } = K);
       ({ RULES, historyBytes } = K);
