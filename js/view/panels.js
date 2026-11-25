@@ -432,6 +432,8 @@ function showPlayer(p, pin) {
     'GY ' + P.gy.length,
     'Exile ' + P.exile.length,
   ];
+  const r = Sim.raceOf(s, p); // the turn order race (effective values, statuses folded in)
+  if (r) stats.push('Distance ' + r.distance, 'Speed ' + r.speed, 'Acceleration ' + r.acceleration);
   const where = (s.active === p ? 'Turn player' : 'Not the turn player') + (s.priority === p ? ' · has priority' : '');
   const key =
     'P|' +
