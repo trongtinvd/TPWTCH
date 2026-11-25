@@ -292,6 +292,14 @@ function startDialog(mode) {
       'When an attack hits a creature, that creature deals damage equal to its power to the attacking creature (combat damage, it never tramples).';
     kw.append(kb, document.createTextNode(' Defender strike back'));
     box.appendChild(kw);
+    // game option "Turn order race": the avatars' Distance / Speed / Acceleration decide who takes each turn (off = turns alternate)
+    const rw = mkEl('label', 'mcheck'),
+      rb = mkEl('input');
+    rb.type = 'checkbox';
+    rb.checked = MenuUI.last.race !== false;
+    rw.title = "On: the avatars' Distance / Speed / Acceleration decide who takes each turn. Off: the turns alternate.";
+    rw.append(rb, document.createTextNode(' Turn order race (distance / speed / acceleration)'));
+    box.appendChild(rw);
     let sb = null; // Vs Bot: what the bot does when the game ends
     if (mode === 'bot') {
       const bw = mkEl('label', 'mfield');
@@ -312,25 +320,31 @@ function startDialog(mode) {
       bw.appendChild(sb);
       box.appendChild(bw);
     }
+    // every change is kept at once (localStorage, through Settings), not only when Start is pressed
+    const save = () => {
+      MenuUI.last = {
+        p1: s1.value,
+        p2: s2.value,
+        shuffle: cb.checked,
+        botEnd: sb ? sb.value : MenuUI.last.botEnd,
+        name1: n1.value.trim() || 'Player',
+        name2: n2 ? n2.value.trim() || 'Player 2' : MenuUI.last.name2,
+        startHand: int(gh, 5, 0, 40),
+        drawPhase: int(gd, 1, 0, 10),
+        drawAction: int(ga, 2, 0, 10),
+        life: int(gl, 20, 0, 999),
+        strikeBack: kb.checked,
+        race: rb.checked,
+      };
+      Settings.set('lastGame', MenuUI.last);
+    };
+    box.addEventListener('change', save);
     const row = mkEl('div', 'mrow');
     row.append(
       mkBtn(
         'Start',
         () => {
-          MenuUI.last = {
-            p1: s1.value,
-            p2: s2.value,
-            shuffle: cb.checked,
-            botEnd: sb ? sb.value : MenuUI.last.botEnd,
-            name1: n1.value.trim() || 'Player',
-            name2: n2 ? n2.value.trim() || 'Player 2' : MenuUI.last.name2,
-            startHand: int(gh, 5, 0, 40),
-            drawPhase: int(gd, 1, 0, 10),
-            drawAction: int(ga, 2, 0, 10),
-            life: int(gl, 20, 0, 999),
-            strikeBack: kb.checked,
-          };
-          Settings.set('lastGame', MenuUI.last); // the dialog remembers the last choices
+          save();
           close();
           // Start opens the character selection scene; its Confirm starts the duel with these settings and the avatars
           if (typeof CharacterSelect !== 'undefined') CharacterSelect.open(Object.assign({ mode }, MenuUI.last));

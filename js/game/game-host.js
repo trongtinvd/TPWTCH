@@ -576,7 +576,10 @@ const gameRules = c => {
   for (const k of ['startHand', 'drawPhase', 'drawAction', 'life']) if (c[k] != null) r[k] = c[k];
   if (c.strikeBack) r.strikeBack = true; // "Defender strike back" (recorded with the replay, like the other options)
   const race =
-    c.avatars && typeof AvatarCatalog !== 'undefined' && AvatarCatalog.get()
+    c.race !== false && // the start dialog's "Turn order race" toggle (off = turns alternate)
+    c.avatars &&
+    typeof AvatarCatalog !== 'undefined' &&
+    AvatarCatalog.get()
       ? AvatarLogic.raceOf(AvatarCatalog.get(), c.avatars)
       : null;
   if (race) r.race = race; // the avatars' Initial Distance / Speed / Acceleration decide the turn order (recorded with the replay)
