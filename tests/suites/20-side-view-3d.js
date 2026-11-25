@@ -227,6 +227,17 @@
       [cue.category, cue.hits.length, s.cards[g.iid].loc],
       ['attack', 1, 'board']
     );
+    s = start(8805);
+    s.cfg.strikeBack = true;
+    const w5 = take(s, 'Player', 'wolf', 'board', 'Player|front|1'),
+      g5 = take(s, 'Opponent', 'giant', 'board', 'Opponent|front|1');
+    Sim.enterCombat(s);
+    cue = L.attackCue(attack(s, w5.iid), s);
+    eq(
+      'a strike back that kills the attacker (the creature hit survives) is a normal attack',
+      [cue.category, s.cards[w5.iid].loc, s.cards[g5.iid].loc],
+      ['attack', 'gy', 'board']
+    );
     s = start(8803);
     const k3 = take(s, 'Player', 'knight', 'board', 'Player|front|0');
     Sim.enterCombat(s);
