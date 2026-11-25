@@ -919,6 +919,14 @@ const DBTN = [
     on: () => rp.on,
     show: () => rp.on,
   }, // replay only: Player 1 -> Player 2 -> Current player (the camera follows priority)
+  {
+    id: 'settings', // the same Settings dialog as the main menu's
+    cls: 'c-icon',
+    label: () => '\u2699',
+    tip: 'Settings',
+    run: () => settingsDialog(),
+    on: () => true,
+  },
   { id: 'menu', cls: 'c-exit', label: () => 'Exit', run: () => MenuUI.leaveGame(), on: () => true },
   { id: 'player', label: () => 'Switch player', run: switchPlayer, on: () => true, show: () => ui.mode === 'self' },
   {
@@ -978,7 +986,8 @@ function updateDbg() {
   [...FN, ...DBTN].forEach(b => {
     const full = b.label();
     b.el.textContent = portraitMQ && portraitMQ.matches && SHORT[b.id] ? SHORT[b.id]() : full;
-    b.el.title = full;
+    b.el.title = b.tip || full;
+    if (b.tip) b.el.setAttribute('aria-label', b.tip);
     b.el.disabled = !b.on();
     if (b.show) b.el.hidden = !b.show();
     if (b.id === 'battle') b.el.classList.toggle('on', game.attackPhase);

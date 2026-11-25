@@ -341,6 +341,12 @@ canvas {
   font-size: 12px;
   text-align: left;
 }
+#dbg .abtn.c-icon {
+  font-size: 16px;
+  line-height: 1;
+  text-align: center;
+  padding: 3px 10px;
+}
 #fn {
   position: fixed;
   right: 12px;
