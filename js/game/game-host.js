@@ -774,7 +774,7 @@ const FN = [
   {
     id: 'draw',
     cls: 'c-go',
-    label: () => 'Draw 2',
+    label: () => 'Draw ' + (game.cfg && game.cfg.drawAction != null ? game.cfg.drawAction : 2),
     run: draw,
     on: () =>
       myPriority() &&
