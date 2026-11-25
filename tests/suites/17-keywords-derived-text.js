@@ -67,7 +67,25 @@
           !('overrideText' in d)
       )
     );
-    eq('translate(abilities[]) is the card text of an ability-only card', translate(ar), ar.text);
+    eq(
+      'translate(abilities[]) is the card text of an ability-only card (after its action point cost)',
+      'Cost: 1 action point. ' + translate(ar),
+      ar.text
+    );
+    const costOf = id => textParts(byId(id)).filter(p => p.key === 'cost').length;
+    eq(
+      'the generated text states the action point cost of playing the card: creatures and Slow spells cost 1, Quick spells, Flash, tokens and extra deck cards nothing',
+      [
+        costOf('archer'),
+        costOf('superbolt'),
+        DEFS.filter(d => d.type === 'spell' && d.timing !== 'Slow').every(d => !textParts(d).some(p => p.key === 'cost')),
+        DEFS.filter(d => (d.passives || []).some(p => p.kw === 'flash')).every(d => !textParts(d).some(p => p.key === 'cost')),
+        DEFS.filter(d => d.extra).every(d => !textParts(d).some(p => p.key === 'cost')),
+        DEFS.flatMap(d => Object.values(d.tokens || {})).every(t => !textParts(t).some(p => p.key === 'cost')),
+        textParts(byId('archer'))[0].text,
+      ],
+      [1, 1, true, true, true, true, 'Cost: 1 action point.']
+    );
     const ke = byId('kingeye').passives[0];
     check('King Eye shows its generated text by default too', ke.text.startsWith('Passive: a black cloud'));
     check(
@@ -76,7 +94,7 @@
     );
     check(
       'a spell is translated too: targeting before ";"',
-      byId('superbolt').text === 'Slow. Target a permanent or a player; deal 20 damage to it. (Stack HP 3)'
+      byId('superbolt').text === 'Cost: 1 action point. Slow. Target a permanent or a player; deal 20 damage to it. (Stack HP 3)'
     );
     check('Avatar’s rider names the card', /gains the abilities of Avatar of Rabies/.test(byId('avatar').text));
     const bad = DEFS.filter(d => Translate.abilityList(d).some(x => !x.o.text || /undefined|NaN/.test(x.o.text))).map(

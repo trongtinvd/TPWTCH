@@ -264,9 +264,9 @@
     const hb = DEFS.find(d => d.id === 'hummingbird'),
       parts = textParts(hb);
     eq(
-      'card text is derived from the abilities: Red Hummingbird = 2 triggers, then 1 ability',
+      'card text is derived from the abilities: Red Hummingbird = its action point cost, 2 triggers, then 1 ability',
       parts.map(x => x.key),
-      ['triggers:0', 'triggers:1', 'abilities:0']
+      ['cost', 'triggers:0', 'triggers:1', 'abilities:0']
     );
     check('...and def.text is exactly those parts joined', hb.text === parts.map(x => x.text).join(' '));
     const wd = textParts(DEFS.find(d => d.id === 'wardrum'));

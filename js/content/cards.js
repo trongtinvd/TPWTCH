@@ -384,10 +384,20 @@ const CardText = (function () {
     },
   };
 })();
+// does playing this card spend an action point (the Sim's slowish rule: a permanent without Flash, or a Slow spell)? Tokens and
+// extra deck cards are never played from a hand, so they show no cost
+const playsForAP = def =>
+  !def.isToken &&
+  !def.extra &&
+  def.type !== 'ability' &&
+  (def.type === 'spell'
+    ? def.timing === 'Slow'
+    : !(def.passives || []).some(p => p.op === 'Keyword' && p.kw === 'flash'));
 // the card text as parts (one per trigger / ability / passive / rider). mode: CardText.mode unless given; the card is never changed
 function textParts(def, mode) {
   const P = [],
     add = (list, i, o) => o && o.text && P.push({ key: list + ':' + i, list, i, text: o.text });
+  if (playsForAP(def)) P.push({ key: 'cost', list: 'cost', i: 0, text: 'Cost: 1 action point.' }); // playing it spends an action point
   if (def.body) P.push({ key: 'body', list: 'body', i: 0, text: def.body });
   if (def.extraCost && def.extraCost.ap)
     P.push({ key: 'extra', list: 'extra', i: 0, text: 'Additional cost (optional): spend an action point.' });
@@ -551,7 +561,10 @@ const Cards = {
   add(factory) {
     const d = factory(Fx);
     this.derive(d);
-    Object.values(d.tokens || {}).forEach(t => this.derive(t)); // tokens get their generated text too
+    Object.values(d.tokens || {}).forEach(t => {
+      t.isToken = true; // a token is never played: no action point cost in its text
+      this.derive(t);
+    }); // tokens get their generated text too
     this.list.push(d);
   },
   derive(d) {

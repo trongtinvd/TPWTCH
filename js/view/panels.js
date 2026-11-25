@@ -223,7 +223,7 @@ function cardParts(c, H) {
     swapped = eff.id !== base.id;
   const add = (out, def, off, onlyAb) => {
     for (const p of textParts(def)) {
-      const ab = !['body', 'extra', 'conditions', 'materials'].includes(p.list);
+      const ab = !['body', 'cost', 'extra', 'conditions', 'materials'].includes(p.list);
       if (onlyAb && !ab) continue;
       const hit = !!H && def.id === H.from && p.list === H.list && p.i === H.i,
         cls = hit ? 'hl' : H ? 'dim' : off && ab ? 'off' : partOn(sc, p, def) ? '' : 'dim';
