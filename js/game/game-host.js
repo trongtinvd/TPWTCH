@@ -336,6 +336,17 @@ function sendStop(cmd) {
   sync();
   return r;
 }
+// the setting "Auto select the only legal option" (Settings autoPick) of the seats played here: the Sim asks every single-option pick of
+// a seat that turned it off (SetAutoPick, recorded like a stop). The bot's seat keeps the default (on)
+function applyAutoPick() {
+  if (rp.on || typeof sim === 'undefined' || !sim || sim.phase === undefined) return;
+  const on = Settings.get('autoPick') !== false;
+  for (const p of ['Player', 'Opponent'])
+    if (!(ui.mode === 'bot' && p === ui.botSeat) && !(sim.noAuto && sim.noAuto[p]) !== on) {
+      sendStop({ type: 'SetAutoPick', player: p, on });
+      if (game !== sim) game.noAuto = structuredClone(sim.noAuto);
+    }
+}
 function send(cmd, src, trace) {
   // src: who sent it (player / auto / bot / replay); trace: a bot's decision (debug log)
   if (rp.on && !rp.feed) {
@@ -748,6 +759,7 @@ function resetGame() {
   inspect.hidden = true;
   deckPanel.hidden = true;
   setView(c.mode === 'bot' ? other(ui.botSeat) : 'Player');
+  applyAutoPick();
   sync();
 }
 

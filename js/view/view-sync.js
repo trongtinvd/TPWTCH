@@ -849,7 +849,7 @@ function sync() {
         ? ui.pairFirst
           ? pairPartners(ch, ui.pairFirst)
           : [...new Set(ch.options.flatMap(o => o.split('#')))]
-        : ch.kind === 'place'
+        : ch.kind === 'place' || ch.kind === 'pairpick' // pairpick: Widow Maker's pair as single zones (targeting.js)
           ? ch.options
           : ['damage', 'pick', 'swap', 'abtarget'].includes(ch.kind)
             ? ch.options

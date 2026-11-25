@@ -227,6 +227,16 @@ function settingsDialog() {
       tf.appendChild(w);
     });
     box.appendChild(tf);
+    const aw = mkEl('label', 'mcheck'),
+      ac = mkEl('input');
+    ac.type = 'checkbox';
+    ac.checked = Settings.get('autoPick') !== false;
+    ac.onchange = () => {
+      Settings.set('autoPick', ac.checked);
+      if (typeof applyAutoPick === 'function') applyAutoPick(); // a game in progress follows at once
+    };
+    aw.append(ac, document.createTextNode(' Auto select a target, material or zone when it is the only legal one'));
+    box.appendChild(aw);
     // the stops moved into the game (the stop icons in the bottom right corner)
     const sn = mkEl('p', 'mmsg');
     sn.style.fontSize = '12px';

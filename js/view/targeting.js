@@ -6,13 +6,16 @@
 // The picks stay in the UI until the last one: the Sim answers one pick per Choose, so the next pick's legal options are read from a
 // dry run (a copy of the Sim with the picks so far applied). Settings 'targetConfirm': false = the picks are sent as soon as the last
 // one is marked, true = a Confirm button sends them. Non-target answers (Done, Do not play...) are sent at once, after the picks.
+// Auto selection (Settings 'autoPick', on by default): a pick with one legal option only is made for the player, and it still gets its
+// mark and arrow (Underworld Fusion: the last material). The dry run asks every pick (noAuto), the UI makes the single ones; off, the
+// Sim is told (SetAutoPick) and the player clicks them. Widow Maker's pair (two adjacent zones) is two picks of the same chain.
 // The view never edits the game: the picks become ordinary Choose / PlayCard commands through send().
 const Targeting = (function () {
   const NOT_TARGET = new Set(['mode', 'trigorder', 'libplay', 'libseen']), // plain menus, not targets
     BUTTONS = new Set(['done', 'no', 'ok', 'stay', 'play', 'skip']), // answers that are buttons, never targets
     NS = 'http://www.w3.org/2000/svg';
-  let T = null, // {key, base, picks[], cur, vs, done}
-    queue = null; // {player, picks[]}: picks being sent one Choose at a time
+  let T = null, // {key, base, picks[], auto[], sends[], cur, vs, done}
+    queue = null; // {player, picks[{o, auto}]}: picks being sent one Choose at a time
   const ptr = { x: -1, y: -1, touch: false };
   addEventListener(
     'pointermove',
@@ -46,7 +49,8 @@ const Targeting = (function () {
   const paths = [],
     marks = new Map(); // option -> overlay div
   // ---- which choices are targeting
-  const isTargetKind = k => !!k && !!k.kind && !NOT_TARGET.has(k.kind) && !isPairChoice(k);
+  const isTargetKind = k => !!k && !!k.kind && !NOT_TARGET.has(k.kind);
+  const autoOn = () => Settings.get('autoPick') !== false;
   const isCard = (s, o) => !!s.cards[o];
   const isBoardOpt = o => /^[ZPS]:/.test(o) || (typeof game !== 'undefined' && o in game.slots);
   const isButton = (s, o) => BUTTONS.has(o) && !isCard(s, o);
@@ -85,33 +89,92 @@ const Targeting = (function () {
       t = k.options.filter(o => !isButton(s, o)).length;
     return Math.max(0, Math.min(n, t));
   }
+  // Widow Maker's pair as a choice of single zones: the zones of every pair, or (one picked) its adjacent partners
+  function pairView(k, a) {
+    return {
+      player: k.player,
+      iid: k.iid,
+      kind: 'pairpick',
+      options: a ? pairPartners(k, a) : [...new Set(k.options.flatMap(o => o.split('#')))],
+      need: a ? 1 : 2,
+      prompt: k.prompt + (a ? ' Now an adjacent one.' : ''),
+    };
+  }
   function recompute() {
     T.cur = T.base;
     T.vs = null;
     T.done = false;
+    T.auto = [];
+    T.sends = [];
     if (T.base.kind === 'cast') {
       T.picks = T.picks.filter(o => T.base.options.includes(o)).slice(0, 1);
       T.done = T.picks.length > 0;
       if (T.done) T.cur = null;
       return;
     }
-    if (!T.picks.length) return;
     if (game !== sim) {
       T.picks = []; // an animation shows an older state: nothing is buffered meanwhile
+      if (isPairChoice(T.base)) T.cur = pairView(T.base, null);
       return;
     }
+    // the dry run: a copy of the Sim that asks every pick (noAuto), the manual picks applied in order, the single ones made here
     const vs = structuredClone(sim),
-      ok = [];
-    for (const o of T.picks) {
+      ok = [],
+      P = T.base.player,
+      choose = o => Sim.dispatch(vs, { type: 'Choose', player: P, option: o }).ok;
+    vs.noAuto = Object.assign({}, vs.noAuto, { [P]: true });
+    let i = 0,
+      cur = null;
+    for (;;) {
       const k = vs.choice;
-      if (!(ok.length ? sameChain(k) : k) || !k.options.includes(o)) break;
-      if (!Sim.dispatch(vs, { type: 'Choose', player: k.player, option: o }).ok) break;
+      if (!k || (T.sends.length && !sameChain(k))) break;
+      if (k.options.length === 1 && autoOn()) {
+        // nothing to decide: picked for the player (mark and arrow included)
+        if (!choose(k.options[0])) {
+          cur = k;
+          break;
+        }
+        T.auto.push(...(isPairChoice(k) ? k.options[0].split('#') : k.options));
+        T.sends.push({ o: k.options[0], auto: true });
+        continue;
+      }
+      if (isPairChoice(k)) {
+        const v = pairView(k, null),
+          a = T.picks[i],
+          b = T.picks[i + 1];
+        if (a == null || !v.options.includes(a)) {
+          cur = v;
+          break;
+        }
+        const pv = pairView(k, a);
+        if (b == null || !pv.options.includes(b)) {
+          ok.push(a);
+          cur = pv;
+          break;
+        }
+        const o = k.options.find(q => q.split('#').includes(a) && q.split('#').includes(b));
+        if (!choose(o)) {
+          cur = v;
+          break;
+        }
+        ok.push(a, b);
+        i += 2;
+        T.sends.push({ o });
+        continue;
+      }
+      const o = T.picks[i];
+      if (o == null || !k.options.includes(o) || !choose(o)) {
+        cur = k;
+        break;
+      }
       ok.push(o);
+      i++;
+      T.sends.push({ o });
     }
     T.picks = ok;
-    T.vs = vs;
-    T.cur = ok.length && !sameChain(vs.choice) ? null : ok.length ? vs.choice : T.base;
-    T.done = !T.cur;
+    T.vs = T.sends.length ? vs : null;
+    T.cur = cur;
+    T.done = !cur;
   }
   // every sync: is a target selection on, which choice does it show
   function refresh() {
@@ -128,11 +191,16 @@ const Targeting = (function () {
     if (!T || T.key !== key) T = { key, base: b, picks: [] };
     else T.base = b;
     recompute();
+    // every pick had one legal option only: nothing to click, the picks go (unless Confirm is asked for)
+    if (T.done && !T.picks.length && T.sends.length && !confirmMode()) {
+      const t = T;
+      setTimeout(() => T === t && T.done && commit(), 0);
+    }
   }
   const on = () => !!T || !!queue;
   const choice = () => (T ? T.cur : null);
   const vstate = () => (T && T.vs) || game;
-  const picked = o => !!T && T.picks.includes(o);
+  const picked = o => !!T && (T.picks.includes(o) || T.auto.includes(o));
   const confirmMode = () => !!Settings.get('targetConfirm');
   // a click on o (a card iid, Z:zone, a slot key, P:player, S:stack sid, a list option): pick it, undo it, or answer with it
   function click(o) {
@@ -155,10 +223,10 @@ const Targeting = (function () {
       return true;
     }
     const k = T.cur;
-    if (!k || !k.options.includes(o)) return false;
+    if (!k || !k.options.includes(o) || T.auto.includes(o)) return false;
     if (isButton(vstate(), o)) {
       // Done / Do not play...: the answer itself, sent at once after the picks so far
-      if (T.base.kind !== 'cast') commit([...T.picks, o]);
+      if (T.base.kind !== 'cast') commit([...T.sends, { o }]);
       return true;
     }
     T.picks.push(o);
@@ -179,7 +247,7 @@ const Targeting = (function () {
       else send({ type: 'PlayCard', iid: c.iid, tsid: +o.slice(2) });
       return;
     }
-    queue = { player: T.base.player, picks: (list || T.picks).slice() };
+    queue = { player: T.base.player, picks: (list || T.sends).slice() };
     T = null;
     flush();
   }
@@ -188,7 +256,11 @@ const Targeting = (function () {
     while (queue && queue.picks.length) {
       if (ui.fxBusy || game !== sim) return;
       const k = sim.choice,
-        o = queue.picks[0];
+        { o, auto } = queue.picks[0];
+      if (auto && !(k && k.options.includes(o))) {
+        queue.picks.shift(); // a single option the Sim already picked by itself (auto selection on)
+        continue;
+      }
       if (!k || k.player !== queue.player || !k.options.includes(o)) break;
       queue.picks.shift();
       if (!send({ type: 'Choose', player: k.player, option: o }).ok) break;
@@ -216,7 +288,9 @@ const Targeting = (function () {
     }
     const ok = c.filter(Boolean);
     const k = T.base.kind === 'cast' ? T.base : T.cur;
-    return ok.find(picked) || (k && ok.find(o => k.options.includes(o) && !isButton(vstate(), o))) || null;
+    return (
+      ok.find(o => T.picks.includes(o)) || (k && ok.find(o => k.options.includes(o) && !isButton(vstate(), o))) || null
+    );
   }
   // ---- the panel (#pick): the prompt, list options with their art and a mark, the picked list items, buttons, Confirm
   const nameOf = (s, k, o) =>
@@ -240,8 +314,11 @@ const Targeting = (function () {
   function listOpts(k) {
     if (!k) return [];
     const s = vstate(),
-      click = Sim.choicePicks(s, k.player).click;
-    return k.options.filter(o => !isButton(s, o) && !isBoardOpt(o) && !(click && isCard(s, o) && meshes.has(o)));
+      at = k.kind === 'pairpick' ? [] : Sim.choicePicks(s, k.player).clickable || [];
+    // per card (Creeping Parasite's 4 damage mixes cards and life bars: its board cards are still clicked, never listed)
+    return k.options.filter(
+      o => !isButton(s, o) && !isBoardOpt(o) && !(isCard(s, o) && at.includes(o) && meshes.has(o))
+    );
   }
   function render(pk) {
     // returns true when it filled the panel
@@ -253,7 +330,7 @@ const Targeting = (function () {
     const s = vstate(),
       k = T.cur,
       rows = k && k.kind !== 'declare' ? listOpts(k) : [],
-      chips = T.picks.filter(o => !isBoardOpt(o) && !meshes.has(o)),
+      chips = [...T.picks, ...T.auto].filter(o => !isBoardOpt(o) && !meshes.has(o)),
       btns = k ? k.options.filter(o => isButton(s, o)) : [],
       conf = confirmMode() && T.picks.length > 0;
     if (!rows.length && !chips.length && !btns.length && !conf && !(k && k.kind === 'declare')) {
@@ -273,11 +350,18 @@ const Targeting = (function () {
     if (chips.length) {
       const h = document.createElement('div');
       h.className = 'note tpicked';
-      h.textContent = 'Selected (click to undo):';
+      h.textContent = T.picks.length ? 'Selected (click to undo):' : 'Selected:';
       pk.appendChild(h);
       const L = document.createElement('div');
       L.className = 'tlist';
-      chips.forEach(o => L.appendChild(row(game, T.base, o, true, () => click(o))));
+      chips.forEach(o => {
+        const r = row(game, T.base, o, true, () => click(o));
+        if (T.auto.includes(o)) {
+          r.classList.add('auto');
+          r.title = 'The only legal option: picked automatically';
+        }
+        L.appendChild(r);
+      });
       pk.appendChild(L);
     }
     btns.forEach(o => {
@@ -308,6 +392,7 @@ const Targeting = (function () {
       (k ? k.prompt : T.base.prompt) +
       (k ? ' Click a red target mark' + (n > 1 ? ' (' + n + ' to pick)' : '') + '.' : '') +
       (T.picks.length ? ' Click a picked target again to undo it.' : '') +
+      (T.auto.length && !T.picks.length ? ' The only legal option was picked for you.' : '') +
       (T.done && confirmMode() ? ' Click Confirm.' : '')
     );
   }
@@ -325,14 +410,71 @@ const Targeting = (function () {
     const zk = o.startsWith('Z:') ? o.slice(2) : o in game.slots ? o : null;
     if (zk) {
       const id = game.slots[zk],
-        m = id && meshes.get(id);
-      if (m && m.visible) return project(m.position.x, m.position.y, m.position.z);
+        p = id && artPt(id);
+      if (p) return p;
       const z = slotZones[zk];
       return z ? project(z.position.x, z.position.y + 0.07, z.position.z) : null;
     }
-    const m = meshes.get(o);
-    if (m && m.visible && m.userData.card) return project(m.position.x, m.position.y, m.position.z);
-    return null;
+    return artPt(o);
+  }
+  // the centre of a card's art: its 3D character in the side view, else the art window of the card face (a little above the
+  // middle of the card; the face texture is turned round on the opponent's cards)
+  const ART_V = (108 + (320 - 92) / 2) / 460, // art window centre, from the top of the 320 x 460 face (drawCardFace)
+    box = new THREE.Box3(),
+    v = new THREE.Vector3();
+  function artPt(iid) {
+    const m = meshes.get(iid);
+    if (!m || !m.visible || !m.userData.card) return null;
+    const ch = typeof View3D !== 'undefined' && View3D.isOn() && View3D.characters().get(iid);
+    if (ch && ch.root && ch.root.visible !== false) {
+      box.setFromObject(ch.root);
+      if (!box.isEmpty()) {
+        box.getCenter(v);
+        return project(v.x, v.y, v.z);
+      }
+    }
+    const mat = Array.isArray(m.material) && m.material[2],
+      turned = mat && mat.map && Math.abs(Math.cos(mat.map.rotation)) > 0.5 && Math.cos(mat.map.rotation) < 0;
+    v.set(0, 0.05, (ART_V - 0.5) * CD * (turned ? -1 : 1));
+    m.localToWorld(v);
+    return project(v.x, v.y, v.z);
+  }
+  // the target cards flash red (a glow under the card, like the yellow "playable" one, faster)
+  const tgtGlowMat = new THREE.MeshBasicMaterial({
+    map: (() => {
+      const c = document.createElement('canvas');
+      c.width = 168;
+      c.height = 224;
+      const g = c.getContext('2d');
+      g.shadowColor = '#ff2020';
+      g.shadowBlur = 18;
+      g.strokeStyle = '#ff6a6a';
+      g.lineWidth = 6;
+      for (let i = 0; i < 3; i++) g.strokeRect(20, 20, 128, 184);
+      return new THREE.CanvasTexture(c);
+    })(),
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    opacity: 1,
+  });
+  const glowing = new Map(); // mesh -> glow plane
+  function tgtGlow(on) {
+    for (const [m, p] of glowing)
+      if (!on.has(m)) {
+        m.remove(p);
+        glowing.delete(m);
+      }
+    for (const m of on)
+      if (!glowing.has(m)) {
+        const p = new THREE.Mesh(glowGeo, tgtGlowMat);
+        p.rotation.x = -Math.PI / 2;
+        p.position.y = 0.06;
+        p.raycast = () => {};
+        m.add(p);
+        glowing.set(m, p);
+      }
+    tgtGlowMat.opacity = 0.25 + 0.75 * Math.abs(Math.sin(performance.now() / 160));
   }
   function rowMark(o) {
     const pk = document.getElementById('pick');
@@ -389,23 +531,27 @@ const Targeting = (function () {
   }
   function frame() {
     let n = 0;
-    const seen = new Set();
+    const seen = new Set(),
+      flash = new Set(); // the meshes of the legal target cards (not yet picked)
     if (T && game.phase === 'play') {
       const k = T.base.kind === 'cast' ? T.base : T.cur,
         s = vstate();
       // marks on the board for every legal target and every picked one
       const opts = k ? k.options.filter(o => !isButton(s, o)) : [];
-      for (const o of [...T.picks, ...opts]) {
+      for (const o of [...T.picks, ...T.auto, ...opts]) {
         if (seen.has(o)) continue;
         const pt = anchorOf(o);
         if (!pt) continue;
         seen.add(o);
         markAt(o, pt, picked(o));
+        const id = isCard(game, o) ? o : game.slots[o.startsWith('Z:') ? o.slice(2) : o],
+          m = id && meshes.get(id);
+        if (m && m.visible && !picked(o)) flash.add(m);
       }
       const S = srcPt();
       if (S) {
         // one arrow on every picked target
-        T.picks.forEach(o => {
+        [...T.picks, ...T.auto].forEach(o => {
           const pt = anchorOf(o) || rowMark(o);
           if (pt) curve(pathAt(n++), S, pt, 0.18);
         });
@@ -415,9 +561,42 @@ const Targeting = (function () {
           for (let i = 0; i < rest; i++) curve(pathAt(n++), S, ptr, 0.12 + (i - (rest - 1) / 2) * 0.16);
       }
     }
+    tgtGlow(flash);
     for (const [o, d] of marks) if (!seen.has(o)) d.hidden = true;
     for (let i = n; i < paths.length; i++) paths[i].setAttribute('visibility', 'hidden');
-    return n > 0;
+    return n > 0 || seen.size > 0; // the marks follow the camera, the target cards flash
   }
+  // ---- the choice panel (#pick) can be dragged anywhere on the screen by its background or prompt (buttons and rows still click)
+  (function pickDrag() {
+    const pk = document.getElementById('pick');
+    if (!pk) return;
+    let d = null;
+    const put = (x, y) => {
+      const r = pk.getBoundingClientRect();
+      x = Math.max(0, Math.min(innerWidth - r.width, x));
+      y = Math.max(0, Math.min(innerHeight - Math.min(r.height, 40), y));
+      pk.style.left = x + 'px';
+      pk.style.top = y + 'px';
+      pk.style.transform = 'none';
+      ui.pickPos = { x, y };
+    };
+    pk.addEventListener('pointerdown', e => {
+      if (e.button !== 0 || e.target.closest('button,input,select,textarea,a,label,.tlist,[draggable="true"]')) return;
+      const r = pk.getBoundingClientRect();
+      d = { dx: e.clientX - r.left, dy: e.clientY - r.top };
+      pk.setPointerCapture(e.pointerId);
+      pk.classList.add('dragging');
+      e.preventDefault();
+      e.stopPropagation();
+    });
+    pk.addEventListener('pointermove', e => d && put(e.clientX - d.dx, e.clientY - d.dy));
+    const end = () => {
+      d = null;
+      pk.classList.remove('dragging');
+    };
+    pk.addEventListener('pointerup', end);
+    pk.addEventListener('pointercancel', end);
+    addEventListener('resize', () => ui.pickPos && put(ui.pickPos.x, ui.pickPos.y)); // stays on screen
+  })();
   return { refresh, on, choice, vstate, picked, click, commit, flush, cancel, optAt, render, prompt, frame };
 })();
