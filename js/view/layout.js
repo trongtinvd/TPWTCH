@@ -75,6 +75,14 @@
   if (dbgEl && typeof ResizeObserver !== 'undefined') new ResizeObserver(measureDbg).observe(dbgEl);
   addEventListener('resize', measureDbg);
   measureDbg();
+  // --fnB = the bottom of the action buttons (portrait: the settings buttons sit under them, css/index.css)
+  const fnB = document.getElementById('fn');
+  const measureFn = () => {
+    if (fnB) rootStyle.setProperty('--fnB', Math.ceil(fnB.getBoundingClientRect().bottom) + 'px');
+  };
+  if (fnB && typeof ResizeObserver !== 'undefined') new ResizeObserver(measureFn).observe(fnB);
+  addEventListener('resize', measureFn);
+  measureFn();
   handle('hTop', 'top', 'Drag to resize the inspector');
   handle('hBot', 'bot', 'Drag to resize the stack and card lists');
   load();

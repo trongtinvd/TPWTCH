@@ -381,3 +381,29 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+
+/* portrait: smaller avatar icons and row gaps (the life box takes less of the 3D band) [2026-11-25] */
+@media (orientation: portrait) {
+  /* the action point stars go on the name line (no third row) */
+  #hp .hpr {
+    grid-template-columns: 26px minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      'av nm aps num'
+      'av bar bar bar';
+    row-gap: 2px;
+  }
+  #hp .hpr.foe {
+    grid-template-columns: auto auto minmax(0, 1fr) 26px;
+    grid-template-areas:
+      'num aps nm av'
+      'bar bar bar av';
+  }
+  #hp .hpr .aps {
+    min-height: 0;
+    flex-wrap: nowrap;
+  }
+  #hp .hpr .av {
+    width: 26px;
+    height: 26px;
+  }
+}

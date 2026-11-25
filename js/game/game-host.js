@@ -958,11 +958,27 @@ document.body.appendChild(dbg);
     host.appendChild(b.el);
   })
 );
+// portrait (phone): shorter button texts, so each button row stays one line and covers less of the hands (the full text is the tooltip)
+const SHORT = {
+  battle: () => (game.attackPhase ? 'End atk' : 'Attack'),
+  endturn: () => 'End',
+  surrender: () => '\u2691',
+  autoturn: () => 'Auto ' + (ui.autoTurn ? 'on' : 'off'),
+  actions: () => 'Act: ' + ui.actions,
+  stops: () => 'Stops ' + (typeof StopsBar !== 'undefined' && StopsBar.portraitShown() ? '\u25be' : '\u25b8'),
+  reset: () => (rp.on ? 'Restart' : 'Reset'),
+  deckedit: () => 'Decks ' + (ui.deckEdit ? 'on' : 'off'),
+  player: () => 'Switch',
+  auto: () => 'Cam ' + (ui.autoView ? 'auto' : 'free'),
+};
+const portraitMQ = typeof matchMedia !== 'undefined' ? matchMedia('(orientation: portrait)') : null;
 function updateDbg() {
   if (typeof StopsBar !== 'undefined') StopsBar.update(); // the stop icons (bottom right)
   if (typeof TurnStrip !== 'undefined') TurnStrip.update(); // the turn order strip (right side)
   [...FN, ...DBTN].forEach(b => {
-    b.el.textContent = b.label();
+    const full = b.label();
+    b.el.textContent = portraitMQ && portraitMQ.matches && SHORT[b.id] ? SHORT[b.id]() : full;
+    b.el.title = full;
     b.el.disabled = !b.on();
     if (b.show) b.el.hidden = !b.show();
     if (b.id === 'battle') b.el.classList.toggle('on', game.attackPhase);

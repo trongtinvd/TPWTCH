@@ -1399,7 +1399,7 @@ canvas {
   #turnStrip {
     --ts-count: 6;
     --ts-pitch: 31px;
-    top: calc(var(--vt, 0px) + 92px);
+    top: calc(var(--hpB, 120px) + 40px); /* under the view button */
     right: 4px;
     width: 50px;
   }
@@ -1436,5 +1436,59 @@ canvas {
   #turnStrip .ts.now,
   #turnStrip .ts.now::after {
     animation: none;
+  }
+}
+
+/* ---- portrait: compact life bars, button rows and status line, so the hands (side view) stay visible [2026-11-25] ---- */
+@media (orientation: portrait) {
+  #hp {
+    padding: 4px 8px;
+    gap: 10px;
+    font-size: 12px;
+  }
+  #viewBtn {
+    top: calc(var(--hpB, 100px) + 4px);
+  }
+  /* the action buttons too: first in the right half of the bottom area (the 3D band keeps only the life bars, the view button and the
+     turn strip, so the opponent's hand shows) */
+  #fn {
+    top: calc(100dvh - var(--botH) + 6px);
+    left: calc(50% + 4px);
+    right: 8px;
+    max-width: none;
+    flex-wrap: wrap;
+    gap: 4px;
+    z-index: 2;
+  }
+  #fn .abtn,
+  #viewBtn,
+  #dbg .abtn {
+    padding: 3px 7px;
+    font-size: 11px;
+    white-space: nowrap;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  /* the game settings buttons and the status line leave the 3D band: they sit in the free right half of the bottom area (beside the
+     stack panel; a card list opened there covers them until it is closed) */
+  #dbg {
+    left: calc(50% + 4px);
+    right: 8px;
+    top: calc(var(--fnB, 70dvh) + 6px);
+    bottom: auto;
+    flex-wrap: wrap;
+    gap: 4px;
+    z-index: 2;
+  }
+  #status {
+    left: calc(50% + 4px);
+    right: 8px;
+    bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    font-size: 11px;
+    padding: 4px 8px;
+  }
+  #deckPanel:not([hidden]) {
+    z-index: 4;
   }
 }
