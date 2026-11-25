@@ -538,7 +538,12 @@ const View3D = (function () {
     for (const k in piles3d) piles3d[k].mesh.scale.x = piles3d[k].mesh.scale.z = bs;
     for (const m of meshes.values())
       for (const b of m.userData.bm || [])
-        if (b.isSprite) b.scale.set(b.userData.b0, (b.userData.b0 * (m.scale.x || 1)) / (m.scale.y || 1), 1); // square, sized with its card
+        if (b.isSprite) {
+          b.scale.set(b.userData.b0, (b.userData.b0 * (m.scale.x || 1)) / (m.scale.y || 1), 1); // square, sized with its card
+          // a hand card stands facing the camera: its local up points AT the camera, so a lift there put the badge in front of the
+          // card, and perspective slid it off the card's corner as the hand moved sideways. On the face it stays on its corner.
+          b.position.y = m.userData.cam3d ? 0.01 : b.userData.y0 != null ? b.userData.y0 : b.position.y;
+        }
     for (const m of meshes.values()) if (m.userData.sword) swordPose(m, true); // the swords stand above the characters, bigger
     if (flashing.size) {
       flashTick(now); // the flying sword flashes
@@ -561,7 +566,7 @@ const View3D = (function () {
   tmpRay.layers.enable(HAND_LAYER);
   function onTop(o, v) {
     o.userData.top9 = v;
-    o.traverse(x => x.layers.set(v ? HAND_LAYER : 0));
+    o.traverse(x => x.userData.badge || x.layers.set(v ? HAND_LAYER : 0)); // a stat badge stays on BADGE_LAYER (drawn last)
   }
   // two passes: the board, then (depth cleared) the hands, so a board card or zone near the camera never cuts a hand
   function render(r, sc, c) {

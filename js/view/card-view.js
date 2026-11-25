@@ -617,6 +617,7 @@ function badgeSprite(map) {
   sp.renderOrder = 900;
   sp.scale.set(B, B, 1);
   sp.userData.b0 = B; // view3d.js keeps it square on a scaled card
+  sp.userData.badge = true; // view3d.js onTop leaves its layer alone (badges are always drawn last, over the hands too)
   sp.raycast = () => {};
   return sp;
 }
@@ -635,6 +636,7 @@ function setBadges(m, spec) {
       if (spec.bill) {
         const sp = badgeSprite(badgeTexture(v, fill, line));
         sp.position.set(sg * (left ? -1 : 1) * (CW / 2 - 0.3), 0.3, sg * (CD / 2 - 0.3));
+        sp.userData.y0 = 0.3; // lifted off a board card; a hand card keeps it on its face (view3d.js postFrame)
         m.add(sp);
         u.bm.push(sp);
         return;
