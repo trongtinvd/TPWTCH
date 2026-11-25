@@ -86,7 +86,7 @@ Each file on its own: no / broken model = cube; no / broken / non-fitting clip =
 ## When things play
 
 - `enter`: a creature appears on the board while the side view is open (creatures already there when you switch stand in idle).
-- `attack` / `finishing_attack`: when the sword of a resolving Attack starts flying; finishing = it destroyed a creature it hit, or took a player below 0.
+- `attack` / `finishing_attack`: when the sword of a resolving Attack starts flying; finishing (lethal) = its hit on the player takes them below 0 and decides the game.
 - `get_hit`: when the sword arrives, or when any other damage lowers its HP.
 - `die`: the creature went to the graveyard (or a token ceased to exist); it plays where the creature stood, then the character is removed. Bounce / exile / spin just remove it.
 - `channeling_idle`, `stun`: not in the game yet; play them by hand (below).

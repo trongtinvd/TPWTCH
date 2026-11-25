@@ -211,9 +211,9 @@
     Sim.enterCombat(s);
     let cue = L.attackCue(attack(s, k.iid), s);
     eq(
-      'an attack that destroys what it hits is a finishing attack',
-      [cue.attacker, cue.category],
-      [k.iid, 'finishing_attack']
+      'an attack that destroys the creature it hits is NOT a finishing attack (only one that decides the game)',
+      [cue.attacker, cue.category, s.cards[v.iid].loc],
+      [k.iid, 'attack', 'gy']
     );
     eq('the creature hit gets hit', cue.hits, [{ iid: v.iid, category: 'get_hit' }]);
     eq('then it dies: it went to the graveyard', L.leaveCategory(s.cards[v.iid]), 'die');
@@ -249,10 +249,16 @@
     Sim.enterCombat(s);
     cue = L.attackCue(attack(s, k4.iid), s);
     eq(
-      'a hit that takes the player below 0 is a finishing attack',
-      [s.life.Opponent, cue.category],
-      [-1, 'finishing_attack']
+      'a hit that takes the player below 0 and decides the game is a finishing attack',
+      [s.life.Opponent, !!s.result, cue.category],
+      [-1, true, 'finishing_attack']
     );
+    s = start(8806);
+    const k6 = take(s, 'Player', 'knight', 'board', 'Player|front|0');
+    Tests.ctx.setLife(s, 'Opponent', 4);
+    Sim.enterCombat(s);
+    cue = L.attackCue(attack(s, k6.iid), s);
+    eq('a hit that leaves the player at 0 (alive) is a normal attack', [s.life.Opponent, cue.category], [0, 'attack']);
     eq('no hit at all: no cue', L.attackCue([{ t: 'TurnChanged' }], s), null);
     eq(
       'leaving for the hand / exile / deck is not a death',

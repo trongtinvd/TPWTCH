@@ -453,11 +453,11 @@ const Anim3DLogic = (function () {
     );
     const attacker = attackerIid || (hits.find(e => e.source) || {}).source || null;
     if (!attacker) return null;
-    const dead = new Set(events.filter(e => e.t === 'PermanentDestroyed').map(e => e.iid));
-    // only what the ATTACKER hit counts: a strike back that kills the attacker is no finishing attack (bug report: Deep Sea Shark)
+    // a finishing (lethal) attack: the attacker's hit on the PLAYER takes them below 0 and decides the game (a creature killed is not)
     const lethal =
-      hits.some(e => e.t === 'DamageDealt' && e.source === attacker && dead.has(e.target)) ||
-      hits.some(e => e.t === 'PlayerDamaged' && post && post.life && post.life[e.player] < 0);
+      hits.some(
+        e => e.t === 'PlayerDamaged' && e.source === attacker && post && post.life && post.life[e.player] < 0
+      ) && events.some(e => e.t === 'GameDecided');
     return {
       attacker,
       category: lethal ? 'finishing_attack' : 'attack',

@@ -96,7 +96,7 @@ Check a file quickly: drop it on https://gltf-viewer.donmccurdy.com/ - it lists 
 }
 ```
 
-**Categories** (when they play): `enter` (the creature appears), `idle` (loops), `attack` (its Attack resolves), `finishing_attack` (the attack destroyed a creature or took a player below 0; empty = `attack`), `get_hit` (it takes damage), `die` (it goes to the GY), `channeling_idle`, `stun` (no game event yet: console `View3D.debug.play('stun')`). Several entries in a category = a random pick, never the same twice in a row. An empty or missing category plays a procedural clip.
+**Categories** (when they play): `enter` (the creature appears), `idle` (loops), `attack` (its Attack resolves), `finishing_attack` (lethal: the attack took the player below 0 and decided the game; empty = `attack`), `get_hit` (it takes damage), `die` (it goes to the GY), `channeling_idle`, `stun` (no game event yet: console `View3D.debug.play('stun')`). Several entries in a category = a random pick, never the same twice in a row. An empty or missing category plays a procedural clip.
 
 **An animation entry**
 
