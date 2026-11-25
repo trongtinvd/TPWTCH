@@ -2,14 +2,15 @@
 // Saved to localStorage when a duel is left (the newest 5), listed and played back from the main menu.
 // Storage: one small meta entry per replay (tpw_rpm_<id>) and the data (JSON, deflated, base64url) in chunks (tpw_rp_<id>_<k>).
 // A replay only VIEWS: input is closed (send() refuses everything but the replay's own commands), the gameplay buttons are hidden.
-// kinds: bot (Vs Bot), self (Vs Self), over (a take over of another replay) - colour coded in the list and in the bar.
+// kinds: bot (Vs Bot), self (Vs Self), over (a take over of another replay), botbot (Bot vs Bot, js/game/bot-match.js) - colour coded.
+// A Bot vs Bot record also plays its bots again (BotMatch.run) so the log shows each bot decision.
 const Replays = (function () {
   const MAX = 5,
     CHUNK = 500000, // characters per storage entry (replays saved as cookies were chunked at 3600 and still load)
     MAXCHUNKS = 4, // a longer duel is not saved
     PM = 'tpw_rpm_',
     PD = 'tpw_rp_',
-    KINDS = { bot: 'Vs Bot', self: 'Vs Self', over: 'Take over' },
+    KINDS = { bot: 'Vs Bot', self: 'Vs Self', over: 'Take over', botbot: 'Bot vs Bot' },
     SPEEDS = [0.5, 1, 2, 4],
     mem = new Map(); // the replays saved in this session (used when storage is full or blocked)
   const kindOf = m => m.k || m.kind || m.m || m.mode || 'self'; // list entries (k) and records (kind); older ones only knew the mode
@@ -82,23 +83,29 @@ const Replays = (function () {
       } catch (e) {}
     return mem.has(id) ? mem.get(id).rec : null;
   }
+  // the running duel as a record (also what Export writes)
+  const currentRec = () =>
+    rp.on ? rp.rec : ui.rpInit ? Object.assign({ v: 1 }, ui.rpInit, { cmds: cmdLog.slice() }) : null;
   async function saveCurrent() {
     // everything is captured BEFORE the first await: the caller may reset the game right after
     const init = ui.rpInit;
     if (!init || cmdLog.length <= (init.base || 0) || rp.on) return false; // nothing new to record (a take over without a move is not a replay)
-    const rec = Object.assign({ v: 1 }, init, { cmds: cmdLog.slice() }),
-      id = Date.now().toString(36),
+    return saveRecord(Object.assign({ v: 1 }, init, { cmds: cmdLog.slice() }), sim);
+  }
+  async function saveRecord(rec, end) {
+    // end = the state after the last command (turn and life for the list)
+    const id = Date.now().toString(36),
       meta = {
         id,
         t: Date.now(),
-        a: init.a,
-        b: init.b,
-        m: init.mode,
-        k: init.kind || init.mode,
-        as: init.as || null,
+        a: rec.a,
+        b: rec.b,
+        m: rec.mode,
+        k: rec.kind || rec.mode,
+        as: rec.as || null,
         n: rec.cmds.length,
-        turns: sim.turn,
-        life: [sim.life.Player, sim.life.Opponent],
+        turns: end.turn,
+        life: [end.life.Player, end.life.Opponent],
         c: 0,
       };
     const data = await pack(rec),
@@ -125,6 +132,7 @@ const Replays = (function () {
     over: '<circle cx="8" cy="5" r="3"/><path d="M2 14c0-3.3 2.7-5 6-5s6 1.7 6 5z"/>',
     min: '<path d="M3 11h10v2H3z"/>',
     max: '<path fill-rule="evenodd" d="M3 3h10v10H3zm2 2v6h6V5z"/>',
+    save: '<path d="M7 2h2v6l2.3-2.3 1.4 1.4L8 11.8 3.3 7.1l1.4-1.4L7 8zM3 12h10v2H3z"/>',
     exit: '<path d="M3.5 2.5L8 7l4.5-4.5 1 1L9 8l4.5 4.5-1 1L8 9l-4.5 4.5-1-1L7 8 2.5 3.5z"/>',
   };
   const setIcon = (b, name) => {
@@ -190,6 +198,7 @@ const Replays = (function () {
       lab,
       dec,
       ibtn('over', 'Take over', 'Take over: play on from here (or from the start)', openTakeOver),
+      ibtn('save', 'Export log', 'Export the whole game\u2019s debug log as a file', () => exportDialog()),
       minBtn,
       ibtn('exit', 'Exit replay', 'Exit the replay', exit, 'c-atk')
     );
@@ -208,7 +217,9 @@ const Replays = (function () {
     tag.className = 'rp-tag txt k-' + k;
     tag.textContent = KINDS[k] || k;
     lab.textContent = rp.i + ' / ' + rp.rec.cmds.length;
-    dec.textContent = sim.result ? ' \u00b7 decided: ' + Result.text(sim.result) : '';
+    dec.textContent =
+      (rp.rec.bb ? ' \u00b7 seed ' + rp.rec.bb.seed : '') +
+      (sim.result ? ' \u00b7 decided: ' + Result.text(sim.result) : '');
     setIcon(playBtn, rp.playing ? 'pause' : 'play');
     playBtn.lastChild.textContent = rp.playing ? 'Pause' : 'Play';
     spdBtn.lastChild.textContent = '\u00d7' + rp.speed;
@@ -237,7 +248,7 @@ const Replays = (function () {
     rp.feed = true;
     let r;
     try {
-      r = send(rp.rec.cmds[rp.i], 'replay');
+      r = send(rp.rec.cmds[rp.i], 'replay', rp.traces && rp.traces[rp.i]);
     } finally {
       rp.feed = false;
     }
@@ -252,7 +263,37 @@ const Replays = (function () {
     rp.i++;
     Result.replayCheck(); // the game was just decided: pause here (Play runs the rest of the record)
     showBar(true);
+    botMatchDone();
     return true;
+  }
+  // the whole record at once, without animations (Bot vs Bot "skip presentation"); Step back still works (the last 200 commands)
+  function jumpEnd() {
+    if (!rp.on || ui.fxBusy) return;
+    pause();
+    while (rp.i < rp.rec.cmds.length) {
+      const cmd = rp.rec.cmds[rp.i],
+        pre = structuredClone(sim),
+        r = Sim.dispatch(sim, cmd);
+      if (!r.ok) {
+        ui.note = 'Replay stopped at command ' + (rp.i + 1) + ': ' + r.why;
+        break;
+      }
+      undoStack.push(pre);
+      if (undoStack.length > 200) undoStack.shift();
+      GameLog.add(pre, cmd, r.events, 'replay', rp.traces && rp.traces[rp.i]);
+      rp.i++;
+    }
+    game = sim;
+    Result.replayCheck();
+    applyView();
+    showBar(true);
+    botMatchDone();
+  }
+  // a Bot vs Bot record reached its end (or its decision): the summary opens once
+  function botMatchDone() {
+    if (!rp.rec.bb || rp.bbShown || !(sim.result || rp.i >= rp.rec.cmds.length)) return;
+    rp.bbShown = true;
+    if (typeof BotMatchUI !== 'undefined') BotMatchUI.finished();
   }
   function stepBack() {
     if (!rp.on || ui.fxBusy || !undoStack.length || rp.i <= 0) return;
@@ -299,7 +340,12 @@ const Replays = (function () {
     // keep = a restart: the seat and the bar size stay as they were
     clearTimeout(rp.timer);
     Result.reset();
-    Object.assign(rp, { on: true, feed: false, rec, i: 0, playing: false });
+    Object.assign(rp, { on: true, feed: false, rec, i: 0, playing: false, bbShown: false, traces: null });
+    if (rec.bb && typeof BotMatch !== 'undefined') {
+      // the bots decide again (same seeds): their decisions go into the log, if they still choose the recorded commands
+      const again = BotMatch.run(Object.assign({}, rec, { cmds: [] }), { trace: true, max: rec.cmds.length });
+      if (JSON.stringify(again.rec.cmds) === JSON.stringify(rec.cmds)) rp.traces = again.traces;
+    }
     if (!keep) Object.assign(rp, { view: 'auto', min: false });
     ui.mode = 'replay';
     ui.deckEdit = false;
@@ -547,5 +593,21 @@ const Replays = (function () {
       box.appendChild(row);
     });
   }
-  return { list, remove, load, saveCurrent, open, bar: showBar, start, restart, cycleView };
+  return {
+    list,
+    remove,
+    load,
+    saveCurrent,
+    saveRecord,
+    currentRec,
+    open,
+    bar: showBar,
+    start,
+    restart,
+    cycleView,
+    jumpEnd,
+    play: () => {
+      if (rp.on && !rp.playing) toggle();
+    },
+  };
 })();

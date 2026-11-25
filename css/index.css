@@ -909,25 +909,55 @@ canvas {
   font-weight: 700;
   word-break: break-word;
 }
-.lgh i {
+.lgh i,
+.lgc i {
   font-style: normal;
   font-weight: 400;
   font-size: 10px;
   opacity: 0.8;
 }
-.lgh i.auto {
+.lgh i.auto,
+.lgc i.auto {
   color: #6fb3ff;
 }
-.lgh i.bot {
+.lgh i.bot,
+.lgc i.bot {
   color: #ff9a6f;
 }
-.lgh i.replay {
+.lgh i.replay,
+.lgc i.replay {
   color: #c79bff;
 }
 .lge {
   padding-left: 6px;
   opacity: 0.92;
   word-break: break-word;
+}
+.lgh {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 10px;
+  opacity: 0.85;
+}
+.lgc {
+  font-weight: 700;
+  word-break: break-word;
+}
+.lgb {
+  padding-left: 6px;
+  font-size: 10px;
+  color: #ff9a6f;
+  opacity: 0.9;
+  word-break: break-word;
+}
+.lgd {
+  padding-left: 6px;
+  font-size: 10px;
+  color: var(--gold, #d8b45a);
+  word-break: break-word;
+}
+.lge small {
+  font-size: 9px;
+  opacity: 0.6;
 }
 .lge code {
   font-family: ui-monospace, Menlo, Consolas, monospace;

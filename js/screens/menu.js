@@ -1,4 +1,4 @@
-// menu.js - Main menu scene (title, three buttons, two dancing card models), the start dialog and small modal helpers
+// menu.js - Main menu scene (title, buttons, two dancing card models), the start dialog and small modal helpers (Bot vs Bot: bot-match-ui.js)
 function mkEl(tag, cls, html) {
   const e = document.createElement(tag);
   if (cls) e.className = cls;
@@ -361,6 +361,7 @@ const MenuUI = {
     [
       ['Vs Self', () => startDialog('self')],
       ['Vs Bot', () => startDialog('bot')],
+      ['Bot vs Bot', () => BotMatchUI.open()],
       [
         'Edit Decks',
         () => {

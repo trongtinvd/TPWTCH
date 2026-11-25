@@ -1,6 +1,7 @@
 // gamelog.js - the game log: the BACK of the stack panel (flip it with the button in the panel header).
-// One group per accepted command (who sent it: player / auto / bot / replay) with every rule event it caused, each under its event name
-// (the `t` of the Sim events), so a game can be reviewed by hand. "Copy" puts the whole log on the clipboard.
+// One group per accepted command (who sent it: player / auto / bot / replay). The players' logs are the story (narrate.js); "All events"
+// is the debug log (debuglog.js): the state before each command, the command, the bot's decision, every event with its fields, what
+// changed. "Copy" puts the whole log on the clipboard; "Export" saves the whole game's debug log as a file (DebugLog.exportText).
 const GameLog = (function () {
   const groups = [],
     MAX = 3000,
@@ -8,85 +9,10 @@ const GameLog = (function () {
   let ver = 0,
     shown = '',
     wrap = null;
-  const cn = iid => {
-    const c = sim.cards[iid];
-    return c ? c.def.name : String(iid);
-  };
-  const who = p => NAME[p] || String(p);
-  const stop = k => STOP_NAMES[k] || k;
-  const T = {
-    DeckReordered: e => who(e.player) + ' reordered their deck',
-    PlayerReady: e => who(e.player) + ' pressed Start',
-    GameStarted: () => 'opening hands dealt, the game starts',
-    CardDrawn: e => who(e.player) + ' draws ' + cn(e.iid),
-    CardAdded: e => cn(e.iid) + ' goes to ' + who(e.player) + '\u2019s hand' + (e.debug ? ' (debug)' : ''),
-    CardMilled: e => cn(e.iid) + ' milled from ' + who(e.player) + '\u2019s deck',
-    CardDiscarded: e => cn(e.iid) + ' discarded',
-    CardPlayed: e => who(e.player) + ' plays ' + cn(e.iid),
-    CardExiled: e => cn(e.iid) + ' exiled',
-    PermanentSummoned: e => cn(e.iid) + ' enters ' + e.slot,
-    PermanentMoved: e => cn(e.iid) + ' shifts to ' + e.slot,
-    PermanentDestroyed: e =>
-      cn(e.iid) +
-      ' sent from the field to the graveyard' +
-      (e.by === 'rule'
-        ? ' by the rules' + (e.why ? ' (' + e.why + ')' : '')
-        : e.by === 'cost'
-          ? ' as a cost'
-          : ' by an effect'),
-    PermanentReturned: e => cn(e.iid) + ' returned to its owner\u2019s hand',
-    StackObjectCreated: e => cn(e.iid) + (e.attack ? ' (Attack)' : '') + ' put on the stack',
-    StackObjectResolved: e => cn(e.iid) + ' resolves',
-    StackObjectCountered: e => cn(e.iid) + ' countered (stack HP -1 or lower)',
-    StackObjectDamaged: e => 'stack object #' + e.sid + ' takes ' + e.amount + ' damage',
-    StackObjectFizzled: e => 'stack object #' + e.sid + ' fizzles (its target is gone)',
-    StackEmptied: () => 'the stack is empty',
-    PriorityPassed: e => 'priority passes to ' + who(e.to),
-    ResponseWindowOpened: e => 'stop: ' + stop(e.kind) + ' (' + who(e.player || other(sim.active)) + ' may respond)',
-    ResponseWindowClosed: e => 'stop closed: ' + stop(e.kind),
-    EndStepEntered: () => 'end step',
-    DrawStepEntered: e => who(e.player) + '\u2019s draw phase',
-    StopChanged: e => who(e.player) + ' stop "' + stop(e.kind) + '" (' + e.role + ') ' + (e.on ? 'on' : 'off'),
-    TurnChanged: e => 'turn ' + sim.turn + ': ' + who(e.active) + '\u2019s turn begins',
-    AttackPhaseChanged: e => 'combat ' + (e.on ? 'started' : 'ended'),
-    CombatSkipped: e => who(e.player) + '\u2019s combat is skipped (End turn instead)',
-    CreatureAttackDeclared: e => cn(e.iid) + ' attacks column ' + (e.col + 1) + (e.extra ? ' (extra attack)' : ''),
-    AttackCancelled: e => 'the Attack of ' + cn(e.iid) + ' is cancelled',
-    AttackBoosted: e => 'Attack #' + e.sid + ' gets +' + e.amount + ' damage',
-    DamageDealt: e => cn(e.source) + ' deals ' + e.amount + ' ' + e.type + ' damage to ' + cn(e.target),
-    DamageDenied: e => e.amount + ' damage denied on ' + (e.target ? cn(e.target) : 'stack object #' + e.sid),
-    DamageRemoved: e => e.amount + ' damage removed from ' + cn(e.target),
-    PlayerDamaged: e => who(e.player) + ' takes ' + e.amount + ' damage' + (e.combat ? ' (combat)' : ''),
-    LifePaid: e => who(e.player) + ' pays ' + e.amount + ' life',
-    LifeCounterAdded: e => 'life gained: +' + e.amount,
-    CounterAdded: e => cn(e.iid) + ' gets a ' + e.color + ' shield',
-    ZoneUnusable: e => e.slot + ' becomes unusable',
-    HistoryCapReached: () => 'the history limit was reached: the game is over',
-    ZoneDamaged: e => e.slot + ' takes ' + e.amount + ' zone damage',
-    AbilitiesTransformed: e => cn(e.iid) + ' takes on new abilities (was ' + e.from + ')',
-    AbilityActivated: e => cn(e.iid) + ' activates ability #' + (e.ab + 1) + ' (' + e.speed + ')',
-    ChoiceRequested: e => who(e.player) + ' must choose',
-    ChoiceMade: e => who(e.player) + ' chose',
-    ActionPointGained: e => who(e.player) + ' gains an action point',
-    ActionPointSpent: e => who(e.player) + ' spends an action point: ' + e.why,
-    CardRevealed: e => cn(e.iid) + ' is revealed by ' + who(e.player),
-    EffectFailed: e => cn(e.iid) + ' fails: ' + e.why,
-    CardReturnedExtra: e => cn(e.iid) + ' returns to the extra deck',
-    GameDecided: e => 'GAME DECIDED: ' + (e.winner ? who(e.winner) + ' wins' : 'draw') + ' (' + e.why + ')',
-  };
-  const evText = e => (T[e.t] ? T[e.t](e) : JSON.stringify(e));
-  function cmdText(c) {
-    const parts = [c.type];
-    if (c.player) parts.push('by ' + who(c.player));
-    if (c.iid) parts.push(cn(c.iid));
-    for (const k of ['slot', 'zone', 'col', 'tplayer', 'tsid', 'ab', 'on', 'extra', 'from', 'to'])
-      if (c[k] != null) parts.push(k + '=' + c[k]);
-    if (c.option != null) parts.push('option=' + (sim.cards[c.option] ? cn(c.option) : c.option));
-    if (c.debug) parts.push('(debug)');
-    return parts.join(' ');
-  }
-  function add(pre, cmd, events, src) {
-    const turn = pre.turn;
+  function add(pre, cmd, events, src, trace) {
+    // trace: the bot's decision (its candidates and what it tried), for the debug view
+    const turn = pre.turn,
+      dbg = DebugLog.entry(pre, sim, cmd, events, src, trace);
     groups.push({
       turn,
       story: {
@@ -94,8 +20,13 @@ const GameLog = (function () {
         Opponent: Narrate.story(pre, sim, cmd, events, 'Opponent'),
       }, // each player's own log
       src: src || 'player',
-      cmd: cmdText(cmd),
-      lines: events.map(e => [e.t, evText(e), e.t === 'ActionPointSpent' ? { p: e.player, id: e.id } : null]),
+      cmd: dbg.cmdText,
+      dbg, // the debug entry (state before, command, bot decision, events with fields, what changed): the "All events" view
+      lines: dbg.events.map((e, k) => [
+        e.t,
+        e.text,
+        e.t === 'ActionPointSpent' ? { p: events[k].player, id: events[k].id } : null,
+      ]),
     }); // a spent action point can be clicked in the log: it opens its inspection panel
     if (groups.length > MAX) groups.shift();
     ver++;
@@ -107,6 +38,8 @@ const GameLog = (function () {
       src: 'auto',
       cmd: 'Game start',
       lines: [],
+      dbg: null,
+      start: DebugLog.ctxText(DebugLog.snap(s)),
       story: { Player: Narrate.opening(s, 'Player'), Opponent: Narrate.opening(s, 'Opponent') },
     });
     ver++;
@@ -146,7 +79,12 @@ const GameLog = (function () {
     groups.length = 0;
     ver++;
   };
-  const head = (g, i) => '#' + (i + 1) + ' \u00b7 T' + g.turn + ' \u00b7 ' + g.cmd;
+  // command numbers count commands only (the opening group is not one)
+  const head = (g, i) =>
+    g.dbg
+      ? DebugLog.head(g.dbg, i - (groups[0] && !groups[0].dbg ? 1 : 0))
+      : '#' + (i + 1) + ' \u00b7 ' + g.cmd + (g.start ? ' \u00b7 ' + g.start : '');
+  const rawText = (g, i) => (g.dbg ? DebugLog.entryText(g.dbg, i) : head(g, i));
   function buildStory() {
     const all = storyText(),
       from = Math.max(0, all.length - 600);
@@ -189,20 +127,33 @@ const GameLog = (function () {
       wrap.appendChild(d);
     }
     for (let i = from; i < groups.length; i++) {
+      // one command: the state before it, the command (and sender), the bot's decision, every event with its fields, what changed
       const g = groups[i],
+        x = g.dbg,
         d = document.createElement('div'),
-        h = document.createElement('div');
+        h = document.createElement('div'),
+        sub = (cls, text) => {
+          const l = document.createElement('div');
+          l.className = cls;
+          l.textContent = text;
+          d.appendChild(l);
+          return l;
+        };
       d.className = 'lgg';
       h.className = 'lgh';
       h.textContent = head(g, i);
-      if (g.src !== 'player') {
-        const s = document.createElement('i');
-        s.className = g.src;
-        s.textContent = ' ' + g.src;
-        h.appendChild(s);
-      }
       d.appendChild(h);
-      for (const [name, text, ap] of g.lines) {
+      if (x) {
+        const c = sub('lgc', '> ' + x.cmdText);
+        if (g.src !== 'player') {
+          const s = document.createElement('i');
+          s.className = g.src;
+          s.textContent = ' ' + g.src;
+          c.appendChild(s);
+        }
+        if (x.bot) sub('lgb', '? ' + x.bot);
+      }
+      g.lines.forEach(([name, text, ap], k) => {
         const l = document.createElement('div'),
           c = document.createElement('code');
         l.className = 'lge' + (ap ? ' apl' : '');
@@ -213,8 +164,15 @@ const GameLog = (function () {
         }
         c.textContent = name;
         l.append(c, document.createTextNode(text));
+        const f = x && x.events[k] && x.events[k].fields;
+        if (f) {
+          const sm = document.createElement('small');
+          sm.textContent = ' {' + f + '}';
+          l.appendChild(sm);
+        }
         d.appendChild(l);
-      }
+      });
+      if (x && x.delta.length) sub('lgd', '= ' + x.delta.join(', '));
       wrap.appendChild(d);
     }
   }
@@ -233,15 +191,7 @@ const GameLog = (function () {
   function copy(btn) {
     const text =
         mode === 'raw'
-          ? groups
-              .map(
-                (g, i) =>
-                  head(g, i) +
-                  (g.src !== 'player' ? ' [' + g.src + ']' : '') +
-                  '\n' +
-                  g.lines.map(l => '    ' + l[0] + '  ' + l[1]).join('\n')
-              )
-              .join('\n')
+          ? groups.map(rawText).join('\n\n')
           : storyText()
               .map(x => (x.l.h ? '\n' + x.l.text : x.n + ' ' + x.l.text))
               .join('\n'),
@@ -277,6 +227,9 @@ const GameLog = (function () {
       ver++;
       sync();
     } else if (e.target.closest('[data-logcopy]')) copy(e.target.closest('[data-logcopy]'));
+    else if (e.target.closest('[data-logexport]')) exportDialog();
   });
-  return { add, begin, pop, clear, view, modeLabel };
+  // the debug entries of every command so far (for Export: used when they cover the whole record)
+  const entries = () => groups.filter(g => g.dbg).map(g => g.dbg);
+  return { add, begin, pop, clear, view, modeLabel, entries };
 })();

@@ -50,6 +50,8 @@ GameState, PlayerState, BoardState, CardInstance, PermanentInstance, StackObject
 
 ## Logs [proto]
 
+**Debug log** (`js/log/debuglog.js`, headless): one entry per accepted command: the state before it in one line (turn, stage, who acts / priority, HP, action points, hand / deck / GY / board sizes, stack, open stop, pending choice), the command with cards as `Name#iid[P1]` and its sender (player / auto / bot / replay), the bot's decision (`botDecide(..., trace)`: candidates and every command tried, without changing the random draws), every rule event as a sentence plus all its fields, and what changed (`delta`). It shows ALL information. The game log's "All events" mode shows it; **Export** (log panel, result window, replay bar) saves the whole game as `.txt` (header with seed, decks, options, result; `#0` = opening hands and deck order) or `.json` (the replay record + every entry). `DebugLog.build(rec)` replays any record headless, so a file can be made for any replay. A test fails when a Sim event type has no sentence.
+
 `logs[]` sits next to `statuses[]` on every card and player: statuses = current state, logs = the whole history (deck position, zone changes with their reason taken from the rule events of the command, status applied / removed). Zone changes are detected by `syncLogs` (end of every `recalc`, so also at the end of every command) and labelled from the events; a move with no matching event is logged as "moved". Status add/remove hook into `addStatus` / `removeStatus` (status stamped with `own`). State grows: see Q43/Q44.
 
 ## Effective-state queries
@@ -85,6 +87,8 @@ Simulation -> `InputWindowRequested` -> presentation prompt -> `PlayerCommand` -
 
 Initial state + RNG seed + commands = same result. Statuses use the global `s.seq` counter, so ids are deterministic too.
 **Golden replays** (`tests/golden/replays.json`, suite `26-golden-replays.js`): 12 recorded bot-vs-bot games (seed, options, decks as card ids, commands, an FNV-1a hash of each command's events and of the final state). Replaying the commands must give the same hashes and the bot must choose the same commands: the safety net for refactors and the spec a port must replay. After an intended rules or bot change, `node tests/run.js --record-golden` rewrites the file (one command per line, so the diff shows what changed).
+
+**Bot vs Bot** (`js/game/bot-match.js`, start panel `js/screens/bot-match-ui.js`, main menu button): `BOTS` is the bot list the panel offers (only `random` now; a new bot is one more entry with `decide(state, p, rnd, mem, trace)`). `BotMatch.record(cfg)` makes a replay record with `bb = {seed, bots}`; the Sim seed and each seat's bot generator come from that one seed, so seed + decks + options + bots always play the same match. `BotMatch.run(rec)` plays it headless (max 4000 commands; `end` = decided / max / stuck), then the replay viewer opens it: watched with the animations, or with "Skip presentation" jumped to the end (`Replays.jumpEnd`). The viewer plays the bots again to show their decisions in the log. A summary opens at the end (Export log, Save replay, Watch from start, Run again, Main menu); matches are not saved to Replays unless asked (only 5 are kept).
 
 Replays (`js/screens/replay.js`) are exactly that: seed + both decks + the accepted commands. A replay only views (no gameplay UI, switchable seat, minimisable controls). **Take over** continues it as a new duel (kind `over`, from the start or from the current position; the bot seat is `ui.botSeat`).
 

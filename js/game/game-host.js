@@ -270,7 +270,8 @@ function sendStop(cmd) {
   sync();
   return r;
 }
-function send(cmd, src) {
+function send(cmd, src, trace) {
+  // src: who sent it (player / auto / bot / replay); trace: a bot's decision (debug log)
   if (rp.on && !rp.feed) {
     ui.note = 'Replay: watching only';
     sync();
@@ -306,7 +307,7 @@ function send(cmd, src) {
     if (!rp.on) cmdLog.push(JSON.parse(JSON.stringify(cmd)));
     eventLog.push(...r.events);
     if (typeof AvatarView !== 'undefined') AvatarView.onEvents(r.events); // playing_card
-    GameLog.add(pre, cmd, r.events, src); // src: auto | bot | replay (a click is 'player')
+    GameLog.add(pre, cmd, r.events, src, trace); // src: auto | bot | replay (a click is 'player')
     if (eventLog.length > 200) eventLog.splice(0, eventLog.length - 200);
     ui.placing = null;
     ui.selected = null;

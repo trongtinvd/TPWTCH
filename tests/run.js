@@ -45,6 +45,8 @@ const scripts = [
   'js/core/storage.js',
   'js/content/decks.js',
   'js/game/bot.js',
+  'js/game/bot-match.js',
+  'js/log/debuglog.js',
   ...testFiles,
 ].map(f => (path.isAbsolute(f) ? f : path.join(root, f)));
 for (const f of scripts) vm.runInContext(fs.readFileSync(f, 'utf8'), sandbox, { filename: f });

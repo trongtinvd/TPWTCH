@@ -81,6 +81,9 @@ const Result = (function () {
     title.textContent = t.title;
     body.replaceChildren();
     body.appendChild(mkEl('div', 'rs-why')).textContent = t.why;
+    const ex = mkEl('div', 'rs-btns');
+    ex.appendChild(mkBtn('Export log', () => exportDialog())); // the whole game's debug log as a file (bot-match-ui.js)
+    body.appendChild(ex);
     if (r.why === 'left') {
       // the other side walked away: nothing to agree on, only the way out
       const row = mkEl('div', 'rs-btns');

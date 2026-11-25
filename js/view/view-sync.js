@@ -606,7 +606,8 @@ function buildStack() {
     (ui.stackLog
       ? '<button class="xbtn" data-logmode style="font-size:11px" title="Switch between the story and every rule event">' +
         GameLog.modeLabel() +
-        '</button><button class="xbtn" data-logcopy style="font-size:11px" title="Copy the whole log">Copy</button>'
+        '</button><button class="xbtn" data-logcopy style="font-size:11px" title="Copy the whole log">Copy</button>' +
+        '<button class="xbtn" data-logexport style="font-size:11px" title="Export the whole game\u2019s debug log as a file">Export</button>'
       : '') +
     '<button class="xbtn" data-flip title="Flip the panel: stack / game log" aria-label="Flip the panel: stack or game log">\u21c4</button></span></div>';
   stackEl.classList.toggle('log', !!ui.stackLog);

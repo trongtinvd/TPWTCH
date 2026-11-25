@@ -69,25 +69,30 @@ function botCandidates(v, rnd, mem) {
   }
   return { main, fallback };
 }
-function botDecide(v, rnd, mem, legal) {
-  // one legal command for v.player, or null. legal(cmd) -> true when the game would accept it
+function botDecide(v, rnd, mem, legal, trace) {
+  // one legal command for v.player, or null. legal(cmd) -> true when the game would accept it.
+  // trace (optional, debug logs): filled with the candidates and every command tried; it never changes the decision or the random draws
   if (v.actor !== v.player) return null;
   const { main, fallback } = botCandidates(v, rnd, mem);
-  const tryList = list => {
+  if (trace) Object.assign(trace, { main: main.length, fallback: fallback.length, tried: [] });
+  const tryList = (list, tier) => {
     const L = list.slice();
     while (L.length) {
       let r = rnd() * L.reduce((n, x) => n + x.w, 0),
         i = 0;
       while (i < L.length - 1 && (r -= L[i].w) >= 0) i++;
-      const x = L.splice(i, 1)[0];
-      if (legal(x.cmd)) return x.cmd;
+      const x = L.splice(i, 1)[0],
+        ok = legal(x.cmd);
+      if (trace) trace.tried.push({ tier, w: x.w, cmd: x.cmd, ok });
+      if (ok) return x.cmd;
     }
     return null;
   };
-  return tryList(main) || tryList(fallback);
+  return tryList(main, 'main') || tryList(fallback, 'fallback');
 }
 // the host's side of the boundary: it hands the bot its options and a legality check, never the state
-const botChoose = (s, p, rnd, mem) => botDecide(Sim.optionsFor(s, p), rnd, mem, cmd => Sim.accepts(s, cmd));
+const botChoose = (s, p, rnd, mem, trace) =>
+  botDecide(Sim.optionsFor(s, p), rnd, mem, cmd => Sim.accepts(s, cmd), trace);
 // ---- host side (browser): the bot is always the Opponent seat ----
 const botMem = { turn: -1, n: 0 },
   botR = botRng(Date.now());
@@ -102,13 +107,14 @@ function botTick() {
     botSchedule();
     return;
   } // wait for the animation
-  const cmd = botChoose(sim, ui.botSeat, botR, botMem);
+  const trace = { seat: ui.botSeat, bot: 'random' }, // its decision goes into the debug log
+    cmd = botChoose(sim, ui.botSeat, botR, botMem, trace);
   if (!cmd) {
     console.warn('Bot has no legal command');
     ui.note = 'Bot has no legal command';
     sync();
     return;
   }
-  send(cmd, 'bot');
+  send(cmd, 'bot', trace);
 }
 const foeChoice = () => !!game.choice && (rp.on || (ui.mode === 'bot' && game.choice.player === ui.botSeat)); // (in a replay every choice belongs to the replay) // a choice the bot must answer: the human sees and clicks nothing for it
