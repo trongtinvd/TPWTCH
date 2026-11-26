@@ -136,6 +136,9 @@ Sim.boot(K => {
     raceOf: K.raceOf, // a player's effective distance / speed / acceleration, or null (no race: turns alternate)
     turnGo: K.turnGo, // a turn transition (the only writer of the turn's fields)
     TURN: K.TURN, // the transitions and the stages each may start from
+    prGo: K.prGo, // a priority transition (the only writer of priority, passes and respond: js/sim/priority.js)
+    PRIORITY: K.PRIORITY, // the priority transitions and the situations each may start from
+    prSituation: K.prSituation, // choice, stack, window:foe, window:turn or idle
     optionsFor: K.optionsFor, // what one player may do now, as plain data (the bot reads only this)
     accepts: K.accepts, // would this command be accepted (the state is not changed)
     hpRefs: K.hpRefs,

@@ -42,6 +42,25 @@
     );
   });
 
+  Tests.add('priority-strict', () => {
+    // js/sim/priority.js: each transition lists the situations it may start from; in the tests a wrong one throws
+    const s = mk(2900, {}),
+      before = JSON.stringify(s),
+      threw = name => {
+        try {
+          Sim.prGo(s, name, []);
+        } catch (e) {
+          return e.message;
+        }
+        return '';
+      };
+    eq('an idle game: the situation is idle', Sim.prSituation(s), 'idle');
+    check('passing on an empty stack throws', /passed from situation idle/.test(threw('passed')), threw('passed'));
+    check('passing a window that is not open throws', /windowPassed from situation idle/.test(threw('windowPassed')));
+    check('...and nothing changed', JSON.stringify(s) === before);
+    check('an unknown transition throws', /Unknown priority transition/.test(threw('nope')));
+  });
+
   Tests.add('priority-rules', () => {
     // ---- the non-turn player responds first: a stack object, triggers, every window ----
     let s = mk(2901, {});

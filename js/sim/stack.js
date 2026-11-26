@@ -3,6 +3,7 @@ Sim.def('stack', function (K) {
   let autoOne; // fx
   // imports (bound by Sim.boot once every module is loaded)
   let turnGo, nextTurnPlayer; // turn
+  let openRespond, stopAt; // priority
   let ctl;
   let byId, isPerm, other, slotRow, slowish; // util
   let gainAP, hasAP; // ap
@@ -279,30 +280,6 @@ Sim.def('stack', function (K) {
     } // nothing legal under the clouds: it fizzles and nothing is revealed   // the column is no longer a legal target
     runFx({ s, ev, src, t, who: o.controller, foe: other(o.controller), col: o.col, o, tp: o.tplayer }, def.effects);
   }
-  // Q49 / Q50: s.stops = null | {Player:{opp:{kind:true}, own:{kind:true}}, Opponent:{...}}. `opp` = the windows a player gets as the NON-turn player
-  // (enter and end are on unless turned off), `own` = as the turn player. A window is {kind, stage:'foe'|'turn'}: the non-turn player first, then the turn player.
-  // "permanent entered" and "end step" on the opponent's turn are ON BY DEFAULT, not forced: a player turns them off like any
-  // stop (SetStop ... on:false). Only a stop never set falls back to the default. The stop icons read stopOn too (one source of truth).
-  const STOP_DEFAULTS = { opp: { enter: true, end: true }, own: {} };
-  const stopOn = (s, p, role, kind) => {
-    const set = s.stops && s.stops[p] && s.stops[p][role],
-      v = set ? set[kind] : undefined;
-    return v === undefined || v === null ? !!STOP_DEFAULTS[role][kind] : !!v;
-  };
-  const stopWants = (s, p, kind) => stopOn(s, p, p !== s.active ? 'opp' : 'own', kind);
-  const respPri = s => (s.respond && s.respond.stage === 'turn' ? s.active : other(s.active)); // who holds priority in the open window
-  function openRespond(s, ev, kind, then) {
-    // an empty-stack priority window (triggers on the stack resolve first); nothing opens when neither player wants this stop.
-    // `then` = a command that waits for the window to close (main ended: the Combat / End turn press happens after it). Returns true when a window opened
-    if (kind === 'end') turnGo(s, 'endStep'); // the turn order shown in the game
-    const foe = other(s.active),
-      stage = stopWants(s, foe, kind) ? 'foe' : stopWants(s, s.active, kind) ? 'turn' : null;
-    if (!stage) return false;
-    s.respond = then ? { kind, stage, then } : { kind, stage };
-    s.priority = stage === 'foe' ? foe : s.active;
-    ev.push({ t: 'ResponseWindowOpened', kind, player: s.priority }); // the non-turn player ALWAYS responds first, even with enter triggers already on the stack
-    return true;
-  }
   // the end step: its window opens when a player wants it; when nobody does (both stops off) the turn ends at once (with the
   // opponent's end step stop off the turn used to wait for a window that never opened)
   function enterEndStep(s, ev) {
@@ -325,12 +302,6 @@ Sim.def('stack', function (K) {
       return;
     turnGo(s, 'endStepDue');
     enterEndStep(s, ev);
-  }
-  function stopAt(s, ev, kind) {
-    // an optional "stop": at this moment the non-turn player gets priority on an empty stack (turnStart, draw, mainStart, mainEnd, combatStart, combatEnd, stack).
-    // s.stops is set by the host; null = no stops. A window that is already open is never replaced.
-    if (s.respond) return;
-    openRespond(s, ev, kind);
   }
   function endTurn(s, ev) {
     for (const o of [
@@ -366,18 +337,15 @@ Sim.def('stack', function (K) {
       enterEndStep,
       fire,
       hitStack,
-      openRespond,
       pushObj,
-      respPri,
       resolveObj,
-      stopAt,
-      stopOn,
-      stopWants,
     },
     needs: [
       'autoOne',
       'turnGo',
       'nextTurnPlayer',
+      'openRespond',
+      'stopAt',
       'expireStatuses',
       'findTarget',
       'payCost',
@@ -414,6 +382,7 @@ Sim.def('stack', function (K) {
     link: () => {
       ({ autoOne } = K);
       ({ turnGo, nextTurnPlayer } = K);
+      ({ openRespond, stopAt } = K);
       ({ expireStatuses, findTarget, payCost } = K);
       ({ ctl } = K);
       ({ expiresAtTurnEnd, hasKw, hasSt } = K);
