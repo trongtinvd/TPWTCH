@@ -76,4 +76,5 @@ const apiErrors = () => {
   scan(Fx.rider, 'rider.');
   return bad;
 };
-apiErrors().forEach(m => console.error('Card API error: ' + m));
+Sim.loadErrors = apiErrors(); // shown on screen by main.js: a card naming what the Sim lacks usually means the browser mixed old and new files
+Sim.loadErrors.forEach(m => console.error('Card API error: ' + m));

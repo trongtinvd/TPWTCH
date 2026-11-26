@@ -10,6 +10,16 @@ window.cardGame = {
     return sim;
   },
 }; // console/testing hook
+if (Sim.loadErrors && Sim.loadErrors.length) {
+  // the browser ran old and new game files together (a cached file after an update): say so, the game would break on those cards
+  const b = document.createElement('div');
+  b.id = 'loadErr';
+  b.textContent =
+    'Some game files are out of date (' +
+    Sim.loadErrors.length +
+    ' card error(s), see the console). Reload with Ctrl+F5 (phone: clear the site cache).';
+  document.body.appendChild(b);
+}
 // the card descriptions database (written texts) and the camera config load in the background; the game starts with the
 // generated card texts and the default cameras, and shows the loaded ones as soon as they arrive
 CardText.setMode(Settings.get('cardText') === 'written' ? 'written' : 'generated');

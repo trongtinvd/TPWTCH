@@ -1657,3 +1657,16 @@ canvas {
   margin: 0;
   font-size: 11px;
 }
+/* main.js: the browser mixed old and new game files (a cached file after an update) */
+#loadErr {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 9999;
+  padding: 8px 12px;
+  background: var(--danger, #8a1c1c);
+  color: #fff;
+  font: bold 14px sans-serif;
+  text-align: center;
+}

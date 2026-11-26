@@ -325,10 +325,31 @@ async function attackJob(pre, ev) {
 }
 // a stop icon click. It never waits for an animation (send() refuses input while one plays, so clicks used to get lost) and
 // it is not an undo step; it is still recorded (replays stay exact) and logged. The screen state follows at once.
+// a command that throws in the Sim leaves it half changed (a card on the board, no trigger, nothing logged): the game goes back to the
+// state before the command, so it can go on and the command is simply refused
+function safeDispatch(pre, cmd) {
+  try {
+    return Sim.dispatch(sim, cmd);
+  } catch (e) {
+    console.error('[sim] ' + cmd.type + ' threw, the game is back to the state before it', e);
+    sim = pre;
+    game = sim;
+    ui.placing = null;
+    return {
+      ok: false,
+      why:
+        'Internal error (' +
+        e.message +
+        ')' +
+        (Sim.loadErrors && Sim.loadErrors.length ? ': the game files are mixed versions, reload with Ctrl+F5' : ''),
+      events: [],
+    };
+  }
+}
 function sendStop(cmd) {
   if (rp.on) return { ok: false, why: 'Replay: watching only', events: [] };
   const pre = structuredClone(sim),
-    r = Sim.dispatch(sim, cmd);
+    r = safeDispatch(pre, cmd);
   if (!r.ok) return r;
   cmdLog.push(JSON.parse(JSON.stringify(cmd)));
   GameLog.add(pre, cmd, r.events, 'player');
@@ -364,7 +385,7 @@ function send(cmd, src, trace) {
     return { ok: false, why: 'Animation in progress', events: [] };
   } // input waits for the animation
   const pre = structuredClone(sim),
-    r = Sim.dispatch(sim, cmd);
+    r = safeDispatch(pre, cmd);
   if (!r.ok) ui.note = r.why;
   let jobs = [],
     rv = null;

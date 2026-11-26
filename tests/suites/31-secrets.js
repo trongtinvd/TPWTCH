@@ -35,6 +35,11 @@
   };
 
   Tests.add('secret-text', () => {
+    eq(
+      'No card names anything the Sim lacks (Sim.loadErrors: main.js warns when the browser mixed old and new files)',
+      Sim.loadErrors,
+      []
+    );
     const d = Cards.list.find(x => x.id === 'zapping');
     eq('Zapping Ground is a 6 HP enchantment', [d.type, d.hp], ['enchantment', 6]);
     eq(
