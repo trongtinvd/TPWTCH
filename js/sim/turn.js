@@ -10,6 +10,7 @@
 Sim.def('turn', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
   let RULES, other, mulberry32, live; // dispatch, util, statuses
+  let prGo; // priority
   const stage = s => (s.turnEnding ? 'ending' : s.step);
   const ANY = null;
   const T = {
@@ -31,15 +32,17 @@ Sim.def('turn', function (K) {
     },
     // End turn during combat: combat ends, the end step follows once nothing is pending (the step still shows combat until then)
     combatEndsTurn: { from: ['combat'], run: s => ((s.attackPhase = false), (s.turnEnding = true)) },
-    // a second combat phase (Deep Sea Shark): from the main phase or while the turn was ending
+    // a second combat phase (Deep Sea Shark, or any card that gives one): from the main phase or while the turn was ending. The
+    // first combat's "combat ended" window is over: the second combat replaces it (ev: where its ResponseWindowClosed goes)
     extraCombat: {
       from: ['main', 'ending'],
-      run: s => {
+      run: (s, ev) => {
         s.attackPhase = true;
         s.turnEnding = false;
         s.step = 'combat';
         s.mainPending = false;
         s.combats = (s.combats || 0) + 1;
+        prGo(s, 'windowCancelled', { kind: 'combatEnd', ev });
       },
     },
     endStepDue: { from: ['ending'], run: s => (s.turnEnding = false) },
@@ -122,9 +125,9 @@ Sim.def('turn', function (K) {
   const raceOf = (s, p) => (s.race ? Object.fromEntries(RACE.map(k => [k, raceStat(s, p, k)])) : null);
   return {
     exports: { turnGo: go, turnStage: stage, TURN: T, pickTurn, nextTurnPlayer, turnOrder, raceOf },
-    needs: ['RULES', 'other', 'mulberry32', 'live'],
+    needs: ['RULES', 'other', 'mulberry32', 'live', 'prGo'],
     link: () => {
-      ({ RULES, other, mulberry32, live } = K);
+      ({ RULES, other, mulberry32, live, prGo } = K);
     },
   };
 });

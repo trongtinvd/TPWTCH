@@ -2,7 +2,7 @@
 // count (s.passes) and the empty-stack response window (s.respond). The write guard, and every behaviour the refactor had to keep.
 // Run only these: node tests/run.js --only priority-
 (function () {
-  const { D, check, eq, xfail, take } = Tests.ctx;
+  const { D, check, eq, take } = Tests.ctx;
   const ALL = {
     turnStart: true,
     draw: true,
@@ -35,11 +35,7 @@
         readRepoFile(f)
           .split('\n')
           .forEach((l, i) => W.test(l) && found.push(f.replace('js/sim/', '') + ':' + (i + 1)));
-    xfail(
-      'no file but js/sim/priority.js assigns priority, passes or respond' +
-        (found.length ? ' (' + found.join(' ') + ')' : ''),
-      !found.length
-    );
+    eq('no file but js/sim/priority.js assigns priority, passes or respond', found, []);
   });
 
   Tests.add('priority-strict', () => {
@@ -175,6 +171,20 @@
       [f.filter(x => x.t === 'DeferredCommandFailed').map(x => x.cmd), s.attackPhase, s.respond],
       [['SetAttackPhase'], false, null]
     );
+  });
+
+  Tests.add('priority-extra-combat', () => {
+    // the turn transition closes the "combat ended" window itself, whatever card gives the second combat
+    const s = mk(2909, {});
+    s.respond = { kind: 'combatEnd', stage: 'foe' }; // a hand-built state: the window is open in the main phase
+    const ev = [];
+    Sim.turnGo(s, 'extraCombat', ev);
+    eq('extraCombat closes the combat-ended window', [s.respond, ev.map(e => e.t)], [null, ['ResponseWindowClosed']]);
+    const t = mk(2908, {});
+    t.respond = { kind: 'enter', stage: 'foe' };
+    const ev2 = [];
+    Sim.turnGo(t, 'extraCombat', ev2);
+    eq('...and leaves any other window alone', [t.respond.kind, ev2], ['enter', []]);
   });
 
   Tests.add('priority-shark', () => {

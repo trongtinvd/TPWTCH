@@ -445,11 +445,7 @@ Sim.def('ops', function (K) {
       }
       if (s.piles[x.foe].deck.length < 5) return; // the draw is a cost: no 5 cards, no second combat
       OPS.Draw({ ...x, who: x.foe }, { n: 5 });
-      turnGo(s, 'extraCombat'); // a second combat phase: the turn is not ending; no "main phase started" stop inside it
-      if (s.respond && s.respond.kind === 'combatEnd') {
-        s.respond = null; // the first combat's "combat ended" window is over: the second combat replaces it
-        x.ev.push({ t: 'ResponseWindowClosed', kind: 'combatEnd' });
-      }
+      turnGo(s, 'extraCombat', x.ev); // a second combat phase: the turn is not ending, the "combat ended" window is over
       clearAttacked(s, 'new combat phase');
       placeAttackCounters(s, x.ev); // a new combat phase gives new attack counters
       x.ev.push({ t: 'AttackPhaseChanged', on: true });
