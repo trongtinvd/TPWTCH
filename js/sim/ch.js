@@ -7,7 +7,8 @@ Sim.def('ch', function (K) {
   let bounce, destroy, enterBoard, freeSlots, makeToken; // state
   let ask, askDeck, runFx, upToAsk; // fx
   let THEN; // then
-  let dupAsk; // ops
+  let dupAsk, dupDef; // ops
+  let placeCardSecret; // secrets
   let fusionMat, fusionPicked; // fusion
   let declareAsk, libLook, libPlay, pairPicked, reorderAsk; // choices
   let extraAttack; // combat
@@ -30,7 +31,7 @@ Sim.def('ch', function (K) {
     },
     place: (s, k, c, cmd, ev) => {
       if (k.token) {
-        makeToken(s, c.def.tokens[k.token], k.player, cmd.option, ev);
+        makeToken(s, k.token === 'duplicate' ? dupDef(c) : c.def.tokens[k.token], k.player, cmd.option, ev);
         if (k.dupLeft) dupAsk(s, k.player, c, k.dupLeft, ev); // Duplicate: the next copy
         return;
       }
@@ -50,6 +51,11 @@ Sim.def('ch', function (K) {
       advanceTrg(s, ev);
     },
     abtarget: (s, k, c, cmd, ev) => activate(s, c, k.ab, cmd.option, ev), // the ability's target was picked: pay the costs, put it on the stack
+    secretgrant: (s, k, c, cmd, ev) => {
+      const t = s.cards[cmd.option];
+      if (t && t.loc === 'hand')
+        placeCardSecret(s, k.player, c, t, k.what, { duplicate: 'Duplicate', betray: 'Betrayal' }[k.what], k.cands, ev);
+    },
     trigtarget: (s, k, c, cmd, ev) => {
       s.trg.items[k.tk].tgt = cmd.option;
       advanceTrg(s, ev);
@@ -148,6 +154,8 @@ Sim.def('ch', function (K) {
     exports: { CH },
     needs: [
       'dupAsk',
+      'dupDef',
+      'placeCardSecret',
       'activate',
       'addAttackBonus',
       'cancelAttackObj',
@@ -178,7 +186,7 @@ Sim.def('ch', function (K) {
       'upToAsk',
     ],
     link: () => {
-      ({ dupAsk } = K);
+      ({ dupAsk, dupDef, placeCardSecret } = K);
       ({ activate } = K);
       ({ addAttackBonus, cancelAttackObj } = K);
       ({

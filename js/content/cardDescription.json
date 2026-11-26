@@ -222,6 +222,12 @@
         "triggers:0": "When this enters (1hp): secretly target an empty zone; that zone secretly gains \"when a card enters this zone (2hp): consume this status; deal 1 damage to that card.\" Shifting in counts as entering.",
         "triggers:1": "At the start of your turn (1hp): secretly target an empty zone; that zone secretly gains \"when a card enters this zone (2hp): consume this status; deal 1 damage to that card.\" Shifting in counts as entering."
       }
+    },
+    "secrettwin": {
+      "name": "Secret Twin",
+      "text": {
+        "body": "Slow spell, 0 AP (1hp). Cost: reveal your hand. Your opponent secretly selects one of those cards; it secretly gains Duplicate (the status survives zone changes)."
+      }
     }
   }
 }

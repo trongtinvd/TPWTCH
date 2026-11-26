@@ -15,7 +15,7 @@ Sim.def('stack', function (K) {
   let COND, TRIGGERS; // cond
   let runFx, ask; // fx
   let resolveAttack; // combat
-  let consumeTrap, narrow, trapHits; // secrets
+  let cardPlayed, consumeTrap, narrow, trapHits; // secrets
   // a trigger list of a card: 'traps' (abilities a card gives a zone, Zapping Ground) are read from the printed card, so a trap keeps working
   // whatever happens to the card that placed it (it left the board, lost its abilities)
   const listOf = (c, list) => (list === 'traps' ? c.def.traps : abDef(c)[list]) || [];
@@ -29,7 +29,7 @@ Sim.def('stack', function (K) {
       return 'Only Quick spells during the battle phase';
     if (slowish(c) && c.owner !== s.active) return 'Slow cards: turn player only';
     if (slowish(c) && s.respond) return 'Slow cards: only in an open game state';
-    if (slowish(c) && !hasAP(s, c.owner)) return 'No action point left';
+    if (slowish(c) && c.def.ap !== 0 && !hasAP(s, c.owner)) return 'No action point left'; // ap 0: Slow, but no action point (Secret Twin)
     if (isPerm(c)) {
       if (s.stack.length && !hasKw(c, 'flash')) return 'Only when the stack is empty';
       if (!freeSlots(s, c).length) return 'No free ' + slotRow(c) + ' zone';
@@ -40,6 +40,10 @@ Sim.def('stack', function (K) {
         return 'Requirement: no legal target';
       for (const r of c.def.req || []) {
         const why = REQS[r] && REQS[r](s, c, c.def);
+        if (why) return why;
+      }
+      for (const k of c.def.cost || []) {
+        const why = COSTS[k.op].check(s, c, k); // a spell's costs (Secret Twin: reveal your hand)
         if (why) return why;
       }
     }
@@ -145,7 +149,7 @@ Sim.def('stack', function (K) {
     // evt: what happened, for the triggers that need it ('damaged': {type, source, amount, power, spell}); the stack object keeps it
     const hits = []; // 1) collect every trigger that matches this event
     for (const c of Object.values(s.cards)) {
-      if (c.loc === 'stack' || c.loc === 'gone') continue;
+      if (c.loc === 'gone' || (c.loc === 'stack' && c !== subject)) continue; // on the stack: only the spell that was just put there ('cast')
       (abDef(c).triggers || []).forEach((t, i) => {
         if (t.on !== on || (t.zone || 'board') !== c.loc) return;
         if (t.cond && !(COND[t.cond] && COND[t.cond](s, c, subject, t))) return; // an unknown condition fails closed (validate.js reports it at load)
@@ -162,6 +166,7 @@ Sim.def('stack', function (K) {
         traps.map(h => h.secret)
       );
     }
+    if ((on === 'enter' || on === 'cast') && subject) cardPlayed(s, subject, hits, ev); // card secrets: revealed by their trigger, else narrowed
     if (!hits.length) return;
     // 2) the triggers wait in s.trg: each player with several of them may order them (a choice, non-turn player first; only when the host turned
     //    it on), every trigger with a targeting picks its targets, then they go on the stack: turn player's first, so the other player's resolve first.
@@ -414,6 +419,7 @@ Sim.def('stack', function (K) {
       'slowish',
       'targetColumns',
       'targetZones',
+      'cardPlayed',
       'consumeTrap',
       'narrow',
       'trapHits',
@@ -452,7 +458,7 @@ Sim.def('stack', function (K) {
         targetColumns,
         targetZones,
       } = K);
-      ({ consumeTrap, narrow, trapHits } = K);
+      ({ cardPlayed, consumeTrap, narrow, trapHits } = K);
     },
   };
 });

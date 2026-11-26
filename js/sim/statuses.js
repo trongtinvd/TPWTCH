@@ -76,11 +76,16 @@ Sim.def('statuses', function (K) {
     return --e.left <= 0;
   };
   const abDef = c => {
-    const d = live(c)
-      .filter(x => x.kind === 'ability')
-      .pop();
-    return d ? byId[d.to] : c.def;
-  }; // ability layer: the newest active 'ability' status decides; c.def is never edited
+    const L = live(c);
+    let k = -1;
+    L.forEach((x, i) => {
+      if (x.kind === 'ability') k = i;
+    });
+    let d = k >= 0 ? byId[L[k].to] : c.def;
+    // a 'grant' status entered AFTER that adds an ability (Secret Twin: Duplicate): the precomputed definition d.grants[what] (cards.js GRANTS)
+    for (const x of L.slice(k + 1)) if (x.kind === 'grant' && d.grants && d.grants[x.what]) d = d.grants[x.what];
+    return d;
+  }; // ability layer: the newest active 'ability' status decides, then the grants entered after it; c.def is never edited
   // keyworded abilities belong to the EFFECTIVE ability set, so losing abilities (Avatar of Rabies) loses them too: a keyworded passive
   // (Flash: op Keyword) or a keyworded trigger / ability (Retaliate: kw on a trigger)
   const hasKw = (c, kw) => {
@@ -144,6 +149,7 @@ Sim.def('statuses', function (K) {
       ability: () =>
         'Ability replaced: uses the abilities of ' + byId[st.to].name + ' (ends when that damage is removed)',
       nodamage: () => 'Damage is denied until the end of the turn' + by,
+      grant: () => 'Gains ' + (st.label || st.what) + by + (st.secret != null ? ' (secret)' : ''),
       revealed: () =>
         'Revealed to ' +
         st.to +

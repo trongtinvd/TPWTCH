@@ -153,11 +153,14 @@ const DebugLog = (function () {
       ' (' +
       e.name +
       ') on ' +
-      e.slot +
+      (e.card ? ref(s, e.card) : e.slot) +
       ' (' +
       (e.cands || []).length +
       ' candidates)',
-    SecretRevealed: (s, e) => 'secret #' + e.id + ' (' + e.name + ') on ' + e.slot + ' triggers',
+    SecretRevealed: (s, e) =>
+      'secret #' + e.id + ' (' + e.name + ') on ' + (e.card ? ref(s, e.card) : e.slot) + ' triggers',
+    HandRevealed: (s, e) =>
+      nm(s, e.player) + ' reveals their hand to ' + nm(s, e.to) + ' (' + (e.iids || []).length + ' cards)',
     HistoryCapReached: () => 'the history limit was reached: the game is over',
     ZoneDamaged: (s, e) => e.slot + ' takes ' + e.amount + ' zone damage',
     AbilitiesTransformed: (s, e) => ref(s, e.iid) + ' takes on new abilities (was ' + e.from + ')',

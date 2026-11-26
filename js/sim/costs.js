@@ -53,10 +53,33 @@ Sim.def('costs', function (K) {
       },
     },
     SacrificeSelf: { check: () => null, pay: (s, c, k, ev) => destroy(s, c, ev, 'cost') },
+    // reveal your hand (Secret Twin): every card in it is revealed to the opponent while it stays in the hand (like Parasite); returns the cards
+    RevealHand: {
+      check: () => null,
+      pay: (s, c, k, ev) => {
+        const p = c.owner,
+          foe = p === 'Player' ? 'Opponent' : 'Player',
+          L = s.piles[p].hand.filter(x => x !== c);
+        for (const x of L)
+          if (!hasSt(x, 'revealed', st => st.to === foe))
+            addStatus(s, x, { kind: 'revealed', to: foe, zone: 'hand', srcName: c.def.name });
+        ev.push({ t: 'HandRevealed', player: p, to: foe, iids: L.map(x => x.iid) });
+        return L.map(x => x.iid);
+      },
+    },
   };
   const payCost = (s, c, k, ev) => COSTS[k.op].pay(s, c, k, ev);
+  // a spell's costs (def.cost), paid when it is played; what the costs revealed (RevealHand) is returned for the stack object (null: none)
+  function payCardCost(s, c, ev) {
+    let shown = null;
+    for (const k of c.def.cost || []) {
+      const r = payCost(s, c, k, ev);
+      if (Array.isArray(r)) shown = (shown || []).concat(r);
+    }
+    return shown;
+  }
   return {
-    exports: { COSTS, payCost },
+    exports: { COSTS, payCardCost, payCost },
     needs: [
       'hasSt',
       'live',

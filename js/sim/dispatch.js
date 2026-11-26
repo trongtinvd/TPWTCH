@@ -11,7 +11,7 @@ Sim.def('dispatch', function (K) {
   let PL, abDef, addStatus, dmgs, has, live, removeStatus; // statuses
   let declareWinner, freeSlots, recalc, release, sweepUnusable; // state
   let findTarget, targetColumns, targetZones; // targeting
-  let payCost; // costs
+  let payCardCost, payCost; // costs
   let askCounters, resume; // fx
   let CH; // ch
   let canAttack, dealDamage, declareAttack; // combat
@@ -26,7 +26,9 @@ Sim.def('dispatch', function (K) {
     const c = s.cards[r.iid];
     if (r.kind === 'spell') {
       release(c); // a spell played under temporary control ends up with its owner
-      if (r.toHand) {
+      if (c.token)
+        c.loc = 'gone'; // a token copy (Duplicate) ceases to exist
+      else if (r.toHand) {
         c.loc = 'hand';
         s.piles[c.owner].hand.push(c);
       } else {
@@ -169,7 +171,8 @@ Sim.def('dispatch', function (K) {
         ev.push({ t: 'CardPlayed', iid: c.iid, player: c.owner }); // a player played a card from their hand (avatar playing_card)
         const paid = !!(cmd.extra && c.def.extraCost);
         if (paid) spendAP(s, c.owner, c.def.name + ' (additional cost)', ev);
-        if (slowish(c)) spendAP(s, c.owner, (isPerm(c) ? 'Summon ' : 'Cast ') + c.def.name, ev);
+        if (slowish(c) && c.def.ap !== 0) spendAP(s, c.owner, (isPerm(c) ? 'Summon ' : 'Cast ') + c.def.name, ev);
+        const shown = isPerm(c) ? null : payCardCost(s, c, ev); // a spell's costs (Secret Twin: reveal your hand)
         if (isPerm(c)) {
           s.slots[cmd.slot] = c.iid;
           c.slot = cmd.slot;
@@ -193,9 +196,11 @@ Sim.def('dispatch', function (K) {
             tplayer: tp,
             tsid,
             statuses: [],
+            ...(shown ? { shown } : null), // the cards its cost revealed (Secret Twin's effect picks among them)
           });
           prGo(s, 'objectPushed', c.owner);
           ev.push({ t: 'StackObjectCreated', iid: c.iid });
+          fire(s, ev, 'cast', c); // the spell was put on the stack: its own 'cast' triggers (Duplicate, spell mode)
         } // the opponent gets priority first; the stack resolves only after two passes in a row
         break;
       }
@@ -454,6 +459,7 @@ Sim.def('dispatch', function (K) {
       'live',
       'openRespond',
       'other',
+      'payCardCost',
       'payCost',
       'pushObj',
       'recalc',
@@ -505,6 +511,7 @@ Sim.def('dispatch', function (K) {
         live,
         openRespond,
         other,
+        payCardCost,
         payCost,
         pushObj,
         recalc,

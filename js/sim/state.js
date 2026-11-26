@@ -70,6 +70,7 @@ Sim.def('state', function (K) {
     // opts: {decks:{Player:[ids], Opponent:[ids]}, shuffle:true, autoStart:false} (see createGame)                         // content is injected: the Sim never reads globals
     for (const k in byId) delete byId[k];
     Object.assign(byId, Object.fromEntries(defs.map(d => [d.id, d])));
+    for (const d of defs) for (const w in d.grants || {}) byId[d.grants[w].id] = d.grants[w]; // a card with a gained ability (Secret Twin's Duplicate): cards.js GRANTS
     const cfg = gameCfg(opts.rules);
     const s = {
       n,

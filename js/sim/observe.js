@@ -99,7 +99,7 @@ Sim.def('observe', function (K) {
       atk: c.def.type === 'creature' ? atkOf(c) : null,
       hp: hpOf(c),
       damage: totalDamage(c),
-      statuses: sc.scrub(c.statuses || []),
+      statuses: sc.scrub((c.statuses || []).filter(st => !secretHidden(st, p))), // a secret status (Secret Twin): its placer only
     });
     for (const id in s.cards) {
       const c = s.cards[id];
@@ -213,7 +213,7 @@ Sim.def('observe', function (K) {
       cards,
       slots,
       zones,
-      secrets: secretsFor(s, p), // what p may know of every secret: the zone for its placer (or once revealed), else the candidates
+      secrets: sc.scrub(secretsFor(s, p)), // what p may know of every secret: the zone for its placer (or once revealed), else the candidates
       stack,
       choice,
       result: s.result,
@@ -249,7 +249,13 @@ Sim.def('observe', function (K) {
         o.slot = null;
       for (const k of ['iid', 'source', 'target']) if (typeof o[k] === 'string') o[k] = sc.alias(o[k]);
       if (typeof o.why === 'string') o.why = sc.maskText(o.why);
-      if (e.t === 'SecretPlaced' && e.player !== p) delete o.slot; // where a secret was placed: its placer only
+      if (typeof o.from === 'string' && e.t === 'AbilitiesTransformed') o.from = sc.scrub(o.from); // the id of a hidden card (an Avatar under a cloud)
+      if (e.t === 'SecretPlaced' && e.player !== p) {
+        delete o.slot; // where a secret was placed: its placer only
+        delete o.card;
+      }
+      if (Array.isArray(o.cands)) o.cands = o.cands.map(x => (ZKEY.test(x) ? x : sc.alias(x))); // card candidates: opaque when p cannot see them
+      if (Array.isArray(o.iids)) o.iids = o.iids.map(sc.alias);
       return o;
     });
   }
@@ -329,7 +335,15 @@ Sim.def('observe', function (K) {
             to: at(l.to, post, c),
             how: sc.maskText(l.how),
           });
-        else if ((l.kind === 'status+' || l.kind === 'status-') && !early && sc.known(c.iid))
+        else if (
+          (l.kind === 'status+' || l.kind === 'status-') &&
+          !early &&
+          sc.known(c.iid) &&
+          !secretHidden(
+            (c.statuses || []).find(x => x.seq === l.id),
+            p
+          ) // a secret status leaves no trace for the other player
+        )
           out.push({
             n: l.n,
             iid,

@@ -33,9 +33,13 @@ const KEYWORDS = {
     name: 'Duplicate',
     zone: 'board',
     reminder: o =>
-      'when this enters, create ' +
-      (o.n > 1 ? o.n + ' token copies' : 'a token copy') +
-      ' of it, without Duplicate, on free zones of your row that you pick',
+      o.on === 'cast'
+        ? 'when this spell is put on the stack, put ' +
+          (o.n > 1 ? o.n + ' token copies' : 'a token copy') +
+          ' of it on the stack, without Duplicate, with the same targets and modifications'
+        : 'when this enters, create ' +
+          (o.n > 1 ? o.n + ' token copies' : 'a token copy') +
+          ' of it, without Duplicate, on free zones of your row that you pick',
   },
 };
 const kwName = o => KEYWORDS[o.kw].name + (o.n > 1 ? ' ' + o.n : ''); // "Duplicate 2"
@@ -130,6 +134,15 @@ const Translate = (function () {
         : e.n + ' times: ' + L.slice(0, -1).join(', ') + ', then ' + L[L.length - 1];
     },
     PayLife: e => 'pay ' + e.n + ' life',
+    RevealHand: () => 'reveal your hand',
+    SecretGrant: e =>
+      (e.by === 'foe'
+        ? 'your opponent secretly selects one of the revealed cards'
+        : 'secretly select one of those cards') +
+      '; it secretly gains ' +
+      (GRANT_TEXT[e.what] || e.what) +
+      ' (the status stays when the card changes zones)',
+    RevealFoeHand: () => 'reveal your opponent\u2019s hand',
     SpendAP: () => 'spend an action point',
     ExileFromGY: e => (e.n === 1 ? 'exile your oldest GY card' : 'exile your ' + e.n + ' oldest GY cards'),
     ExileSelf: () => 'exile this card',
@@ -269,6 +282,8 @@ const Translate = (function () {
       }
       case 'turnStart':
         return 'At the start of your turn';
+      case 'cast':
+        return 'When this spell is put on the stack';
       case 'attack':
         return by.includes('any')
           ? 'Whenever a creature attacks'
@@ -336,7 +351,11 @@ const Translate = (function () {
       c.tgt = d.colTarget ? 'it' : tg ? 'it' : null;
       let eff = effectsText(d.effects, c);
       if (d.colTarget) eff = eff.replace('exile every card on that column', 'exile every card on it');
-      return d.timing + '. ' + body(conds(d.req), tg, eff) + hpNote(d.hp || 0);
+      const cost = (d.cost || [])
+        .map(e => clause(e, c))
+        .concat(tg ? [tg] : [])
+        .join(' and '); // a spell's costs (paid when it is played: Secret Twin reveals the hand), then its targeting
+      return d.timing + '. ' + body(conds(d.req), cost, eff) + hpNote(d.hp || 0);
     }
     return '';
   }
@@ -413,6 +432,7 @@ const CardText = (function () {
 const playsForAP = def =>
   !def.isToken &&
   !def.extra &&
+  def.ap !== 0 && // a card that costs no action point (Secret Twin: a Slow spell, 0 AP)
   def.type !== 'ability' &&
   (def.type === 'spell'
     ? def.timing === 'Slow'
@@ -475,6 +495,11 @@ const Fx = {
   repeat: (n, ...effects) => ({ op: 'Repeat', n, effects }), // composition: run effects n times
   // costs (paid on activation)
   payLife: n => ({ op: 'PayLife', n }),
+  revealHand: () => ({ op: 'RevealHand' }), // spell cost: reveal your hand to your opponent (Secret Twin); the cards stay revealed while in the hand
+  revealFoeHand: () => ({ op: 'RevealFoeHand' }), // effect: your opponent's hand is revealed to you (each card stays revealed while in that hand)
+  // effect: someone secretly selects a card and it secretly gains `what` (a grant: GRANTS below). by 'foe' = the spell's opponent picks among
+  // the cards the cost revealed (Secret Twin), by 'self' = its controller picks among the opponent's hand (Unexpected Betrayal)
+  secretGrant: (what, by, from) => ({ op: 'SecretGrant', what, by, from }),
   spendAP: () => ({ op: 'SpendAP' }), // cost: spend one action point (usable on the opponent's turn too, when a Fast ability asks for it)
   exileFromGY: n => ({ op: 'ExileFromGY', n }),
   exileSelf: () => ({ op: 'ExileSelf' }), // cost: exile this card from the graveyard
@@ -551,6 +576,15 @@ const Fx = {
   // Duplicate N (permanent mode): when this enters (Stack HP = the card's HP, set by Cards.derive), create N token copies on free zones of
   // the controller's row, picked by the controller (fewer free zones = fewer copies). Cards.add makes the copy: def.tokens.duplicate
   duplicate: (n = 1) => ({ on: 'enter', kw: 'duplicate', name: 'Duplicate', n, effects: [{ op: 'Duplicate', n }] }),
+  // Duplicate N (spell mode): when the spell is put on the stack (Stack HP = the spell's HP), N token copies of it go on the stack
+  duplicateSpell: (n = 1) => ({
+    on: 'cast',
+    zone: 'stack',
+    kw: 'duplicate',
+    name: 'Duplicate',
+    n,
+    effects: [{ op: 'Duplicate', n }],
+  }),
   // secrets (js/sim/secrets.js). setTrap: the zone picked by targeting secretZone secretly gains def.traps[trap]. trap: an ability of a ZONE,
   // "when a card enters this zone: consume this status (cost); effects" (target = the card that entered); controlled by who placed it
   setTrap: (trap = 0) => ({ op: 'SetTrap', trap }),
@@ -594,7 +628,25 @@ const Fx = {
 const Cards = {
   list: [],
   add(factory) {
-    const d = factory(Fx);
+    const d = this.build(factory(Fx));
+    this.grantsOf(d);
+    this.list.push(d);
+  },
+  // GRANTS: an ability a card can gain from a status (kind 'grant', what): the card with it is precomputed here (generated text included)
+  // as d.grants[what], a definition of its own (id '<id>+<what>', dupOf: the card it extends); the Sim registers it and abDef picks it
+  grantsOf(d) {
+    if (d.type === 'ability' || d.isToken) return d;
+    d.grants = {};
+    for (const what in GRANTS) {
+      const g = GRANTS[what](d);
+      if (g)
+        d.grants[what] = this.build(
+          Object.assign({}, d, g, { id: d.id + '+' + what, grantOf: d.id, grants: undefined })
+        );
+    }
+    return d;
+  },
+  build(d) {
     if ((d.triggers || []).some(t => t.kw === 'duplicate')) {
       // the token copy: the card without Duplicate (the copy never makes copies itself)
       const { tokens, ...rest } = d;
@@ -610,11 +662,11 @@ const Cards = {
       t.isToken = true; // a token is never played: no action point cost in its text
       this.derive(t);
     }); // tokens get their generated text too
-    this.list.push(d);
+    return d;
   },
   derive(d) {
     // every stack ability states its HP in the data (the default 1 is written in, so the text and the Sim read the same number)
-    for (const t of d.triggers || []) if (t.kw === 'duplicate' && t.hp == null) t.hp = d.hp; // Duplicate's Stack HP is the card's HP
+    for (const t of d.triggers || []) if (t.kw === 'duplicate' && t.hp == null) t.hp = d.hp || 0; // Duplicate's Stack HP is the card's HP
     for (const k of ['triggers', 'abilities', 'traps']) (d[k] || []).forEach(o => (o.hp = stackHp(o)));
     (d.traps || []).forEach(o => (o.text = Translate.translateOne(o, 'traps', d))); // before the triggers: their text quotes it
     // every ability shows its generated text; the written descriptions are in CardText
@@ -625,6 +677,16 @@ const Cards = {
       .join(' '); // the card text is DERIVED from its abilities
   },
 };
+// what a 'grant' status adds to a card (null: nothing for this card). Duplicate: the permanent mode on a creature / enchantment, the
+// spell mode on a spell (Secret Twin)
+const GRANTS = {
+  duplicate: d => ({
+    triggers: (d.triggers || []).concat([
+      Object.assign(d.type === 'spell' ? Fx.duplicateSpell(1) : Fx.duplicate(1), { grant: 'duplicate' }),
+    ]),
+  }),
+};
+const GRANT_TEXT = { duplicate: 'Duplicate' };
 const FIXTURES = []; // ability-less cards kept ONLY for headless tests; not part of the game's card pool
 const PHC = 'Placeholder creature. No ability yet.',
   PHE = 'Placeholder enchantment. No effect yet.',
@@ -649,6 +711,7 @@ FIXTURES.push(
   Fx.slow('rally', 'Rally', 1, { text: PHS }),
   Fx.slow('blast', 'Blast', 5, { text: 'Placeholder Slow spell: only when the stack is empty. No effect yet.' })
 );
+FIXTURES.forEach(d => Cards.grantsOf(d)); // a fixture can gain a grant too (its text stays the written placeholder)
 // ---- The card pool. Each card is an independent module: a factory that receives the API and returns its definition.
 // Order matters: it is the order of the 'Full Pool' deck.
 Cards.add(Fx =>
@@ -939,6 +1002,14 @@ Cards.add(Fx => {
     triggers: [arm(Fx.trigger.enter), arm(Fx.trigger.turnStart)],
   });
 });
+// Secret Twin: Slow, 0 AP. Cost: reveal your hand. Your opponent secretly selects one of those cards; it secretly gains Duplicate
+Cards.add(Fx =>
+  Fx.slow('secrettwin', 'Secret Twin', 1, {
+    ap: 0,
+    cost: [Fx.revealHand()],
+    effects: [Fx.secretGrant('duplicate', 'foe', 'shown')],
+  })
+);
 // ---- Extra deck creatures (keep them last: the extra deck of the 'Full Pool' deck is in this order)
 Cards.add(Fx => {
   const strike = Fx.sendAdjacentPair();

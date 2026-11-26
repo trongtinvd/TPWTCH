@@ -136,7 +136,7 @@
     let leaks = [],
       steps = 0,
       lines = 0;
-    for (const seed of [1410, 1411, 1412]) {
+    for (const seed of [1410, 1411, 1412, 1413, 1414]) {
       const g = Sim.create(seed, DEFS, { decks: { Player: A, Opponent: B }, shuffle: true, autoStart: true }),
         rnd = botRng(seed + 11),
         mem = {};
@@ -186,7 +186,7 @@
       }
     }
     check(
-      '3 bot games, both players: no hidden card name, id or ability name in any Observation, bot options, observed step, event or log line',
+      '5 bot games, both players: no hidden card name, id or ability name in any Observation, bot options, observed step, event or log line',
       !leaks.length && steps > 300 && lines > 300,
       leaks.slice(0, 3).join(' | ')
     );

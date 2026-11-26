@@ -188,6 +188,8 @@ const Narrate = (function () {
         if (k.kind === 'declare') line(who + ' declares ' + d);
         else if (k.kind === 'trigorder')
           line(who + ' orders their triggers: ' + ((k.labels && k.labels[cmd.option]) || cmd.option));
+        else if (k.kind === 'secretgrant');
+        // the SecretPlaced event says it (the card for the picker only)
         else if (k.secret) line(who + ' secretly targets ' + (cmd.option ? d : 'a zone'));
         else if (k.kind === 'trigtarget' || k.kind === 'pair') line(who + ' targets ' + d);
         else if (k.kind === 'mode') line(who + ' chooses the effect: ' + d);
@@ -344,8 +346,21 @@ const Narrate = (function () {
         case 'ZoneUnusable':
           line(zoneTxt(e.slot) + ' becomes unusable');
           break;
-        case 'SecretPlaced': // the slot is there only for the player who placed it (observe.js)
-          if (e.slot) line(P(e.player) + ' secretly arms ' + zoneTxt(e.slot) + ' (' + e.name + ')');
+        case 'HandRevealed':
+          line(P(e.player) + ' reveals their hand to ' + P(e.to) + ((e.iids || []).length ? '' : ' (it is empty)'));
+          break;
+        case 'SecretPlaced': // the slot / card is there only for the player who placed it (observe.js)
+          if (e.card) line(P(e.player) + ' secretly selects ' + C(e.card) + ' (' + e.name + ')');
+          else if (e.cands.length && !/\|/.test(e.cands[0]))
+            line(
+              P(e.player) +
+                ' secretly selects a card (' +
+                e.name +
+                '): one of ' +
+                e.cands.length +
+                (e.cands.length === 1 ? ' card' : ' cards')
+            );
+          else if (e.slot) line(P(e.player) + ' secretly arms ' + zoneTxt(e.slot) + ' (' + e.name + ')');
           else
             line(
               P(e.player) +
@@ -356,6 +371,10 @@ const Narrate = (function () {
             );
           break;
         case 'SecretRevealed':
+          if (e.card) {
+            line('The secret ' + e.name + ' on ' + C(e.card) + ' triggers (' + P(e.player) + ')');
+            break;
+          }
           line('The secret ' + e.name + ' on ' + zoneTxt(e.slot) + ' triggers (' + P(e.player) + ')');
           break;
         case 'ZoneDamaged':

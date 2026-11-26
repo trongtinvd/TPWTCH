@@ -28,7 +28,9 @@ Sim.def('ops', function (K) {
   let dealDamage; // combat
   let fire, hitStack; // stack
   let atkOf; // statuses (Retaliate)
-  let placeZoneSecret; // secrets
+  let placeCardSecret, placeZoneSecret; // secrets
+  let abDef; // statuses
+  let prGo; // priority
   // Board picks for the player x.who. A card under an enemy cloud is never offered by itself: its ZONE is ('Z:slot'), empty or not,
   // so the picker learns nothing about what is underneath. Elsewhere a card is offered unless it has a red shield.
   const boardPicks = (x, foeOnly) => {
@@ -487,8 +489,13 @@ Sim.def('ops', function (K) {
   };
   // Duplicate (permanent mode): `left` token copies of src (its def.tokens.duplicate) on free zones of its row, one pick at a time
   // (CH.place continues with dupLeft); a single free zone is filled by itself; no free zone = no more copies
+  // the token copy Duplicate makes: the card as it is now (a gained Duplicate included: cards.js GRANTS), without Duplicate
+  const dupDef = src => {
+    const d = abDef(src);
+    return (d.tokens && d.tokens.duplicate) || (src.def.tokens && src.def.tokens.duplicate) || null;
+  };
   function dupAsk(s, who, src, left, ev) {
-    const def = src.def.tokens && src.def.tokens.duplicate;
+    const def = dupDef(src);
     while (def && left > 0 && !s.choice) {
       const row = def.type === 'creature' ? 'front' : 'back',
         f = Object.keys(s.slots).filter(k => k.startsWith(who + '|' + row + '|') && !s.slots[k] && !isUnusable(s, k));
@@ -509,9 +516,70 @@ Sim.def('ops', function (K) {
       left--;
     }
   }
-  OPS.Duplicate = (x, e) => dupAsk(x.s, x.who, x.src, e.n || 1, x.ev);
+  // Duplicate (spell mode): n token copies of the spell's stack object go on the stack above it: same targets, same HP and statuses
+  // (modifications are kept), the card without Duplicate; a copy ceases to exist when it leaves the stack. The spell gone: nothing
+  function dupSpell(s, who, src, n, ev) {
+    const o = s.stack.find(q => q.kind === 'spell' && q.iid === src.iid),
+      def = dupDef(src);
+    if (!o || !def) return;
+    for (let i = 0; i < n; i++) {
+      const k = (s.tokN = (s.tokN || 0) + 1),
+        t = {
+          iid: 'tk-' + k,
+          def,
+          owner: src.owner,
+          controller: src.controller,
+          loc: 'stack',
+          slot: null,
+          token: true,
+          statuses: JSON.parse(JSON.stringify(live(src).filter(st => st.kind !== 'grant' && st.kind !== 'revealed'))),
+        };
+      s.cards[t.iid] = t;
+      s.stack.push(
+        Object.assign(JSON.parse(JSON.stringify(o)), { sid: ++s.sid, iid: t.iid, controller: who, copy: true })
+      );
+      ev.push({ t: 'StackObjectCreated', iid: t.iid });
+    }
+    prGo(s, 'pushedByEffect');
+  }
+  OPS.Duplicate = (x, e) =>
+    x.src.loc === 'stack' ? dupSpell(x.s, x.who, x.src, e.n || 1, x.ev) : dupAsk(x.s, x.who, x.src, e.n || 1, x.ev);
+  // a card is secretly selected and secretly gains e.what (a grant: cards.js GRANTS). by 'foe': the spell's opponent picks among the cards
+  // its cost revealed (from 'shown', still in the hand); by 'self': its controller picks among the opponent's hand (from 'foeHand')
+  OPS.SecretGrant = (x, e) => {
+    const s = x.s,
+      picker = e.by === 'foe' ? x.foe : x.who,
+      hand = s.piles[e.by === 'foe' ? x.who : x.foe].hand,
+      ids = (e.from === 'shown' ? (x.o && x.o.shown) || [] : hand.map(c => c.iid)).filter(i =>
+        hand.some(c => c.iid === i)
+      );
+    if (!ids.length) return;
+    ask(
+      s,
+      picker,
+      x.src,
+      'secretgrant',
+      ids,
+      null,
+      x.src.def.name + ': secretly select a card.',
+      {
+        secret: true,
+        what: e.what,
+        cands: ids,
+      },
+      x.ev
+    );
+  };
+  // reveal the opponent's hand to the controller (each card stays revealed while in that hand)
+  OPS.RevealFoeHand = x => {
+    const L = x.s.piles[x.foe].hand;
+    for (const c of L)
+      if (!isRevealed(c, x.who))
+        addStatus(x.s, c, { kind: 'revealed', to: x.who, zone: 'hand', srcName: x.src.def.name });
+    x.ev.push({ t: 'HandRevealed', player: x.foe, to: x.who, iids: L.map(c => c.iid) });
+  };
   return {
-    exports: { OPS, dupAsk },
+    exports: { OPS, dupAsk, dupDef },
     needs: [
       'autoOne',
       'countValue',
@@ -566,6 +634,9 @@ Sim.def('ops', function (K) {
       'isUnusable',
       'markUnusable',
       'placeZoneSecret',
+      'placeCardSecret',
+      'abDef',
+      'prGo',
     ],
     link: () => {
       ({ autoOne } = K);
@@ -615,7 +686,7 @@ Sim.def('ops', function (K) {
       } = K);
       ({ allowed, damageZone, giveZoneHp, isUnusable, markUnusable } = K);
       ({ atkOf } = K);
-      ({ placeZoneSecret } = K);
+      ({ placeCardSecret, placeZoneSecret, abDef, prGo } = K);
     },
   };
 });

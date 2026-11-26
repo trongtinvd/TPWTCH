@@ -1,6 +1,7 @@
 // choices.js - the multi-step choices of the extra deck cards: adjacent pairs (Widow Maker), reordering the top of a deck and declaring a card name
 // then playing the opponent's top card (L4: The Librarian). Each flow is started by an op (ops.js) and continued by a CH handler (ch.js).
 Sim.def('choices', function (K) {
+  let fire; // stack
   let autoOne; // fx
   let prGo; // priority
   // imports (bound by Sim.boot once every module is loaded)
@@ -204,12 +205,14 @@ Sim.def('choices', function (K) {
       });
       prGo(s, 'pushedByEffect'); // the count resets; priority stays while the Librarian goes on
       ev.push({ t: 'StackObjectCreated', iid: t.iid });
+      fire(s, ev, 'cast', t); // its own 'cast' triggers (Duplicate, spell mode)
     }
     declareAsk(s, me, c, ev); // repeat this effect
   }
   return {
     exports: { declareAsk, libLook, libPlay, pairLabel, pairOptions, pairPicked, pairStart, reorderAsk, reorderStart },
     needs: [
+      'fire',
       'autoOne',
       'prGo',
       'addStatus',
@@ -230,6 +233,7 @@ Sim.def('choices', function (K) {
       'zoneDist',
     ],
     link: () => {
+      ({ fire } = K);
       ({ autoOne } = K);
       ({ prGo } = K);
       ({ addStatus, isRevealed } = K);
