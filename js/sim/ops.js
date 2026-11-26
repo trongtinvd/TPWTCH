@@ -479,8 +479,33 @@ Sim.def('ops', function (K) {
       );
     },
   };
+  // Duplicate (permanent mode): `left` token copies of src (its def.tokens.duplicate) on free zones of its row, one pick at a time
+  // (CH.place continues with dupLeft); a single free zone is filled by itself; no free zone = no more copies
+  function dupAsk(s, who, src, left, ev) {
+    const def = src.def.tokens && src.def.tokens.duplicate;
+    while (def && left > 0 && !s.choice) {
+      const row = def.type === 'creature' ? 'front' : 'back',
+        f = Object.keys(s.slots).filter(k => k.startsWith(who + '|' + row + '|') && !s.slots[k] && !isUnusable(s, k));
+      if (!f.length) return;
+      if (!autoOne(s, who, f))
+        return ask(
+          s,
+          who,
+          src,
+          'place',
+          f,
+          null,
+          src.def.name + ': click a free zone for a token copy (' + left + ' left).',
+          { token: 'duplicate', dupLeft: left - 1 },
+          ev
+        );
+      makeToken(s, def, who, f[0], ev);
+      left--;
+    }
+  }
+  OPS.Duplicate = (x, e) => dupAsk(x.s, x.who, x.src, e.n || 1, x.ev);
   return {
-    exports: { OPS },
+    exports: { OPS, dupAsk },
     needs: [
       'autoOne',
       'countValue',

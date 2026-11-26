@@ -28,7 +28,19 @@ const KEYWORDS = {
     reminder:
       'whenever this takes combat or effect damage, it deals damage equal to its power to the source: the damaging creature, or the controller of the spell',
   },
+  // Duplicate N (permanent mode): an enter trigger whose Stack HP is the card's HP; the copies have no Duplicate
+  duplicate: {
+    name: 'Duplicate',
+    zone: 'board',
+    reminder: o =>
+      'when this enters, create ' +
+      (o.n > 1 ? o.n + ' token copies' : 'a token copy') +
+      ' of it, without Duplicate, on free zones of your row that you pick',
+  },
 };
+const kwName = o => KEYWORDS[o.kw].name + (o.n > 1 ? ' ' + o.n : ''); // "Duplicate 2"
+const kwReminder = o =>
+  typeof KEYWORDS[o.kw].reminder === 'function' ? KEYWORDS[o.kw].reminder(o) : KEYWORDS[o.kw].reminder;
 const stackHp = a => (a.hp == null ? 1 : a.hp); // a trigger / activated ability without an explicit HP has Stack HP 1 (Cards.add writes it into the data)
 const Translate = (function () {
   const cap = t => (t ? t[0].toUpperCase() + t.slice(1) : t),
@@ -198,6 +210,10 @@ const Translate = (function () {
       );
     },
     PlaceToken: (e, c) => 'put a ' + tokName(c, e.token) + ' on a free front zone',
+    Duplicate: e =>
+      'create ' +
+      (e.n > 1 ? e.n + ' token copies' : 'a token copy') +
+      ' of this card, without Duplicate, on free zones of your row',
     Fusion: e =>
       'reveal an extra deck creature, pay its materials from your ' +
       e.from.map(z => ZONE[z]).join(', ') +
@@ -270,8 +286,7 @@ const Translate = (function () {
   function translateOne(o, kind, def) {
     const c = { def };
     if (kind === 'triggers') {
-      if (o.kw && KEYWORDS[o.kw])
-        return KEYWORDS[o.kw].name + ' (' + KEYWORDS[o.kw].reminder + ').' + hpNote(stackHp(o)); // a keyworded trigger: its keyword and reminder
+      if (o.kw && KEYWORDS[o.kw]) return kwName(o) + ' (' + kwReminder(o) + ').' + hpNote(stackHp(o)); // a keyworded trigger: its keyword and reminder
       const head = WHEN(o, c) + (IF[o.cond] ? IF[o.cond](o) : '');
       return (
         head +
@@ -524,6 +539,9 @@ const Fx = {
   skipFoeCombat: pay => ({ op: 'SkipFoeCombat', pay }),
   secondCombat: () => ({ op: 'SecondCombat' }),
   upTo: (who, from, then, n, types, self) => ({ op: 'UpTo', who, from, then, n, types, self }), // who: me|foe; from: gy|hand; then: toHand|play
+  // Duplicate N (permanent mode): when this enters (Stack HP = the card's HP, set by Cards.derive), create N token copies on free zones of
+  // the controller's row, picked by the controller (fewer free zones = fewer copies). Cards.add makes the copy: def.tokens.duplicate
+  duplicate: (n = 1) => ({ on: 'enter', kw: 'duplicate', name: 'Duplicate', n, effects: [{ op: 'Duplicate', n }] }),
   placeToken: token => ({ op: 'PlaceToken', token }), // effect: the controller picks a free front zone and puts the token there
   // extra deck: `materials` and `conditions` are plain data on the creature; they do nothing by themselves, Fusion effects (and other cards) read them
   mat: (type, n, same) => {
@@ -564,6 +582,16 @@ const Cards = {
   list: [],
   add(factory) {
     const d = factory(Fx);
+    if ((d.triggers || []).some(t => t.kw === 'duplicate')) {
+      // the token copy: the card without Duplicate (the copy never makes copies itself)
+      const { tokens, ...rest } = d;
+      d.tokens = Object.assign({}, tokens, {
+        duplicate: Object.assign({}, rest, {
+          id: d.id + '-token',
+          triggers: d.triggers.filter(t => t.kw !== 'duplicate'),
+        }),
+      });
+    }
     this.derive(d);
     Object.values(d.tokens || {}).forEach(t => {
       t.isToken = true; // a token is never played: no action point cost in its text
@@ -573,6 +601,7 @@ const Cards = {
   },
   derive(d) {
     // every stack ability states its HP in the data (the default 1 is written in, so the text and the Sim read the same number)
+    for (const t of d.triggers || []) if (t.kw === 'duplicate' && t.hp == null) t.hp = d.hp; // Duplicate's Stack HP is the card's HP
     for (const k of ['triggers', 'abilities']) (d[k] || []).forEach(o => (o.hp = stackHp(o)));
     // every ability shows its generated text; the written descriptions are in CardText
     Translate.abilityList(d).forEach(x => (x.o.text = Translate.shown(x.o, x.list, d)));
@@ -887,6 +916,7 @@ Cards.add(Fx =>
     ],
   })
 );
+Cards.add(Fx => Fx.creature('shieldarmy', 'Shield Army', 0, 10, { triggers: [Fx.duplicate(2)] }));
 // ---- Extra deck creatures (keep them last: the extra deck of the 'Full Pool' deck is in this order)
 Cards.add(Fx => {
   const strike = Fx.sendAdjacentPair();

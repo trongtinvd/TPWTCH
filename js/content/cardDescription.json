@@ -209,6 +209,12 @@
       "text": {
         "abilities:0": "Fast. Spend an attack counter on this card, target something with HP that is not a player: deal 3 temporary non-lethal damage to it. (Stack HP 1)"
       }
+    },
+    "shieldarmy": {
+      "name": "Shield Army",
+      "text": {
+        "triggers:0": "Duplicate 2"
+      }
     }
   }
 }

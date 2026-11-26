@@ -7,6 +7,7 @@ Sim.def('ch', function (K) {
   let bounce, destroy, enterBoard, freeSlots, makeToken; // state
   let ask, askDeck, runFx, upToAsk; // fx
   let THEN; // then
+  let dupAsk; // ops
   let fusionMat, fusionPicked; // fusion
   let declareAsk, libLook, libPlay, pairPicked, reorderAsk; // choices
   let extraAttack; // combat
@@ -30,6 +31,7 @@ Sim.def('ch', function (K) {
     place: (s, k, c, cmd, ev) => {
       if (k.token) {
         makeToken(s, c.def.tokens[k.token], k.player, cmd.option, ev);
+        if (k.dupLeft) dupAsk(s, k.player, c, k.dupLeft, ev); // Duplicate: the next copy
         return;
       }
       enterBoard(s, s.cards[k.card], cmd.option, ev);
@@ -145,6 +147,7 @@ Sim.def('ch', function (K) {
   return {
     exports: { CH },
     needs: [
+      'dupAsk',
       'activate',
       'addAttackBonus',
       'cancelAttackObj',
@@ -175,6 +178,7 @@ Sim.def('ch', function (K) {
       'upToAsk',
     ],
     link: () => {
+      ({ dupAsk } = K);
       ({ activate } = K);
       ({ addAttackBonus, cancelAttackObj } = K);
       ({
