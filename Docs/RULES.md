@@ -83,6 +83,15 @@ Keyworded abilities are ordinary abilities with a short name, so they can be reu
 - **Defender strike back** (game option, off by default; start dialog): when an Attack hits a creature, that creature deals damage equal to its power (read before it may be destroyed) to the attacking creature (if it is still on the board). It is combat damage from the defender (blue shields do not stop it, 'damaged' triggers see it), applied at once by the rule (no stack), to the attacker only (it never tramples on), and it is never struck back. Every creature the Attack damages strikes back; non-creatures do not; an Attack that reaches the player does not. It happens before the defender's own triggers: a Shieldguard first strikes back by the rule, then its Retaliate goes on the stack. `state.cfg.strikeBack`.
 - **Fast** (abilities): usable whenever the owner holds priority. **Slow** abilities: see "Turn".
 
+## Secrets [proto 2026-11-27]
+
+Spec: project doc `claude/SPEC_secret_cards.md`. Code: `js/sim/secrets.js`.
+
+- A **secret** is known to the player who placed it only. The Sim holds the truth (`state.secrets` + a hidden status); the other player is told that a secret was placed and its **candidates**: the zones it may be on, as that player could know them at that moment (empty usable zones, plus zones under an enemy cloud). Candidates **narrow** when a card enters a candidate zone the other player can see and nothing triggers. A secret is **revealed** when it triggers.
+- `Sim.observe` hides from the other player: the secret status on the zone, the secret pick of a stack object (`pick: null`), the options / labels of the secret choice, the zone of the observed `Choose` command and of the `SecretPlaced` event. `observation.secrets` / `Sim.secretsFor(state, p)` = what p knows of every secret.
+- **Zapping Ground** (enchantment, 6 HP): when it enters and at the start of your turn (Stack HP 1): secretly target an empty zone (a cost: picked when it goes on the stack; a zone under a King Eye cloud may be picked: if the zone is filled when it resolves, it fizzles); that zone secretly gains a **trap**: "when a card enters this zone (Stack HP 2): consume this status (cost); deal 1 damage to that card" (source: Zapping Ground). Entering = played, put into play by an effect, a token, or **shifting in**. A trap stays armed after Zapping Ground leaves; it is controlled by the player who targeted the zone. The same zone may be trapped twice (both trigger).
+- Presentation: the placer sees gold sparks on their trapped zones; the other player sees a purple ring on every candidate zone, and hovering a zone says "might have Zapping Ground" ("might have up to n Zapping Ground" when several secrets may be there).
+
 ## Setup [proto]
 
 - Decks are **singleton** (one copy of each card): a main deck (10 to 100 cards, currently 28 in the pool) shuffled from a seed, and an **extra deck** (0 to 20 extra deck creatures, never shuffled).

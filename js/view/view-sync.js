@@ -831,6 +831,15 @@ function sync() {
     clouds[k].visible = on;
     if (on) clouds[k].material = k.split('|')[0] === ui.view ? cloudOwn : cloudHide;
   } // owner sees through; revealed columns are clean
+  const SN = secretNotes();
+  for (const k in secretMarks) {
+    const n = SN[k];
+    secretMarks[k].visible = !!n && !Sim.isUnusable(game, k);
+    if (n) {
+      secretMarks[k].geometry = n.mine ? sparkGeo : candGeo;
+      secretMarks[k].material = n.mine ? sparkMat : candMat;
+    }
+  }
   const held = ui.placing || (ui.drag && ui.drag.card),
     free = held && isPerm(held) ? new Set(Sim.freeSlots(game, held)) : null,
     tz =
@@ -1095,6 +1104,7 @@ function animate() {
     z.userData.plane.position.y = 0.065 + L;
   });
   for (const k in clouds) clouds[k].position.y = 0.2 + lift[k.split('|')[0]];
+  for (const k in secretMarks) secretMarks[k].position.y = 0.08 + lift[k.split('|')[0]];
   for (const k in piles3d) if (piles3d[k].h) placePile(piles3d[k]); // the piles ride with their zones
   if (typeof View3D !== 'undefined' && View3D.preFrame()) busy = true; // the hands ride with the 3D camera
   for (const [id, m] of meshes) {
@@ -1127,4 +1137,26 @@ function animate() {
   if (typeof View3D !== 'undefined' && View3D.postFrame()) busy = true; // characters, card turn / scale, camera animation
   if (typeof AvatarView !== 'undefined' && AvatarView.frame()) busy = true; // the avatars
   return busy;
+}
+
+// what the viewer may know of the secrets, per zone: {mine: their own armed traps there, maybe: {name: n} the other player's secrets that may be there}
+function secretNotes() {
+  const out = {},
+    at = k => out[k] || (out[k] = { mine: 0, maybe: {} });
+  for (const r of Sim.secretsFor(game, ui.view)) {
+    if (r.state !== 'armed' || r.kind !== 'zone') continue;
+    if (r.zone) at(r.zone).mine++;
+    else for (const k of r.cands) at(k).maybe[r.name] = (at(k).maybe[r.name] || 0) + 1;
+  }
+  return out;
+}
+// the hover line of a zone: "Your secret: Zapping Ground" / "might have Zapping Ground" / "might have up to 2 Zapping Ground"
+function secretNote(k) {
+  const n = k && secretNotes()[k];
+  if (!n) return '';
+  const parts = [];
+  if (n.mine) parts.push('your secret' + (n.mine > 1 ? 's (' + n.mine + ')' : '') + ' is here');
+  for (const name in n.maybe)
+    parts.push('might have ' + (n.maybe[name] > 1 ? 'up to ' + n.maybe[name] + ' ' : '') + name);
+  return parts.join(', ');
 }

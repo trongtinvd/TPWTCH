@@ -28,6 +28,7 @@ Sim.def('ops', function (K) {
   let dealDamage; // combat
   let fire, hitStack; // stack
   let atkOf; // statuses (Retaliate)
+  let placeZoneSecret; // secrets
   // Board picks for the player x.who. A card under an enemy cloud is never offered by itself: its ZONE is ('Z:slot'), empty or not,
   // so the picker learns nothing about what is underneath. Elsewhere a card is offered unless it has a red shield.
   const boardPicks = (x, foeOnly) => {
@@ -459,6 +460,11 @@ Sim.def('ops', function (K) {
       if (hit.length > 1) return pickAttack(x, hit, { act: 'boost', amount: e.amount }); // Q41: several matching Attacks: the player chooses
       if (hit.length) addAttackBonus(x.s, hit[0], e.amount, x.src.def.name, x.ev);
     }, // generic: adds damage to the matching Attack object (the one, or the chosen one)
+    // the picked zone (targeting secretZone) secretly gains the card's trap e.trap (def.traps): js/sim/secrets.js
+    SetTrap: (x, e) => {
+      const k = x.o && x.o.pick;
+      if (k && x.s.zones[k]) placeZoneSecret(x.s, x.who, x.src, k, e.trap || 0, x.ev);
+    },
     UpTo: (x, e) => upToAsk(x.s, e.who === 'foe' ? x.foe : x.who, x.src, e, e.n, x.ev),
     PlaceToken: (x, e) => {
       const s = x.s,
@@ -559,6 +565,7 @@ Sim.def('ops', function (K) {
       'giveZoneHp',
       'isUnusable',
       'markUnusable',
+      'placeZoneSecret',
     ],
     link: () => {
       ({ autoOne } = K);
@@ -608,6 +615,7 @@ Sim.def('ops', function (K) {
       } = K);
       ({ allowed, damageZone, giveZoneHp, isUnusable, markUnusable } = K);
       ({ atkOf } = K);
+      ({ placeZoneSecret } = K);
     },
   };
 });

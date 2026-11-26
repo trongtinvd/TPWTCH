@@ -215,6 +215,13 @@
       "text": {
         "triggers:0": "Duplicate 2"
       }
+    },
+    "zapping": {
+      "name": "Zapping Ground",
+      "text": {
+        "triggers:0": "When this enters (1hp): secretly target an empty zone; that zone secretly gains \"when a card enters this zone (2hp): consume this status; deal 1 damage to that card.\" Shifting in counts as entering.",
+        "triggers:1": "At the start of your turn (1hp): secretly target an empty zone; that zone secretly gains \"when a card enters this zone (2hp): consume this status; deal 1 damage to that card.\" Shifting in counts as entering."
+      }
     }
   }
 }

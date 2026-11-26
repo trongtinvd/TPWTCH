@@ -6,6 +6,11 @@ Sim.def('targeting', function (K) {
   let has; // statuses
   let cloudMap, isUnusable; // state
   let pairLabel, pairOptions; // choices
+  let secretZones; // secrets
+  const zoneLabel = k => {
+    const [p, row, col] = k.split('|');
+    return p + '\u2019s ' + row + ' zone ' + (+col + 1);
+  };
   // third argument true = TARGETING (a cloud counts as a card/zone there); false = RESOLUTION (only what is really underneath)
   const COLTARGETS = {
     fullColumn: (s, col, clouds) => {
@@ -65,6 +70,15 @@ Sim.def('targeting', function (K) {
       prompt: c => c.def.name + ': target something with HP that is not a player.',
       legal: (s, c, o) => !!hpResolve(s, o), // re-checked when it resolves: an illegal target fizzles it
     },
+    // Zapping Ground: an empty zone, picked in secret (only its controller is told; observe.js hides the pick). A zone under an enemy cloud
+    // may be picked: if something stands there (or entered since), it fizzles when it resolves
+    secretZone: {
+      secret: true,
+      options: (s, c) => secretZones(s, ctl(c)),
+      label: (s, c, o) => zoneLabel(o),
+      prompt: c => c.def.name + ': secretly target an empty zone.',
+      legal: (s, c, o) => !s.slots[o] && !isUnusable(s, o),
+    },
   };
   const findTarget = (s, c, a) => (a.target && TARGETS[a.target] ? TARGETS[a.target](s, c) : null);
   return {
@@ -81,11 +95,12 @@ Sim.def('targeting', function (K) {
       'other',
       'pairLabel',
       'pairOptions',
+      'secretZones',
     ],
     link: () => {
       ({ hpLabel, hpRefs, hpResolve } = K);
       ({ ctl } = K);
-      ({ cloudMap, colKeys, has, isUnusable, other, pairLabel, pairOptions } = K);
+      ({ cloudMap, colKeys, has, isUnusable, other, pairLabel, pairOptions, secretZones } = K);
     },
   };
 });

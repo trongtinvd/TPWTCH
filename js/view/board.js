@@ -178,6 +178,41 @@ for (const k in slotZones) {
   scene.add(m);
   clouds[k] = m;
 }
+// ---- Secrets (js/sim/secrets.js): one flat mark per slot zone. The placer sees gold sparks where their trap is; the other player sees a
+// faint purple ring on every zone a secret may be on. Not pickable.
+const sparkGeo = (() => {
+    const sh = new THREE.Shape(),
+      n = 8;
+    for (let i = 0; i <= n * 2; i++) {
+      const a = (i / (n * 2)) * Math.PI * 2,
+        r = i % 2 ? TILE_W * 0.12 : TILE_W * 0.34;
+      i ? sh.lineTo(Math.cos(a) * r, Math.sin(a) * r) : sh.moveTo(r, 0);
+    }
+    return new THREE.ShapeGeometry(sh);
+  })(),
+  candGeo = new THREE.RingGeometry(TILE_W * 0.26, TILE_W * 0.32, 32),
+  sparkMat = new THREE.MeshBasicMaterial({
+    color: cssHex('--secret-spark', 0xffd75a),
+    transparent: true,
+    opacity: 0.9,
+    depthWrite: false,
+  }),
+  candMat = new THREE.MeshBasicMaterial({
+    color: cssHex('--secret-maybe', 0xa070ff),
+    transparent: true,
+    opacity: 0.45,
+    depthWrite: false,
+  }),
+  secretMarks = {};
+for (const k in slotZones) {
+  const m = new THREE.Mesh(sparkGeo, sparkMat);
+  m.rotation.x = -Math.PI / 2;
+  m.position.set(slotZones[k].position.x, 0.08, slotZones[k].position.z);
+  m.raycast = () => {};
+  m.visible = false;
+  scene.add(m);
+  secretMarks[k] = m;
+}
 const ray = new THREE.Raycaster(),
   mouse = new THREE.Vector2(2, 2),
   tmpRay = new THREE.Raycaster(),

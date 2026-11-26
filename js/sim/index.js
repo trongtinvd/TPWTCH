@@ -128,6 +128,7 @@ Sim.boot(K => {
     choicePicks: K.choicePicks, // the legal selections of the pending choice (validation and highlighting)
     stopOn: K.stopOn, // is a stop on (defaults included)
     slotSeen: K.slotSeen, // may a player know what stands on a zone
+    secretsFor: K.secretsFor, // what a player may know of every secret (the zone for its placer, else the candidates): js/sim/secrets.js
     strikesBack: K.strikesBack, // the "Defender strike back" option
     HPKINDS: K.HPKINDS,
     actor: K.actor, // who must act now

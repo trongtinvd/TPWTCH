@@ -82,6 +82,8 @@
   --cloud-hidden: #07070c; /* King Eye clouds */
   --cloud-own: #07070c;
   --cloud-hot: #16402a;
+  --secret-spark: #ffd75a; /* your secret trap on a zone */
+  --secret-maybe: #a070ff; /* a zone the opponent's secret may be on */
 
   /* ---- distances (world units) ---- */
   --tile-w: 2;

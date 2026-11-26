@@ -146,6 +146,18 @@ const DebugLog = (function () {
     LifeCounterAdded: (s, e) => 'life gained: +' + e.amount,
     CounterAdded: (s, e) => ref(s, e.iid) + ' gets a ' + e.color + ' shield',
     ZoneUnusable: (s, e) => e.slot + ' becomes unusable',
+    SecretPlaced: (s, e) =>
+      nm(s, e.player) +
+      ' places secret #' +
+      e.id +
+      ' (' +
+      e.name +
+      ') on ' +
+      e.slot +
+      ' (' +
+      (e.cands || []).length +
+      ' candidates)',
+    SecretRevealed: (s, e) => 'secret #' + e.id + ' (' + e.name + ') on ' + e.slot + ' triggers',
     HistoryCapReached: () => 'the history limit was reached: the game is over',
     ZoneDamaged: (s, e) => e.slot + ' takes ' + e.amount + ' zone damage',
     AbilitiesTransformed: (s, e) => ref(s, e.iid) + ' takes on new abilities (was ' + e.from + ')',

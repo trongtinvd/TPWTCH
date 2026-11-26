@@ -6,6 +6,7 @@ Sim.def('observe', function (K) {
   let canSee, cloudMap, slotSeen, ctl, isPerm, abDef; // state
   let raceOf; // turn
   let atkOf, hpOf, totalDamage, apOpen; // statuses, ap
+  let secretHidden, secretsFor; // secrets
   // an opaque id for a hidden card: a hash of the game seed (never sent), the viewer and the real id, so the real id (its position in the deck list) cannot be read back
   const hash = str => {
     let h1 = 0xdeadbeef,
@@ -131,7 +132,7 @@ Sim.def('observe', function (K) {
       slots[k] = id && sc.known(id) ? id : null; // what stands under an enemy cloud is not told
       const cl = cloudMap(s)[k];
       zones[k] = {
-        statuses: sc.scrub(s.zones[k].statuses),
+        statuses: sc.scrub(s.zones[k].statuses.filter(st => !secretHidden(st, p))), // a secret status: its placer only
         cloud: cl ? sc.alias(cl) : null, // the King Eye whose cloud covers the zone
         seen: slotSeen(s, p, k), // may p know what stands there
       };
@@ -154,7 +155,8 @@ Sim.def('observe', function (K) {
         tsid: o.tsid == null ? null : o.tsid,
         col: o.col,
         zone: o.zone || null,
-        pick: o.pick || null,
+        pick: o.secret && o.controller !== p ? null : o.pick || null, // a secret target: its controller only
+        secret: !!o.secret,
         list: o.list, // a trigger or an activated ability (public: an activation is a command)
         abName: a ? a.name || null : null, // the ability's name and text: only when p may see where it comes from
         abText: a ? a.text || null : null,
@@ -173,6 +175,7 @@ Sim.def('observe', function (K) {
               iid: k.iid ? sc.alias(k.iid) : undefined,
               card: k.card ? sc.alias(k.card) : undefined,
               token: !!k.token,
+              secret: !!k.secret,
               options: k.options.map(sc.alias),
               labels: k.labels
                 ? Object.fromEntries(Object.entries(k.labels).map(([o, t]) => [sc.alias(o), t]))
@@ -186,8 +189,9 @@ Sim.def('observe', function (K) {
               iid: k.iid ? sc.alias(k.iid) : undefined,
               card: k.card ? sc.alias(k.card) : undefined,
               token: !!k.token,
+              secret: !!k.secret, // that it is a secret pick is public, the pick is not
               labels:
-                k.labels && k.iid && sc.known(k.iid)
+                k.labels && k.iid && sc.known(k.iid) && !k.secret
                   ? Object.fromEntries(Object.entries(k.labels).map(([o, t]) => [sc.alias(o), sc.maskText(t)]))
                   : undefined,
             };
@@ -209,6 +213,7 @@ Sim.def('observe', function (K) {
       cards,
       slots,
       zones,
+      secrets: secretsFor(s, p), // what p may know of every secret: the zone for its placer (or once revealed), else the candidates
       stack,
       choice,
       result: s.result,
@@ -244,6 +249,7 @@ Sim.def('observe', function (K) {
         o.slot = null;
       for (const k of ['iid', 'source', 'target']) if (typeof o[k] === 'string') o[k] = sc.alias(o[k]);
       if (typeof o.why === 'string') o.why = sc.maskText(o.why);
+      if (e.t === 'SecretPlaced' && e.player !== p) delete o.slot; // where a secret was placed: its placer only
       return o;
     });
   }
@@ -281,7 +287,9 @@ Sim.def('observe', function (K) {
         about = k.card || k.iid,
         x = cmd.option;
       o.about = id0(about); // the card the choice is about, as p knows it across the command (a card played from the hand is public once on the board)
-      if (pre.cards[x]) o.option = id0(x);
+      if (k.secret && k.player !== p)
+        o.option = null; // a secret pick
+      else if (pre.cards[x]) o.option = id0(x);
       else if (about && ZKEY.test(x) && (!k.kind || k.kind === 'place') && !slotKnown(pre, post, p, about, x))
         o.option = null;
       if (!k.kind && k.iid && pre.cards[k.iid]) {
@@ -389,9 +397,12 @@ Sim.def('observe', function (K) {
       'slotSeen',
       'totalDamage',
       'raceOf',
+      'secretHidden',
+      'secretsFor',
     ],
     link: () => {
       ({ abDef, apOpen, atkOf, canSee, cloudMap, ctl, hpOf, isPerm, slotSeen, totalDamage, raceOf } = K);
+      ({ secretHidden, secretsFor } = K);
     },
   };
 });

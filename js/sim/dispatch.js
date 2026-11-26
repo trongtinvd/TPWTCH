@@ -296,6 +296,7 @@ Sim.def('dispatch', function (K) {
           s.slots[cmd.option] = c.iid;
           c.slot = cmd.option;
           ev.push({ t: 'PermanentMoved', iid: c.iid, slot: cmd.option });
+          fire(s, ev, 'shift', c); // shifting in counts as entering a zone (secret traps); no card trigger listens to 'shift'
         }
         if (k.cont) {
           if (s.choice) s.choice.cont = (s.choice.cont || []).concat(k.cont);

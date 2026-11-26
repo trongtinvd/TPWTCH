@@ -78,6 +78,7 @@ const Translate = (function () {
   const TARGETING = {
     adjacentPair: 'target two adjacent cards your opponent controls',
     nonPlayerHp: 'target something with HP that is not a player',
+    secretZone: 'secretly target an empty zone',
   };
   const ZONE = { gy: 'GY', hand: 'hand', deck: 'deck', board: 'board' };
   const PICK_FROM = {
@@ -209,6 +210,7 @@ const Translate = (function () {
           : (foe ? 'puts' : 'put') + ' up to ' + e.n + ' ' + what + ' from ' + from + ' into play')
       );
     },
+    SetTrap: (e, c) => 'that zone secretly gains \u201c' + ((c.def.traps || [])[e.trap || 0] || {}).text + '\u201d',
     PlaceToken: (e, c) => 'put a ' + tokName(c, e.token) + ' on a free front zone',
     Duplicate: e =>
       'create ' +
@@ -295,6 +297,13 @@ const Translate = (function () {
         effectsText(o.effects, c) +
         '.' +
         hpNote(stackHp(o))
+      );
+    }
+    if (kind === 'traps') {
+      // an ability a card gives a zone (Zapping Ground): "When a card enters this zone: consume this status; <effect>."
+      c.tgt = 'that card';
+      return (
+        'When a card enters this zone: consume this status; ' + effectsText(o.effects, c) + '.' + hpNote(stackHp(o))
       );
     }
     if (kind === 'abilities') {
@@ -500,7 +509,7 @@ const Fx = {
     exInGY: 'exInGY', // an extra deck creature is in your graveyard
   },
   target: { opposingFront: 'opposingFront', attacker: 'attacker' },
-  targeting: { adjacentPair: 'adjacentPair', nonPlayerHp: 'nonPlayerHp' }, // trigger field: what it targets when it is put on the stack (the cost / targeting part: condition : cost / targeting ; effect)
+  targeting: { adjacentPair: 'adjacentPair', nonPlayerHp: 'nonPlayerHp', secretZone: 'secretZone' }, // trigger field: what it targets when it is put on the stack (the cost / targeting part: condition : cost / targeting ; effect)
   zoneTarget: { anyPermanent: 'anyPermanent', anyCreature: 'anyCreature' }, // spell target: a zone with a card (or a cloud) on it, chosen when the spell is played
   playerTarget: true, // spell flag: a player can be targeted (click a life bar)
   keyword: kw => ({ op: 'Keyword', kw }), // passive: a keyworded passive (KEYWORDS: flash); an ordinary ability, so it can be disabled
@@ -542,6 +551,10 @@ const Fx = {
   // Duplicate N (permanent mode): when this enters (Stack HP = the card's HP, set by Cards.derive), create N token copies on free zones of
   // the controller's row, picked by the controller (fewer free zones = fewer copies). Cards.add makes the copy: def.tokens.duplicate
   duplicate: (n = 1) => ({ on: 'enter', kw: 'duplicate', name: 'Duplicate', n, effects: [{ op: 'Duplicate', n }] }),
+  // secrets (js/sim/secrets.js). setTrap: the zone picked by targeting secretZone secretly gains def.traps[trap]. trap: an ability of a ZONE,
+  // "when a card enters this zone: consume this status (cost); effects" (target = the card that entered); controlled by who placed it
+  setTrap: (trap = 0) => ({ op: 'SetTrap', trap }),
+  trap: (...effects) => ({ on: 'zoneEnter', target: 'entered', effects }),
   placeToken: token => ({ op: 'PlaceToken', token }), // effect: the controller picks a free front zone and puts the token there
   // extra deck: `materials` and `conditions` are plain data on the creature; they do nothing by themselves, Fusion effects (and other cards) read them
   mat: (type, n, same) => {
@@ -602,7 +615,8 @@ const Cards = {
   derive(d) {
     // every stack ability states its HP in the data (the default 1 is written in, so the text and the Sim read the same number)
     for (const t of d.triggers || []) if (t.kw === 'duplicate' && t.hp == null) t.hp = d.hp; // Duplicate's Stack HP is the card's HP
-    for (const k of ['triggers', 'abilities']) (d[k] || []).forEach(o => (o.hp = stackHp(o)));
+    for (const k of ['triggers', 'abilities', 'traps']) (d[k] || []).forEach(o => (o.hp = stackHp(o)));
+    (d.traps || []).forEach(o => (o.text = Translate.translateOne(o, 'traps', d))); // before the triggers: their text quotes it
     // every ability shows its generated text; the written descriptions are in CardText
     Translate.abilityList(d).forEach(x => (x.o.text = Translate.shown(x.o, x.list, d)));
     if (d.type === 'spell') d.body = Translate.shown(d, 'spell', d); // the spell's own effect is an ability of the card too
@@ -917,6 +931,14 @@ Cards.add(Fx =>
   })
 );
 Cards.add(Fx => Fx.creature('shieldarmy', 'Shield Army', 0, 10, { triggers: [Fx.duplicate(2)] }));
+Cards.add(Fx => {
+  // When this enters and at the start of your turn: secretly target an empty zone; that zone secretly gains the trap (it stays after this leaves)
+  const arm = on => Object.assign(on(Fx.setTrap(0)), { hp: 1, targeting: Fx.targeting.secretZone });
+  return Fx.enchantment('zapping', 'Zapping Ground', 6, {
+    traps: [Object.assign(Fx.trap(Fx.dealDamage('target', 1)), { name: 'Zap', hp: 2 })],
+    triggers: [arm(Fx.trigger.enter), arm(Fx.trigger.turnStart)],
+  });
+});
 // ---- Extra deck creatures (keep them last: the extra deck of the 'Full Pool' deck is in this order)
 Cards.add(Fx => {
   const strike = Fx.sendAdjacentPair();

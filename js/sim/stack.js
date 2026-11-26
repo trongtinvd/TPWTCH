@@ -15,6 +15,10 @@ Sim.def('stack', function (K) {
   let COND, TRIGGERS; // cond
   let runFx, ask; // fx
   let resolveAttack; // combat
+  let consumeTrap, narrow, trapHits; // secrets
+  // a trigger list of a card: 'traps' (abilities a card gives a zone, Zapping Ground) are read from the printed card, so a trap keeps working
+  // whatever happens to the card that placed it (it left the board, lost its abilities)
+  const listOf = (c, list) => (list === 'traps' ? c.def.traps : abDef(c)[list]) || [];
   function canPlay(s, c) {
     // reason string, or null if legal
     if (s.phase !== 'play') return 'The game has not started';
@@ -94,7 +98,8 @@ Sim.def('stack', function (K) {
   }
   function pushObj(s, c, list, i, ev, target, extra) {
     // abilities AND triggers share one path: a token card + a stack object with its own HP
-    const a = abDef(c)[list][i],
+    const a = listOf(c, list)[i],
+      who = (extra && extra.controller) || ctl(c), // a trap is controlled by the player who placed it
       sid = ++s.sid,
       n = list === 'triggers' ? 100 + i : i;
     const tok = {
@@ -107,7 +112,7 @@ Sim.def('stack', function (K) {
         hp: a.hp ?? 1,
         text: abDef(c).text,
       },
-      owner: ctl(c),
+      owner: who,
       loc: 'stack',
       slot: null,
       token: true,
@@ -123,8 +128,8 @@ Sim.def('stack', function (K) {
           src: c.iid,
           list,
           ab: i,
-          from: abDef(c).id,
-          controller: ctl(c),
+          from: list === 'traps' ? c.def.id : abDef(c).id,
+          controller: who,
           hp: tok.def.hp,
           target: target || null,
           name: tok.def.name,
@@ -148,11 +153,24 @@ Sim.def('stack', function (K) {
         hits.push({ c, i, optional: !!t.optional });
       });
     }
+    if ((on === 'enter' || on === 'shift') && subject && subject.loc === 'board') {
+      const traps = trapHits(s, subject); // the secret traps on the zone it entered (shifting in counts as entering)
+      hits.push(...traps);
+      narrow(
+        s,
+        subject.slot,
+        traps.map(h => h.secret)
+      );
+    }
     if (!hits.length) return;
     // 2) the triggers wait in s.trg: each player with several of them may order them (a choice, non-turn player first; only when the host turned
     //    it on), every trigger with a targeting picks its targets, then they go on the stack: turn player's first, so the other player's resolve first.
     const items = hits.map(h =>
-      Object.assign({ iid: h.c.iid, i: h.i, owner: ctl(h.c), optional: h.optional }, evt ? { evt } : null)
+      Object.assign(
+        { iid: h.c.iid, i: h.i, owner: h.owner || ctl(h.c), optional: h.optional },
+        h.list ? { list: h.list, trap: h.trap, entered: h.entered } : null,
+        evt ? { evt } : null
+      )
     );
     if (s.trg) {
       // triggers are still waiting (a choice is pending): the new ones join them; their owners order again
@@ -172,7 +190,7 @@ Sim.def('stack', function (K) {
     for (const p of [other(s.active), s.active]) {
       if (T.R[p]) continue;
       const mine = T.items.map((x, k) => k).filter(k => T.items[k].owner === p && !T.items[k].optional), // only MANDATORY triggers are reorderable (Q7)
-        def = k => abDef(s.cards[T.items[k].iid]).triggers[T.items[k].i];
+        def = k => listOf(s.cards[T.items[k].iid], T.items[k].list || 'triggers')[T.items[k].i];
       if (s.orderTriggers && mine.length > 1 && mine.length <= 6 && !s.choice) {
         const nm = k => s.cards[T.items[k].iid].def.name,
           perms = permutations(mine.slice().reverse()).map(a => a.join(','));
@@ -207,7 +225,7 @@ Sim.def('stack', function (K) {
       const it = T.items[k];
       if (it.tgt !== undefined) continue;
       const c = s.cards[it.iid],
-        t = abDef(c).triggers[it.i];
+        t = listOf(c, it.list || 'triggers')[it.i];
       if (!t.targeting) {
         it.tgt = null; // no targeting: nothing is picked now
         continue;
@@ -220,7 +238,17 @@ Sim.def('stack', function (K) {
         it.tgt = false; // no legal target: the trigger is not put on the stack
       else if (autoOne(s, it.owner, opts)) it.tgt = opts[0];
       else {
-        ask(s, it.owner, c, 'trigtarget', opts, o => G.label(s, c, o), G.prompt(c), { tk: k }, ev);
+        ask(
+          s,
+          it.owner,
+          c,
+          'trigtarget',
+          opts,
+          o => G.label(s, c, o),
+          G.prompt(c),
+          G.secret ? { tk: k, secret: true } : { tk: k },
+          ev
+        );
         return;
       }
     }
@@ -228,14 +256,23 @@ Sim.def('stack', function (K) {
     for (const k of pushOrder) {
       const it = T.items[k];
       if (it.tgt === false) continue;
+      const c = s.cards[it.iid],
+        t = listOf(c, it.list || 'triggers')[it.i];
+      if (it.list === 'traps') consumeTrap(s, it.trap, ev); // its cost: consume this status (paid when it is put on the stack)
       pushObj(
         s,
-        s.cards[it.iid],
-        'triggers',
+        c,
+        it.list || 'triggers',
         it.i,
         ev,
-        null,
-        Object.assign({}, it.tgt ? { pick: it.tgt } : null, it.evt ? { evt: it.evt } : null)
+        it.list === 'traps' ? it.entered : null, // "that card": the card that entered the zone
+        Object.assign(
+          {},
+          it.tgt ? { pick: it.tgt } : null,
+          it.evt ? { evt: it.evt } : null,
+          it.list === 'traps' ? { controller: it.owner } : null,
+          t.targeting && TARGETINGS[t.targeting].secret ? { secret: true } : null // its target is known to its controller only
+        )
       );
       pushed = true;
     }
@@ -377,6 +414,9 @@ Sim.def('stack', function (K) {
       'slowish',
       'targetColumns',
       'targetZones',
+      'consumeTrap',
+      'narrow',
+      'trapHits',
     ],
     link: () => {
       ({ autoOne } = K);
@@ -412,6 +452,7 @@ Sim.def('stack', function (K) {
         targetColumns,
         targetZones,
       } = K);
+      ({ consumeTrap, narrow, trapHits } = K);
     },
   };
 });

@@ -188,6 +188,7 @@ const Narrate = (function () {
         if (k.kind === 'declare') line(who + ' declares ' + d);
         else if (k.kind === 'trigorder')
           line(who + ' orders their triggers: ' + ((k.labels && k.labels[cmd.option]) || cmd.option));
+        else if (k.secret) line(who + ' secretly targets ' + (cmd.option ? d : 'a zone'));
         else if (k.kind === 'trigtarget' || k.kind === 'pair') line(who + ' targets ' + d);
         else if (k.kind === 'mode') line(who + ' chooses the effect: ' + d);
         else if (k.kind === 'libplay') line(who + ' chooses to ' + d);
@@ -342,6 +343,20 @@ const Narrate = (function () {
           break;
         case 'ZoneUnusable':
           line(zoneTxt(e.slot) + ' becomes unusable');
+          break;
+        case 'SecretPlaced': // the slot is there only for the player who placed it (observe.js)
+          if (e.slot) line(P(e.player) + ' secretly arms ' + zoneTxt(e.slot) + ' (' + e.name + ')');
+          else
+            line(
+              P(e.player) +
+                ' places a secret (' +
+                e.name +
+                '): it may be on ' +
+                (e.cands.length === 1 ? zoneTxt(e.cands[0]) : 'one of ' + e.cands.length + ' zones')
+            );
+          break;
+        case 'SecretRevealed':
+          line('The secret ' + e.name + ' on ' + zoneTxt(e.slot) + ' triggers (' + P(e.player) + ')');
           break;
         case 'ZoneDamaged':
           line(zoneTxt(e.slot) + ' takes ' + e.amount + ' zone damage');

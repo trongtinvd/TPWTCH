@@ -299,7 +299,8 @@ function updateHover() {
   if (pc && !ui.drag) setLink({ t: 'card', iid: pc.iid });
   else if (ui.linkSrc && ui.linkSrc.t === 'card') setLink(null); // card -> its stack entries
   for (const x of [old, m]) if (x) x.material.emissive && applyEm(x);
-  hud.innerHTML = '<b>' + disp(m ? m.userData.name : 'Hover a zone') + '</b>';
+  const sn = m && m.userData.slotKey ? secretNote(m.userData.slotKey) : '';
+  hud.innerHTML = '<b>' + disp(m ? m.userData.name : 'Hover a zone') + '</b>' + (sn ? ' \u00b7 ' + disp(sn) : '');
   const u = m ? m.userData : {};
   renderer.domElement.style.cursor =
     u.deckOf ||

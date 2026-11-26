@@ -30,6 +30,10 @@ const apiErrors = () => {
       if (g.cond && !A.conds.includes(g.cond)) bad.push(d.id + ': unknown condition ' + g.cond);
       walk(d.id, g.effects, 'effects');
     });
+    (d.traps || []).forEach(g => {
+      g.on === 'zoneEnter' || bad.push(d.id + ': a trap triggers on zoneEnter, not ' + g.on);
+      walk(d.id, g.effects, 'effects');
+    });
     (d.abilities || []).forEach(a => {
       walk(d.id, a.effects, 'effects');
       walk(d.id, a.cost, 'costs');

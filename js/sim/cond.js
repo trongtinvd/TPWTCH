@@ -47,6 +47,7 @@ Sim.def('cond', function (K) {
       c === subject && (t.types || ['combat']).includes((evt && evt.type) || 'combat'), // which damage types (default combat)
     combat: (s, c) => ctl(c) === s.active,
     combatEnd: (s, c) => ctl(c) === s.active,
+    zoneEnter: () => false, // a card entered a zone: the event of a zone's trap (def.traps, js/sim/secrets.js), never of a card's own trigger
   };
   // continuous effects a card may carry in `passives`; they are not run, the rules read them (value = where)
   const PASSIVES = { Obscure: 'cloudMap', Aura: 'recalc', Keyword: 'hasKw' }; // Keyword: Flash, read by hasKw (Retaliate is a trigger)

@@ -160,6 +160,7 @@ Sim.def('statuses', function (K) {
       bonus: () => 'Attack gets +' + st.amount + ' damage' + by,
       cloud: () => 'Covered by a black cloud' + by,
       unusable: () => 'Zone is unusable' + by,
+      zoneSecret: () => 'Secret trap' + by + ' (only its placer sees it)',
       zonehp: () => 'Zone HP +' + st.amount + ' (one shared bar)' + by,
       zonedmg: () => 'Zone damage ' + st.amount + by + dmgFlags(st),
       attackCounter: () => 'Attack counter: attacking spends it; it ends with the combat phase',
