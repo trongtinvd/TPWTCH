@@ -22,6 +22,7 @@
     for (let i = 0; i < str.length; i++) h = Math.imul(h ^ str.charCodeAt(i), 0x01000193) >>> 0;
     return h.toString(16).padStart(8, '0');
   };
+  const prHash = s => hash(JSON.stringify([s.priority, s.passes, s.respond])); // the priority fields after a command (js/sim/priority.js)
   const stateHash = s => hash(JSON.stringify(s, (k, v) => (k === 'def' ? v && v.id : v))); // a card's definition is content, not state: its id stands for it
   // the games: varied seeds, decks and options. Decks are stored as card ids, so a new card in the pool does not change them
   const SPECS = () => {
@@ -69,19 +70,24 @@
       rnd = botRng(sp.bot),
       mem = {},
       cmds = [],
-      ev = [];
+      ev = [],
+      pr = [];
     for (let i = 0; i < MAX && !s.result; i++) {
       const cmd = botChoose(s, botActor(s), rnd, mem);
       if (!cmd) break;
       const r = Sim.dispatch(s, cmd);
       cmds.push(cmd);
       ev.push(hash(JSON.stringify(r.events)));
+      pr.push(prHash(s));
     }
-    return Object.assign({}, sp, { cmds, ev, final: stateHash(s), result: s.result, turn: s.turn });
+    const g = Object.assign({}, sp, { cmds, ev, final: stateHash(s), result: s.result, turn: s.turn });
+    Object.defineProperty(g, 'pr', { value: pr }); // not in replays.json: tests/golden/priority.json keeps it
+    return g;
   }
   if (typeof GOLDEN_RECORD !== 'undefined')
     Tests.add('golden-record', () => {
       GOLDEN_RECORD.games = SPECS().map(record);
+      GOLDEN_RECORD.priority = GOLDEN_RECORD.games.map(g => g.pr);
     });
 
   Tests.add('golden-replays', () => {
@@ -108,5 +114,29 @@
       }
     }
     eq('every recorded game replays identically (events, final state, bot choices)', bad.slice(0, 4), []);
+  });
+
+  // the priority fields {priority, passes, respond} after every command of every recorded game: pinned before the priority
+  // state machine (js/sim/priority.js) took them over, so the refactor provably changed none of them
+  Tests.add('golden-priority', () => {
+    if (!headless) return;
+    const G = JSON.parse(readRepoFile('tests/golden/replays.json')).games,
+      P = JSON.parse(readRepoFile('tests/golden/priority.json')).games,
+      bad = [];
+    check(
+      'one priority record per recorded game',
+      P.length === G.length && P.every((p, k) => p.length === G[k].cmds.length)
+    );
+    for (const [k, g] of G.entries()) {
+      const s = create(g);
+      for (let i = 0; i < g.cmds.length; i++) {
+        Sim.dispatch(s, structuredClone(g.cmds[i]));
+        if (prHash(s) !== P[k][i]) {
+          bad.push('game ' + k + ' command ' + i + ': ' + JSON.stringify([s.priority, s.passes, s.respond]));
+          break;
+        }
+      }
+    }
+    eq('priority, passes and respond after every recorded command are unchanged', bad.slice(0, 4), []);
   });
 })();

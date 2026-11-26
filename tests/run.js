@@ -73,6 +73,11 @@ if (sandbox.GOLDEN_RECORD) {
       .join(',\n') +
     '\n  }';
   fs.writeFileSync(file, '{"format": 1, "games": [\n' + games.map(game).join(',\n') + '\n]}\n');
+  const pri = sandbox.GOLDEN_RECORD.priority; // {priority, passes, respond} after each command (one hash each, one game per line)
+  fs.writeFileSync(
+    path.join(root, 'tests/golden/priority.json'),
+    '{"format": 1, "games": [\n' + pri.map(p => '  ' + JSON.stringify(p)).join(',\n') + '\n]}\n'
+  );
   console.log(
     'recorded ' + games.length + ' games, ' + games.reduce((n, g) => n + g.cmds.length, 0) + ' commands -> ' + file
   );
