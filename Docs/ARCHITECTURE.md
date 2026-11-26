@@ -64,7 +64,29 @@ Layered: original, granted, disabled/removed, effective. Never delete; compute t
 
 ## Turn state machine [proto]
 
-`js/sim/turn.js` is the only writer of the turn's fields (`step`, `attackPhase`, `combats`, `turn`, and the pending flags `drawPending`, `mainPending`, `turnEnding`, `mainEndDone`); every other file reads them. The stage is `step`, or `ending` while `turnEnding` holds. Transitions (`Sim.TURN`, each with the stages it may start from): `gameStarted`, `drawBegins` / `drawEnds` (start -> draw -> main), `mainDue` / `mainSeen` (the main phase started stop), `combat` (on / off), `combatEndsTurn` (End turn during combat), `extraCombat` (Shark), `endStepDue`, `endStep`, `nextTurn` / `turnStarts`, `deferredRuns` / `deferredDone`, `forceCombat` (tests only). The rules tests turn `RULES.strictTurn` on: a transition from another stage throws. The fields stay on the state, so replays and the golden games keep their shape.
+`js/sim/turn.js` is the only writer of the turn's fields (`step`, `attackPhase`, `combats`, `turn`, and the pending flags `drawPending`, `mainPending`, `turnEnding`, `mainEndDone`); every other file reads them. The stage is `step`, or `ending` while `turnEnding` holds. Transitions (`Sim.TURN`, each with the stages it may start from): `gameStarted`, `drawBegins` / `drawEnds` (start -> draw -> main), `mainDue` / `mainSeen` (the main phase started stop), `combat` (on / off), `combatEndsTurn` (End turn during combat), `extraCombat` (Shark; it cancels the first combat's `combatEnd` window through the priority machine), `endStepDue`, `endStep`, `nextTurn` / `turnStarts`, `deferredRuns` / `deferredDone`, `forceCombat` (tests only). The rules tests turn `RULES.strictTurn` on: a transition from another stage throws. The fields stay on the state, so replays and the golden games keep their shape.
+
+## Priority state machine [proto]
+
+`js/sim/priority.js` is the only writer of the priority fields (`priority`, `passes`, and `respond`, the empty-stack response window `{kind, stage:'foe'|'turn', then?}`); every other file calls its transitions (a source-scan test, `priority-write-guard`, enforces it). The stops (`stopOn`, `stopWants`), `respPri`, `openRespond` and `stopAt` live there too; the stop icons read `Sim.stopOn`.
+
+Situations (`Sim.prSituation`): `choice` (a pending choice), `stack` (the stack is not empty), `window:foe` / `window:turn` (an empty-stack window), `idle` (the turn player acts). A push is noted once the object is on the stack, so push transitions start from `stack`. With `RULES.strictTurn` (the rules tests) a transition from another situation throws, like the turn transitions.
+
+| Transition (`Sim.PRIORITY`) | From | Effect |
+|---|---|---|
+| `objectPushed(controller)` | stack | passes = 0; priority -> other(controller) (spells, abilities) |
+| `pushedByEffect` | stack | passes = 0; priority stays (L4 playing a card from inside its effect) |
+| `attackDeclared(controller)` | stack, choice | passes = 0; priority -> other(controller), after the attack triggers |
+| `triggersPushed` | stack | passes = 0; priority -> the non-turn player |
+| `passed` | stack | passes++; returns `'resolve'` at 2 (the count stays until the object is done), else priority -> other |
+| `resolved` | idle, stack, window:* | passes = 0; priority -> the window holder if a window is open, else the turn player |
+| `windowOpened({kind, then, ev})` | idle, stack, choice | foe if the non-turn player wants the stop, else turn if the turn player does, else none; returns whether one opened |
+| `windowPassed(ev)` | window:* | foe -> turn when the turn player wants the same stop (Q49), else closes (priority -> turn player, except `end`); returns `{closed, kind, then}` |
+| `windowCancelled({kind, ev})` | any | closes that window if it is open (called by the turn transition `extraCombat` for `combatEnd`) |
+| `drawStepBegan` / `turnBegan` | idle | passes = 0; priority -> the turn player (`turnBegan` also clears `respond`) |
+| `gameStarted(first)` | idle | priority -> the first player of a race |
+
+The deferred `then` command (a Combat / End turn press waiting for "main phase ended") still runs in `dispatch.js`. `tests/golden/priority.json` pins `[priority, passes, respond]` after every golden command (suite `golden-priority`).
 
 ## Stack, priority, attacks
 
