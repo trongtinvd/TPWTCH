@@ -15,19 +15,8 @@ Sim.def('dispatch', function (K) {
   let askCounters, resume; // fx
   let CH; // ch
   let canAttack, dealDamage, declareAttack; // combat
-  let advanceTrg,
-    canActivate,
-    canPlay,
-    checkTurnEnd,
-    endTurn,
-    enterEndStep,
-    fire,
-    openRespond,
-    pushObj,
-    resolveObj,
-    respPri,
-    stopAt,
-    stopWants; // stack
+  let advanceTrg, canActivate, canPlay, checkTurnEnd, endTurn, enterEndStep, fire, pushObj, resolveObj; // stack
+  let prGo, openRespond, stopAt; // priority
   function settle(s, ev) {
     // the end of a resolution: a spell goes to the graveyard (or the hand), an ability token ceases to exist, then the stack-emptied stop.
     // A spell whose effect asks for choices (Fusion: materials, summon) stays "resolving" until the last answer, so its effects happen BEFORE it leaves the stack.
@@ -45,8 +34,7 @@ Sim.def('dispatch', function (K) {
         s.piles[c.owner].gy.unshift(c); // newest first
       }
     } else if (r.kind !== 'attack') c.loc = 'gone'; // ability tokens cease to exist
-    s.passes = 0;
-    s.priority = s.respond ? respPri(s) : s.active;
+    prGo(s, 'resolved'); // priority: the holder of an open window, else the turn player
     if (!r.dead) ev.push({ t: 'StackObjectResolved', iid: c.iid });
     if (!s.stack.length) {
       ev.push({ t: 'StackEmptied' });
@@ -74,8 +62,7 @@ Sim.def('dispatch', function (K) {
     ev.push({ t: 'DrawStepEntered', player: s.active });
     drawCards(s, s.active, s.cfg.drawPhase, ev);
     turnGo(s, 'drawEnds');
-    s.priority = s.active;
-    s.passes = 0;
+    prGo(s, 'drawStepBegan');
     fire(s, ev, 'drawStep', null);
     if (s.cfg.drawPhase > 0) stopAt(s, ev, 'draw'); // stop: cards drawn
     turnGo(s, 'mainDue'); // the "main phase started" stop comes once the draw phase is over
@@ -136,7 +123,10 @@ Sim.def('dispatch', function (K) {
           s.phase = 'play';
           for (const p of ['Player', 'Opponent']) drawCards(s, p, s.cfg.startHand, ev, true); // the opening hand: not counted
           ev.push({ t: 'GameStarted' });
-          if (s.race) s.active = s.priority = pickTurn(s, null, ev); // farthest ahead goes first (a tie: coin toss)
+          if (s.race) {
+            s.active = pickTurn(s, null, ev); // farthest ahead goes first (a tie: coin toss)
+            prGo(s, 'gameStarted', s.active);
+          }
           gainAP(s, s.active, ev); // the first turn's action point
           turnGo(s, 'gameStarted'); // the first turn has a draw phase too
         }
@@ -204,8 +194,7 @@ Sim.def('dispatch', function (K) {
             tsid,
             statuses: [],
           });
-          s.passes = 0;
-          s.priority = other(c.owner);
+          prGo(s, 'objectPushed', c.owner);
           ev.push({ t: 'StackObjectCreated', iid: c.iid });
         } // the opponent gets priority first; the stack resolves only after two passes in a row
         break;
@@ -215,20 +204,10 @@ Sim.def('dispatch', function (K) {
         if (!s.stack.length) {
           // passing in an empty-stack response window closes it
           if (!s.respond) return fail('Nothing on the stack');
-          const r = s.respond,
-            k = r.kind;
-          if (r.stage === 'foe' && stopWants(s, s.active, k)) {
-            // Q49: the non-turn player passed; now the turn player gets the stop
-            r.stage = 'turn';
-            s.priority = s.active;
-            ev.push({ t: 'ResponseWindowOpened', kind: k, player: s.active });
-            break;
-          }
-          s.respond = null;
-          ev.push({ t: 'ResponseWindowClosed', kind: k });
-          if (k === 'end') endTurn(s, ev);
+          const r = prGo(s, 'windowPassed', ev); // Q49: the non-turn player passed, the turn player may get the same stop
+          if (!r.closed) break;
+          if (r.kind === 'end') endTurn(s, ev);
           else {
-            s.priority = s.active;
             if (r.then) {
               // the Combat / End turn press that waited for "main phase ended" happens now (it may have become illegal meanwhile)
               turnGo(s, 'deferredRuns');
@@ -240,17 +219,14 @@ Sim.def('dispatch', function (K) {
           }
           break;
         }
-        if (++s.passes >= 2) {
+        if (prGo(s, 'passed') === 'resolve') {
           const o = s.stack.pop(),
             dead = o.hp <= -1;
           if (dead) ev.push({ t: 'StackObjectCountered', sid: o.sid, iid: o.iid });
           else resolveObj(s, o, ev);
           s.resolving = { kind: o.kind, iid: o.iid, toHand: !!o.toHand, dead }; // the object is done only when none of its choices is pending
           if (!s.choice) settle(s, ev);
-        } else {
-          s.priority = other(s.priority);
-          ev.push({ t: 'PriorityPassed', to: s.priority });
-        }
+        } else ev.push({ t: 'PriorityPassed', to: s.priority });
         break;
       }
       case 'SetAttackPhase': {
@@ -480,15 +456,14 @@ Sim.def('dispatch', function (K) {
       'payCost',
       'pushObj',
       'recalc',
+      'prGo',
       'release',
       'removeStatus',
       'resolveObj',
-      'respPri',
       'resume',
       'slowish',
       'spendAP',
       'stopAt',
-      'stopWants',
       'sweepUnusable',
       'targetColumns',
       'targetZones',
@@ -496,6 +471,7 @@ Sim.def('dispatch', function (K) {
     link: () => {
       ({ autoOne } = K);
       ({ turnGo, pickTurn } = K);
+      ({ prGo } = K);
       ({ TARGETINGS, activate, ask, endCombatStatuses, placeAttackCounters, spendAttackCounter } = K);
       ({ RULES, historyBytes } = K);
       ({ ctl } = K);
@@ -534,12 +510,10 @@ Sim.def('dispatch', function (K) {
         release,
         removeStatus,
         resolveObj,
-        respPri,
         resume,
         slowish,
         spendAP,
         stopAt,
-        stopWants,
         sweepUnusable,
         targetColumns,
         targetZones,

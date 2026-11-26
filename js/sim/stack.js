@@ -3,7 +3,7 @@ Sim.def('stack', function (K) {
   let autoOne; // fx
   // imports (bound by Sim.boot once every module is loaded)
   let turnGo, nextTurnPlayer; // turn
-  let openRespond, stopAt; // priority
+  let prGo, openRespond, stopAt; // priority
   let ctl;
   let byId, isPerm, other, slotRow, slowish; // util
   let gainAP, hasAP; // ap
@@ -78,7 +78,7 @@ Sim.def('stack', function (K) {
       tgt = findTarget(s, c, a);
     for (const k of a.cost || []) payCost(s, c, k, ev); // costs are paid on activation
     pushObj(s, c, 'abilities', i, ev, tgt ? tgt.iid : null, pick != null ? { pick } : null);
-    s.priority = other(ctl(c)); // the opponent gets priority first
+    prGo(s, 'objectPushed', ctl(c)); // the opponent gets priority first
     ev.push({ t: 'AbilityActivated', iid: c.iid, ab: i, speed: a.speed });
   }
   function hitStack(s, u, n, ev) {
@@ -133,8 +133,7 @@ Sim.def('stack', function (K) {
         extra || null // pick: what the trigger targeted when it was put on the stack
       )
     );
-    s.passes = 0;
-    ev.push({ t: 'StackObjectCreated', iid: c.iid });
+    ev.push({ t: 'StackObjectCreated', iid: c.iid }); // the caller makes the priority transition (objectPushed / triggersPushed)
   }
   function fire(s, ev, on, subject, evt) {
     // event -> ALL matching triggers go onto the stack together, then priority passes (non-turn player first)
@@ -241,7 +240,7 @@ Sim.def('stack', function (K) {
       pushed = true;
     }
     s.trg = null;
-    if (pushed) s.priority = other(s.active); // only now does priority pass: the NON-turn player responds first
+    if (pushed) prGo(s, 'triggersPushed'); // only now does priority pass: the NON-turn player responds first
   }
   function resolveObj(s, o, ev) {
     // the object is already popped
@@ -318,8 +317,7 @@ Sim.def('stack', function (K) {
     clearAttacked(s, 'turn ended');
     s.active = nextTurnPlayer(s, ev); // Distance / Speed / Acceleration (or strict alternation without a race)
     turnGo(s, 'nextTurn');
-    s.priority = s.active;
-    s.passes = 0;
+    prGo(s, 'turnBegan');
     ev.push({ t: 'TurnChanged', active: s.active });
     gainAP(s, s.active, ev); // one action point at the start of each turn; unspent ones stay
     turnGo(s, 'turnStarts'); // the draw phase follows once the turn start is over (dispatch: checkDrawStep)
@@ -344,6 +342,7 @@ Sim.def('stack', function (K) {
       'autoOne',
       'turnGo',
       'nextTurnPlayer',
+      'prGo',
       'openRespond',
       'stopAt',
       'expireStatuses',
@@ -382,7 +381,7 @@ Sim.def('stack', function (K) {
     link: () => {
       ({ autoOne } = K);
       ({ turnGo, nextTurnPlayer } = K);
-      ({ openRespond, stopAt } = K);
+      ({ prGo, openRespond, stopAt } = K);
       ({ expireStatuses, findTarget, payCost } = K);
       ({ ctl } = K);
       ({ expiresAtTurnEnd, hasKw, hasSt } = K);

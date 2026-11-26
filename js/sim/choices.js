@@ -2,6 +2,7 @@
 // then playing the opponent's top card (L4: The Librarian). Each flow is started by an op (ops.js) and continued by a CH handler (ch.js).
 Sim.def('choices', function (K) {
   let autoOne; // fx
+  let prGo; // priority
   // imports (bound by Sim.boot once every module is loaded)
   let ctl;
   let byId, cname, isPerm, other, zoneDist; // util
@@ -201,7 +202,7 @@ Sim.def('choices', function (K) {
         untargeted: mustTarget(t.def) || undefined, // it fizzles on resolve (stack.js)
         statuses: [],
       });
-      s.passes = 0;
+      prGo(s, 'pushedByEffect'); // the count resets; priority stays while the Librarian goes on
       ev.push({ t: 'StackObjectCreated', iid: t.iid });
     }
     declareAsk(s, me, c, ev); // repeat this effect
@@ -210,6 +211,7 @@ Sim.def('choices', function (K) {
     exports: { declareAsk, libLook, libPlay, pairLabel, pairOptions, pairPicked, pairStart, reorderAsk, reorderStart },
     needs: [
       'autoOne',
+      'prGo',
       'addStatus',
       'isRevealed',
       'ctl',
@@ -229,6 +231,7 @@ Sim.def('choices', function (K) {
     ],
     link: () => {
       ({ autoOne } = K);
+      ({ prGo } = K);
       ({ addStatus, isRevealed } = K);
       ({ ctl } = K);
       ({ REQS, ask, byId, cloudMap, cname, destroy, enterBoard, freeSlots, has, isPerm, isUnusable, other, zoneDist } =

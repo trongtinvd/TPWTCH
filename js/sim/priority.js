@@ -6,7 +6,8 @@
 //             then the turn player when they want the same stop (Q49). then = a command waiting for the window to close (main ended)
 // Situations: 'choice' (a pending choice), 'stack' (the stack is not empty), 'window:foe' / 'window:turn' (an empty-stack window),
 // 'idle' (none of these: the turn player acts). Each transition lists the situations it may start from; with RULES.strictTurn on
-// (the rules tests) a transition from any other situation throws, like the turn transitions.
+// (the rules tests) a transition from any other situation throws, like the turn transitions. A push is noted once the object is on
+// the stack, so the push transitions start from 'stack' (or 'choice': the attack triggers asked for their order).
 Sim.def('priority', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
   let RULES, other; // util
@@ -31,18 +32,19 @@ Sim.def('priority', function (K) {
   const P = {
     // a spell or an ability goes on the stack: the count resets, the other player answers first
     objectPushed: {
-      from: ['stack', 'choice'],
+      from: ['stack'],
       run: (s, controller) => ((s.passes = 0), (s.priority = other(controller))),
     },
-    // a spell put on the stack while its controller is still choosing (L4: The Librarian): the count resets, priority stays
-    pushedInChoice: { from: ['choice'], run: s => (s.passes = 0) },
+    // a spell put on the stack by an effect that goes on choosing (L4: The Librarian plays a card from inside its effect): the
+    // count resets, priority stays where it is
+    pushedByEffect: { from: ['stack'], run: s => (s.passes = 0) },
     // an Attack (and its triggers above it): the defender answers first
     attackDeclared: {
       from: ['stack', 'choice'],
       run: (s, controller) => ((s.passes = 0), (s.priority = other(controller))),
     },
     // triggers went onto the stack together: only now does priority pass, the NON-turn player responds first
-    triggersPushed: { from: ANY, run: s => ((s.passes = 0), (s.priority = other(s.active))) },
+    triggersPushed: { from: ['stack'], run: s => ((s.passes = 0), (s.priority = other(s.active))) },
     // a pass on a non-empty stack: 'resolve' at the second pass in a row (the count stays until the object is done), else priority goes over
     passed: {
       from: ['stack'],
@@ -54,7 +56,7 @@ Sim.def('priority', function (K) {
     },
     // the resolving object is done: the count resets, priority goes to the holder of an open window, else to the turn player
     resolved: {
-      from: ANY,
+      from: ['idle', 'stack', 'window:foe', 'window:turn'], // never during a choice: the object is done after its last answer
       run: s => ((s.passes = 0), (s.priority = s.respond ? respPri(s) : s.active)),
     },
     // an empty-stack window at a stop (triggers already on the stack resolve first): the non-turn player first when they want it,
@@ -105,7 +107,7 @@ Sim.def('priority', function (K) {
     drawStepBegan: { from: ['idle'], run: s => ((s.priority = s.active), (s.passes = 0)) },
     turnBegan: { from: ['idle'], run: s => ((s.priority = s.active), (s.passes = 0), (s.respond = null)) },
     // the first player of a race (Distance / Speed / Acceleration) gets priority; without a race the state starts with Player
-    gameStarted: { from: ANY, run: (s, first) => (s.priority = first) },
+    gameStarted: { from: ['idle'], run: (s, first) => (s.priority = first) },
   };
   function go(s, name, arg) {
     const t = P[name];

@@ -2,6 +2,7 @@
 Sim.def('combat', function (K) {
   // imports (bound by Sim.boot once every module is loaded)
   let turnGo; // turn
+  let prGo; // priority
   let ctl;
   let expireStatuses, live, nonLethalHold, removeStatus;
   let other; // util
@@ -136,11 +137,10 @@ Sim.def('combat', function (K) {
       statuses: [], // damage added to this Attack is a bonus status on it
     };
     s.stack.push(o);
-    s.passes = 0;
     ev.push({ t: 'CreatureAttackDeclared', iid: c.iid, col: +c.slot.split('|')[2], extra: !!extra });
     ev.push({ t: 'StackObjectCreated', iid: c.iid, attack: true });
     fire(s, ev, 'attack', c); // its triggers go ABOVE the Attack: separate objects, resolved (and answered) independently
-    s.priority = other(ctl(c)); // the defender answers first
+    prGo(s, 'attackDeclared', ctl(c)); // the defender answers first (after the attack triggers, which pass priority too)
   }
   function addAttackBonus(s, o, amount, srcName, ev) {
     addStatus(s, o, { kind: 'bonus', amount, srcName }); // damage added to an Attack is a status on it
@@ -192,6 +192,7 @@ Sim.def('combat', function (K) {
       strike,
     },
     needs: [
+      'prGo',
       'turnGo',
       'expireStatuses',
       'live',
@@ -215,6 +216,7 @@ Sim.def('combat', function (K) {
     ],
     link: () => {
       ({ turnGo } = K);
+      ({ prGo } = K);
       ({ expireStatuses, live, nonLethalHold, removeStatus } = K);
       ({ ctl } = K);
       ({ allowed, bonusOf } = K);
