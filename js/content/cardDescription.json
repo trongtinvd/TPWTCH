@@ -228,6 +228,12 @@
       "text": {
         "body": "Slow spell, 0 AP (1hp). Cost: reveal your hand. Your opponent secretly selects one of those cards; it secretly gains Duplicate (the status survives zone changes)."
       }
+    },
+    "betrayal": {
+      "name": "Unexpected Betrayal",
+      "text": {
+        "body": "Slow spell (1hp). Reveal your opponent's hand, secretly select a card; it secretly gains the passive \"when you play this card, switch its controller\"."
+      }
     }
   }
 }

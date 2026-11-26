@@ -51,7 +51,7 @@ Sim.def('cond', function (K) {
     zoneEnter: () => false, // a card entered a zone: the event of a zone's trap (def.traps, js/sim/secrets.js), never of a card's own trigger
   };
   // continuous effects a card may carry in `passives`; they are not run, the rules read them (value = where)
-  const PASSIVES = { Obscure: 'cloudMap', Aura: 'recalc', Keyword: 'hasKw' }; // Keyword: Flash, read by hasKw (Retaliate is a trigger)
+  const PASSIVES = { Obscure: 'cloudMap', Aura: 'recalc', Keyword: 'hasKw', Betray: 'PlayCard' }; // Keyword: Flash, read by hasKw (Retaliate is a trigger)
   return {
     exports: { COND, EXCOND, PASSIVES, TRIGGERS },
     needs: ['ctl', 'cloudMap', 'colKeys', 'hasSt', 'recalc', 'zoneDist'],

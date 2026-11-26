@@ -184,7 +184,7 @@ Sim.def('fx', function (K) {
     const howOf = o => {
       const c = s.cards[o];
       if (c) {
-        if ((c.loc === 'hand' && c.owner === p) || (c.loc === 'board' && canSee(s, p, c))) return 'click';
+        if ((c.loc === 'hand' || c.loc === 'board') && canSee(s, p, c)) return 'click'; // own hand, a revealed card of the other hand, the board
         return c.loc === 'board' ? 'zone' : 'list';
       }
       if (pair || /^Z:/.test(o) || ZONE.test(o)) return 'zone';

@@ -9,7 +9,8 @@ Sim.def('dispatch', function (K) {
   let gainAP, hasAP, spendAP; // ap
   let lg; // logs
   let PL, abDef, addStatus, dmgs, has, live, removeStatus; // statuses
-  let declareWinner, freeSlots, recalc, release, sweepUnusable; // state
+  let declareWinner, enterBoard, freeSlots, recalc, release, sweepUnusable; // state
+  let revealCard; // secrets
   let findTarget, targetColumns, targetZones; // targeting
   let payCardCost, payCost; // costs
   let askCounters, resume; // fx
@@ -17,6 +18,24 @@ Sim.def('dispatch', function (K) {
   let canAttack, dealDamage, declareAttack; // combat
   let advanceTrg, canActivate, canPlay, checkTurnEnd, endTurn, enterEndStep, fire, pushObj, resolveObj; // stack
   let prGo, openRespond, stopAt; // priority
+  // a betrayed permanent: before it enters, its new controller picks a free zone of their row (one: by itself); none: it goes to its
+  // owner's graveyard. While the pick is pending it is in no pile (like L4's played card)
+  function betrayEnter(s, c, ev) {
+    const f = freeSlots(s, c);
+    if (!f.length) {
+      release(c);
+      c.loc = 'gy';
+      s.piles[c.owner].gy.unshift(c);
+      ev.push({ t: 'BetrayalNoZone', iid: c.iid });
+      return;
+    }
+    if (autoOne(s, ctl(c), f)) {
+      enterBoard(s, c, f[0], ev);
+      if (c.owner === s.active && !s.respond && !s.choice) openRespond(s, ev, 'enter');
+      return;
+    }
+    ask(s, ctl(c), c, 'place', f, null, c.def.name + ': click a free zone of yours for it.', { card: c.iid }, ev);
+  }
   function settle(s, ev) {
     // the end of a resolution: a spell goes to the graveyard (or the hand), an ability token ceases to exist, then the stack-emptied stop.
     // A spell whose effect asks for choices (Fusion: materials, summon) stays "resolving" until the last answer, so its effects happen BEFORE it leaves the stack.
@@ -173,7 +192,16 @@ Sim.def('dispatch', function (K) {
         if (paid) spendAP(s, c.owner, c.def.name + ' (additional cost)', ev);
         if (slowish(c) && c.def.ap !== 0) spendAP(s, c.owner, (isPerm(c) ? 'Summon ' : 'Cast ') + c.def.name, ev);
         const shown = isPerm(c) ? null : payCardCost(s, c, ev); // a spell's costs (Secret Twin: reveal your hand)
-        if (isPerm(c)) {
+        // Unexpected Betrayal's passive: the owner played it and paid every cost (their targets stay), the other player controls it
+        const thief = (abDef(c).passives || []).some(p => p.op === 'Betray') ? other(c.owner) : null;
+        if (thief) {
+          c.controller = thief;
+          revealCard(s, c, 'betray', ev);
+          ev.push({ t: 'ControlSwitched', iid: c.iid, player: thief });
+        }
+        if (isPerm(c) && thief)
+          betrayEnter(s, c, ev); // the thief picks a zone on their side (none free: to the owner's GY)
+        else if (isPerm(c)) {
           s.slots[cmd.slot] = c.iid;
           c.slot = cmd.slot;
           c.loc = 'board';
@@ -188,7 +216,7 @@ Sim.def('dispatch', function (K) {
             sid: ++s.sid,
             kind: 'spell',
             iid: c.iid,
-            controller: c.owner,
+            controller: ctl(c),
             hp: c.def.hp,
             name: c.def.name + (c.def.colTarget ? ' \u2192 col ' + (cmd.col + 1) : ''),
             col: cmd.col,
@@ -425,6 +453,8 @@ Sim.def('dispatch', function (K) {
       'TARGETINGS',
       'activate',
       'ask',
+      'enterBoard',
+      'revealCard',
       'endCombatStatuses',
       'placeAttackCounters',
       'spendAttackCounter',
@@ -480,6 +510,7 @@ Sim.def('dispatch', function (K) {
       ({ turnGo, pickTurn } = K);
       ({ prGo } = K);
       ({ TARGETINGS, activate, ask, endCombatStatuses, placeAttackCounters, spendAttackCounter } = K);
+      ({ enterBoard, revealCard } = K);
       ({ RULES, historyBytes } = K);
       ({ ctl } = K);
       ({

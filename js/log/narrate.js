@@ -346,6 +346,12 @@ const Narrate = (function () {
         case 'ZoneUnusable':
           line(zoneTxt(e.slot) + ' becomes unusable');
           break;
+        case 'ControlSwitched':
+          line(C(e.iid) + ' switches sides: ' + P(e.player) + ' controls it');
+          break;
+        case 'BetrayalNoZone':
+          line(C(e.iid) + ' has no free zone on the other side and goes to the graveyard');
+          break;
         case 'HandRevealed':
           line(P(e.player) + ' reveals their hand to ' + P(e.to) + ((e.iids || []).length ? '' : ' (it is empty)'));
           break;

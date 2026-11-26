@@ -243,6 +243,7 @@ const Translate = (function () {
       ' deck and put them back on top in any order',
     DeclareName: () =>
       'declare a card name, then look at the top card of your opponent’s deck; if it has that name you may play it, and repeat this effect',
+    Betray: () => 'when you play this card, switch its controller',
     Obscure: () =>
       'a black cloud covers each of your other zones: your opponent cannot see those zones or the cards on them, and abilities from under a cloud appear to come from this card',
     InheritAbilities: (e, c) =>
@@ -549,6 +550,7 @@ const Fx = {
   }),
   rider: { inheritAbilities: () => ({ op: 'InheritAbilities' }) }, // damage this card deals: the victim loses its abilities and gains this card's.
   colTarget: { full: 'fullColumn' }, // spell target: a column (chosen when the spell is played)
+  betray: () => ({ op: 'Betray' }), // passive (Unexpected Betrayal's grant): when its owner plays it, the other player controls it
   obscure: () => ({ op: 'Obscure' }), // passive: a black cloud covers each of the controller's other zones
   exileColumn: () => ({ op: 'ExileColumn' }), // effect: exile every card on the targeted column
   makeColumnUnusable: () => ({ op: 'MakeColumnUnusable' }), // effect: the targeted column's four zones become unusable for the rest of the game
@@ -685,8 +687,9 @@ const GRANTS = {
       Object.assign(d.type === 'spell' ? Fx.duplicateSpell(1) : Fx.duplicate(1), { grant: 'duplicate' }),
     ]),
   }),
+  betray: d => ({ passives: (d.passives || []).concat([Object.assign(Fx.betray(), { grant: 'betray' })]) }),
 };
-const GRANT_TEXT = { duplicate: 'Duplicate' };
+const GRANT_TEXT = { duplicate: 'Duplicate', betray: '\u201cwhen you play this card, switch its controller\u201d' };
 const FIXTURES = []; // ability-less cards kept ONLY for headless tests; not part of the game's card pool
 const PHC = 'Placeholder creature. No ability yet.',
   PHE = 'Placeholder enchantment. No effect yet.',
@@ -1008,6 +1011,13 @@ Cards.add(Fx =>
     ap: 0,
     cost: [Fx.revealHand()],
     effects: [Fx.secretGrant('duplicate', 'foe', 'shown')],
+  })
+);
+// Unexpected Betrayal: Slow, 1 AP. Reveal your opponent's hand; secretly select one of those cards; it secretly gains the passive
+// "when you play this card, switch its controller" (js/sim/stack.js betray)
+Cards.add(Fx =>
+  Fx.slow('betrayal', 'Unexpected Betrayal', 1, {
+    effects: [Fx.revealFoeHand(), Fx.secretGrant('betray', 'self', 'foeHand')],
   })
 );
 // ---- Extra deck creatures (keep them last: the extra deck of the 'Full Pool' deck is in this order)

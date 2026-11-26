@@ -122,6 +122,16 @@ Sim.def('secrets', function (K) {
       ev.push({ t: 'SecretRevealed', id: r.id, player: r.by, name: r.name, card: c.iid });
     }
   }
+  // card c's secret `what` acted (Betrayal: its owner played it): revealed, the status becomes public
+  function revealCard(s, c, what, ev) {
+    for (const r of s.secrets || [])
+      if (r.state === 'armed' && r.kind === 'card' && r.card === c.iid && r.what === what) {
+        r.state = 'revealed';
+        r.cands = [c.iid];
+        for (const st of live(c)) if (st.secret === r.id) st.revealed = true;
+        ev.push({ t: 'SecretRevealed', id: r.id, player: r.by, name: r.name, card: c.iid });
+      }
+  }
   // what p may know of every secret: the placer (and everyone once revealed) knows the zone, the other player only the candidates
   const secretsFor = (s, p) =>
     list(s).map(r => {
@@ -141,6 +151,7 @@ Sim.def('secrets', function (K) {
       narrow,
       placeCardSecret,
       placeZoneSecret,
+      revealCard,
       secretHidden,
       secretsFor,
       secretZones,
