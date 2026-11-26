@@ -425,7 +425,7 @@
     // nothing extra, no option in two groups), and only the chooser gets any
     const bad = [];
     let seen = 0;
-    for (const seed of [2235, 2236, 2237]) {
+    for (const seed of [2235, 2236, 2237, 2238]) {
       const g = Sim.create(seed, DEFS, { shuffle: true, autoStart: true, orderTriggers: true }),
         rnd = botRng(seed),
         mem = {};

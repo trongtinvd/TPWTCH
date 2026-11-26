@@ -234,6 +234,12 @@
       "text": {
         "body": "Slow spell (1hp). Reveal your opponent's hand, secretly select a card; it secretly gains the passive \"when you play this card, switch its controller\"."
       }
+    },
+    "doublesummon": {
+      "name": "Double Summon",
+      "text": {
+        "body": "Slow spell (1hp). Pay 3 life; the player who plays this card puts two creatures/enchantments from their hand into play under their control."
+      }
     }
   }
 }

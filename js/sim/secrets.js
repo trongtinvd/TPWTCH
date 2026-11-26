@@ -106,10 +106,11 @@ Sim.def('secrets', function (K) {
   }
   // card c was played or entered ('cast' / 'enter') and `hits` triggered: a card secret on c whose granted trigger is among them is
   // revealed (everyone sees it trigger); a secret elsewhere rules c out (it was played and nothing of the kind triggered)
-  function cardPlayed(s, c, hits, ev) {
+  function cardPlayed(s, c, hits, ev, played) {
     for (const r of s.secrets || []) {
       // (never creates s.secrets: a game without secrets keeps its state shape)
       if (r.state !== 'armed' || r.kind !== 'card') continue;
+      if (r.what === 'betray' && !played) continue; // "when you PLAY this card": entering by an effect (Double Summon) tells nothing
       if (r.card !== c.iid) {
         if (r.cands.includes(c.iid)) r.cands = r.cands.filter(x => x !== c.iid);
         continue;

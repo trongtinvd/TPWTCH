@@ -144,9 +144,10 @@ Sim.def('stack', function (K) {
     );
     ev.push({ t: 'StackObjectCreated', iid: c.iid }); // the caller makes the priority transition (objectPushed / triggersPushed)
   }
-  function fire(s, ev, on, subject, evt) {
+  function fire(s, ev, on, subject, evt, played) {
     // event -> ALL matching triggers go onto the stack together, then priority passes (non-turn player first)
     // evt: what happened, for the triggers that need it ('damaged': {type, source, amount, power, spell}); the stack object keeps it
+    // played: the subject was played from its owner's hand (PlayCard), not put in by an effect (card secrets: Betrayal narrows only then)
     const hits = []; // 1) collect every trigger that matches this event
     for (const c of Object.values(s.cards)) {
       if (c.loc === 'gone' || (c.loc === 'stack' && c !== subject)) continue; // on the stack: only the spell that was just put there ('cast')
@@ -166,7 +167,7 @@ Sim.def('stack', function (K) {
         traps.map(h => h.secret)
       );
     }
-    if ((on === 'enter' || on === 'cast') && subject) cardPlayed(s, subject, hits, ev); // card secrets: revealed by their trigger, else narrowed
+    if ((on === 'enter' || on === 'cast') && subject) cardPlayed(s, subject, hits, ev, played); // card secrets: revealed by their trigger, else narrowed
     if (!hits.length) return;
     // 2) the triggers wait in s.trg: each player with several of them may order them (a choice, non-turn player first; only when the host turned
     //    it on), every trigger with a targeting picks its targets, then they go on the stack: turn player's first, so the other player's resolve first.

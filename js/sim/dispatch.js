@@ -207,7 +207,7 @@ Sim.def('dispatch', function (K) {
           c.loc = 'board';
           if (paid) addStatus(s, c, { kind: 'extraPaid', srcName: 'additional cost' });
           ev.push({ t: 'PermanentSummoned', iid: c.iid, slot: cmd.slot });
-          fire(s, ev, 'enter', c); // before recalc: War Drum answered by War Drum kills both, both triggers still happen
+          fire(s, ev, 'enter', c, undefined, true); // before recalc: War Drum answered by War Drum kills both, both triggers still happen
           recalc(s, ev);
           if (c.owner === s.active && !s.respond) openRespond(s, ev, 'enter');
         } else {
@@ -225,10 +225,11 @@ Sim.def('dispatch', function (K) {
             tsid,
             statuses: [],
             ...(shown ? { shown } : null), // the cards its cost revealed (Secret Twin's effect picks among them)
+            ...(thief ? { by: c.owner } : null), // stolen: the player who played it (Double Summon puts in their cards)
           });
           prGo(s, 'objectPushed', c.owner);
           ev.push({ t: 'StackObjectCreated', iid: c.iid });
-          fire(s, ev, 'cast', c); // the spell was put on the stack: its own 'cast' triggers (Duplicate, spell mode)
+          fire(s, ev, 'cast', c, undefined, true); // the spell was put on the stack: its own 'cast' triggers (Duplicate, spell mode)
         } // the opponent gets priority first; the stack resolves only after two passes in a row
         break;
       }

@@ -57,7 +57,7 @@ Sim.def('costs', function (K) {
     RevealHand: {
       check: () => null,
       pay: (s, c, k, ev) => {
-        const p = c.owner,
+        const p = ctl(c), // its controller's hand (played by L4: the L4 player's)
           foe = p === 'Player' ? 'Opponent' : 'Player',
           L = s.piles[p].hand.filter(x => x !== c);
         for (const x of L)

@@ -71,6 +71,9 @@ Sim.def('state', function (K) {
     for (const k in byId) delete byId[k];
     Object.assign(byId, Object.fromEntries(defs.map(d => [d.id, d])));
     for (const d of defs) for (const w in d.grants || {}) byId[d.grants[w].id] = d.grants[w]; // a card with a gained ability (Secret Twin's Duplicate): cards.js GRANTS
+    // the token defs too (a Duplicate copy of a card with abilities: its triggers resolve through byId), a granted card's included
+    for (const d of Object.values(byId).slice())
+      for (const tk of Object.values(d.tokens || {})) if (tk && tk.id && !byId[tk.id]) byId[tk.id] = tk;
     const cfg = gameCfg(opts.rules);
     const s = {
       n,

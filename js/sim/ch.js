@@ -86,7 +86,7 @@ Sim.def('ch', function (K) {
     upto: (s, k, c, cmd, ev) => {
       if (cmd.option === 'done') return;
       const t = s.cards[cmd.option],
-        P = s.piles[k.player];
+        P = s.piles[k.e.pile || k.player];
       if (t === c && t.loc === 'stack') {
         // Q40: the resolving spell picked itself: it ends up in the hand instead of the graveyard (settle)
         if (s.resolving) s.resolving.toHand = true;

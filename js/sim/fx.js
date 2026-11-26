@@ -89,7 +89,7 @@ Sim.def('fx', function (K) {
         src.def.type === 'spell' &&
         src.owner === p &&
         !(s.resolving && s.resolving.toHand),
-      ids = s.piles[p][e.from]
+      ids = s.piles[e.pile || p][e.from]
         .concat(self ? [src] : [])
         .filter(
           c =>
@@ -104,9 +104,12 @@ Sim.def('fx', function (K) {
       p,
       src,
       'upto',
-      [...ids, 'done'],
+      e.must ? ids : [...ids, 'done'], // must: exactly n (fewer when fewer can enter), no Done
       i => (i === 'done' ? 'Done' : cname(s, i)),
-      src.def.name + ': ' + (e.then === 'play' ? 'put into play' : 'return to hand') + ' (up to ' + left + ' more).',
+      src.def.name +
+        ': ' +
+        (e.then === 'play' ? 'put into play' : 'return to hand') +
+        (e.must ? ' (' + left + ' more).' : ' (up to ' + left + ' more).'),
       { e, left },
       ev
     );

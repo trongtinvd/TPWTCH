@@ -467,7 +467,17 @@ Sim.def('ops', function (K) {
       const k = x.o && x.o.pick;
       if (k && x.s.zones[k]) placeZoneSecret(x.s, x.who, x.src, k, e.trap || 0, x.ev);
     },
-    UpTo: (x, e) => upToAsk(x.s, e.who === 'foe' ? x.foe : x.who, x.src, e, e.n, x.ev),
+    // who 'player': the player who played the spell picks from their own pile... unless it was stolen (Betrayal: the stack object's `by`,
+    // its owner, whose cards enter; the thief picks them)
+    UpTo: (x, e) =>
+      upToAsk(
+        x.s,
+        e.who === 'foe' ? x.foe : x.who,
+        x.src,
+        e.who === 'player' && x.o && x.o.by ? Object.assign({}, e, { pile: x.o.by }) : e,
+        e.n,
+        x.ev
+      ),
     PlaceToken: (x, e) => {
       const s = x.s,
         def = x.src.def.tokens[e.token],

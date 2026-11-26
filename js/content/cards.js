@@ -204,6 +204,16 @@ const Translate = (function () {
     SkipFoeCombat: e => 'pay ' + e.pay + ' life, and your opponent skips their next combat phase',
     SecondCombat: () => 'your opponent draws 5 cards, then enter a second combat phase',
     UpTo: e => {
+      if (e.who === 'player')
+        return (
+          'the player who played this card puts ' +
+          e.n +
+          ' ' +
+          (e.types || ['card']).map(x => x + 's').join(' or ') +
+          ' from their ' +
+          ZONE[e.from] +
+          ' into play under their control'
+        );
       const foe = e.who === 'foe',
         what = e.types ? e.types.map(t => t + 's').join(' or ') : 'cards',
         from = (foe ? 'their ' : 'your ') + ZONE[e.from];
@@ -575,6 +585,9 @@ const Fx = {
   skipFoeCombat: pay => ({ op: 'SkipFoeCombat', pay }),
   secondCombat: () => ({ op: 'SecondCombat' }),
   upTo: (who, from, then, n, types, self) => ({ op: 'UpTo', who, from, then, n, types, self }), // who: me|foe; from: gy|hand; then: toHand|play
+  // the player who played this spell (Betrayal: its owner, not the thief, whose choice it is; L4: the L4 player) puts n cards of `types`
+  // from their hand into play under their control: exactly n, fewer when fewer can enter (must: no Done) (Double Summon)
+  putIn: (n, types) => ({ op: 'UpTo', who: 'player', from: 'hand', then: 'play', n, types, must: true }),
   // Duplicate N (permanent mode): when this enters (Stack HP = the card's HP, set by Cards.derive), create N token copies on free zones of
   // the controller's row, picked by the controller (fewer free zones = fewer copies). Cards.add makes the copy: def.tokens.duplicate
   duplicate: (n = 1) => ({ on: 'enter', kw: 'duplicate', name: 'Duplicate', n, effects: [{ op: 'Duplicate', n }] }),
@@ -1018,6 +1031,14 @@ Cards.add(Fx =>
 Cards.add(Fx =>
   Fx.slow('betrayal', 'Unexpected Betrayal', 1, {
     effects: [Fx.revealFoeHand(), Fx.secretGrant('betray', 'self', 'foeHand')],
+  })
+);
+// Double Summon: Slow, 1 AP. Pay 3 life; the player who played this card puts two creatures/enchantments from their hand into play
+// under their control (fewer when fewer can enter). Stolen by Betrayal: the owner pays and their cards enter, the thief picks them
+Cards.add(Fx =>
+  Fx.slow('doublesummon', 'Double Summon', 1, {
+    cost: [Fx.payLife(3)],
+    effects: [Fx.putIn(2, ['creature', 'enchantment'])],
   })
 );
 // ---- Extra deck creatures (keep them last: the extra deck of the 'Full Pool' deck is in this order)

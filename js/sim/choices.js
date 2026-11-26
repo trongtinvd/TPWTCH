@@ -12,6 +12,7 @@ Sim.def('choices', function (K) {
   let cloudMap, destroy, enterBoard, freeSlots, isUnusable; // state
   let ask; // fx
   let REQS; // reqs
+  let COSTS, payCardCost; // costs
   // ---- Widow Maker: target two adjacent cards the opponent controls; THEY send one of them to the graveyard
   const slotText = k => k.split('|').slice(1).join(' ');
   function pairOptions(s, who) {
@@ -115,7 +116,7 @@ Sim.def('choices', function (K) {
   // ---- L4, second ability: declare a name, look at the opponent's top card; if it has that name you may play it (you control it while it is in play / on the stack), then repeat
   function declareAsk(s, who, src, ev) {
     const defs = Object.values(byId)
-      .filter(d => d.type !== 'ability')
+      .filter(d => d.type !== 'ability' && !d.grantOf && !d.isToken) // card names only: no gained-ability variant, no token
       .sort((a, b) => a.name.localeCompare(b.name));
     ask(
       s,
@@ -141,7 +142,10 @@ Sim.def('choices', function (K) {
       if (isPerm(t)) return freeSlots(s, t).length > 0;
       const d = t.def,
         skip = mustTarget(d) ? TARGET_REQS : [];
-      return (d.req || []).every(r => skip.includes(r) || !REQS[r] || !REQS[r](s, t, d));
+      return (
+        (d.req || []).every(r => skip.includes(r) || !REQS[r] || !REQS[r](s, t, d)) &&
+        (d.cost || []).every(k => !COSTS[k.op].check(s, t, k)) // its costs too, paid by the L4 player (Double Summon: 3 life)
+      );
     } finally {
       if (was === undefined) delete t.controller;
       else t.controller = was;
@@ -188,6 +192,7 @@ Sim.def('choices', function (K) {
           ev
         );
     } else {
+      const shown = payCardCost(s, t, ev); // the L4 player pays the spell's costs (they control it now)
       t.loc = 'stack';
       s.stack.push({
         sid: ++s.sid,
@@ -202,6 +207,7 @@ Sim.def('choices', function (K) {
         tsid: null,
         untargeted: mustTarget(t.def) || undefined, // it fizzles on resolve (stack.js)
         statuses: [],
+        ...(shown ? { shown } : null),
       });
       prGo(s, 'pushedByEffect'); // the count resets; priority stays while the Librarian goes on
       ev.push({ t: 'StackObjectCreated', iid: t.iid });
@@ -219,6 +225,8 @@ Sim.def('choices', function (K) {
       'isRevealed',
       'ctl',
       'REQS',
+      'COSTS',
+      'payCardCost',
       'ask',
       'byId',
       'cloudMap',
@@ -238,6 +246,7 @@ Sim.def('choices', function (K) {
       ({ prGo } = K);
       ({ addStatus, isRevealed } = K);
       ({ ctl } = K);
+      ({ COSTS, payCardCost } = K);
       ({ REQS, ask, byId, cloudMap, cname, destroy, enterBoard, freeSlots, has, isPerm, isUnusable, other, zoneDist } =
         K);
     },
